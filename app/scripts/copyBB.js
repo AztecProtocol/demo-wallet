@@ -40,7 +40,9 @@ function getPlatformArch() {
       } else if (arch === "arm64") {
         return "arm64-linux";
       }
-      console.error(`✗ Unsupported Linux architecture: ${arch}. Only x64 and ARM64 are supported.`);
+      console.error(
+        `✗ Unsupported Linux architecture: ${arch}. Only x64 and ARM64 are supported.`
+      );
       process.exit(1);
     case "win32":
       console.error(`✗ Windows builds are not available for Barretenberg.`);
@@ -50,7 +52,9 @@ function getPlatformArch() {
       process.exit(1);
   }
 
-  console.error(`✗ Unsupported architecture: ${arch} for platform: ${platform}`);
+  console.error(
+    `✗ Unsupported architecture: ${arch} for platform: ${platform}`
+  );
   process.exit(1);
 }
 
@@ -75,9 +79,7 @@ function downloadFile(url, destPath) {
         if (response.statusCode !== 200) {
           file.close();
           fs.unlinkSync(destPath);
-          reject(
-            new Error(`Failed to download: HTTP ${response.statusCode}`)
-          );
+          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
           return;
         }
 

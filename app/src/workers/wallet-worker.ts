@@ -26,10 +26,6 @@ import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
 
-console.log("Worker starting...");
-console.log("process.env:", process.env);
-console.log("process.parentPort exists:", !!process.parentPort);
-
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
   version: schemas.Fr,
@@ -220,7 +216,6 @@ const handleEvent = async (
 };
 
 async function main() {
-  console.log("main() function starting...");
   let userLog;
   process.on("unhandledRejection", (error: Error) => {
     console.error("Unhandled rejection in worker:", error);
@@ -234,18 +229,13 @@ async function main() {
   process.on("uncaughtException", (error: Error) => {
     console.error("Uncaught exception in worker:", error);
     if (userLog) {
-      userLog.error(`Uncaught exception: ${error.message}`);
+      userLog.error(
+        `Unhandled rejection ${typeof error.message == "object" ? inspect(error.message) : error.message}`
+      );
     }
   });
 
-  if (!process.parentPort) {
-    console.error("CRITICAL: process.parentPort is not available!");
-    process.exit(1);
-  }
-
-  console.log("Setting up parentPort message listener...");
   process.parentPort.once("message", async (message: any) => {
-    console.log("Received message on parentPort:", message.data?.type);
     if (message.data.type === "ports" && message.ports?.length) {
       const [externalPort, internalPort, logPort] = message.ports;
       userLog = createProxyLogger("wallet:worker", logPort);
@@ -254,7 +244,13 @@ async function main() {
         if (origin !== "websocket") {
           return;
         }
-        const { type, messageId, args, appId, chainInfo } = JSON.parse(content);
+        let messageContent;
+        try {
+          messageContent = JSON.parse(content);
+        } catch (err) {
+          userLog.debug(`Unable to parse message  ${content}`);
+        }
+        const { type, messageId, args, appId, chainInfo } = messageContent;
         if (appId === "this") {
           throw new Error("External messages cannot have this as appId");
         }

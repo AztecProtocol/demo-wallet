@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v1.0.0)'
+        description: "Release version (e.g., v1.0.0)"
         required: true
         type: string
 
@@ -24,8 +24,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'yarn'
+          node-version: "22"
+          cache: "yarn"
           cache-dependency-path: app/yarn.lock
 
       - name: Install dependencies
@@ -37,6 +37,8 @@ jobs:
         run: yarn run make
         env:
           NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CI: true
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -57,8 +59,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'yarn'
+          node-version: "22"
+          cache: "yarn"
           cache-dependency-path: extension/yarn.lock
 
       - name: Install dependencies

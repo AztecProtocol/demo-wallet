@@ -1,0 +1,91 @@
+name: CI Build
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build-electron:
+    name: Build Electron App
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: app/yarn.lock
+
+      - name: Install dependencies
+        working-directory: ./app
+        run: yarn install --frozen-lockfile
+
+      - name: Build Electron app
+        working-directory: ./app
+        run: yarn run package
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-app-${{ matrix.os }}
+          path: app/out/
+          retention-days: 7
+
+  build-extension:
+    name: Build Browser Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: extension/yarn.lock
+
+      - name: Install dependencies
+        working-directory: ./extension
+        run: yarn install --frozen-lockfile
+
+      - name: Build Chrome extension
+        working-directory: ./extension
+        run: yarn run build
+
+      - name: Build Firefox extension
+        working-directory: ./extension
+        run: yarn run build:firefox
+
+      - name: Type check
+        working-directory: ./extension
+        run: yarn run compile
+
+      - name: Upload Chrome build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-chrome
+          path: extension/.output/chrome-mv3/
+          retention-days: 7
+
+      - name: Upload Firefox build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-firefox
+          path: extension/.output/firefox-mv2/
+          retention-days: 7

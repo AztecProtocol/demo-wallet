@@ -6,7 +6,7 @@ import { parseWithOptionals, schemaHasMethod } from "@aztec/foundation/schemas";
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import { ExternalWallet } from "../wallet/core/external-wallet.ts";
-import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-proxy.ts";
+import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
 import { createPXE, getPXEConfig } from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
 
@@ -26,7 +26,9 @@ import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
 
-console.log(process.env);
+console.log("Worker starting...");
+console.log("process.env:", process.env);
+console.log("process.parentPort exists:", !!process.parentPort);
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -218,15 +220,32 @@ const handleEvent = async (
 };
 
 async function main() {
+  console.log("main() function starting...");
   let userLog;
   process.on("unhandledRejection", (error: Error) => {
+    console.error("Unhandled rejection in worker:", error);
     if (userLog) {
       userLog.error(
         `Unhandled rejection ${typeof error.message == "object" ? inspect(error.message) : error.message}`
       );
     }
   });
+
+  process.on("uncaughtException", (error: Error) => {
+    console.error("Uncaught exception in worker:", error);
+    if (userLog) {
+      userLog.error(`Uncaught exception: ${error.message}`);
+    }
+  });
+
+  if (!process.parentPort) {
+    console.error("CRITICAL: process.parentPort is not available!");
+    process.exit(1);
+  }
+
+  console.log("Setting up parentPort message listener...");
   process.parentPort.once("message", async (message: any) => {
+    console.log("Received message on parentPort:", message.data?.type);
     if (message.data.type === "ports" && message.ports?.length) {
       const [externalPort, internalPort, logPort] = message.ports;
       userLog = createProxyLogger("wallet:worker", logPort);
@@ -314,6 +333,12 @@ async function main() {
       logPort.start();
     }
   });
+
+  console.log("Worker setup complete, waiting for messages...");
 }
 
-main();
+console.log("About to call main()...");
+main().catch((error) => {
+  console.error("Fatal error in main():", error);
+  process.exit(1);
+});

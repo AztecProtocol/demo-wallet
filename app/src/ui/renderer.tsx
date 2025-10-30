@@ -10,7 +10,7 @@ import {
 import { colors } from "./styles.js";
 import { App } from "../ui/App.js";
 import { WalletApi } from "../ui/utils/wallet-api.js";
-import type { InternalWalletInterface } from "../ipc/wallet-internal-proxy.js";
+import type { InternalWalletInterface } from "../ipc/wallet-internal-interface.js";
 import { NetworkProvider, useNetwork } from "./contexts/NetworkContext.js";
 import { networkToChainInfo } from "../config/networks.js";
 

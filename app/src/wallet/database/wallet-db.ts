@@ -1,7 +1,7 @@
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { Fr, Fq } from "@aztec/aztec.js/fields";
 import { type Aliased } from "@aztec/aztec.js/wallet";
-import { type LogFn, type Logger } from "@aztec/foundation/log";
+import { type Logger } from "@aztec/foundation/log";
 import { type AztecAsyncMap, type AztecAsyncKVStore } from "@aztec/kv-store";
 import {
   WalletInteraction,
@@ -9,7 +9,6 @@ import {
 } from "../types/wallet-interaction";
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import { TxExecutionRequest, TxSimulationResult } from "@aztec/stdlib/tx";
-import { json } from "express";
 
 export const AccountTypes = [
   "schnorr",
@@ -397,7 +396,9 @@ export class WalletDB {
     appId: string,
     contacts: Aliased<AztecAddress>[]
   ) {
-    await this.storePersistentAuthorization(appId, "getAddressBook", { contacts });
+    await this.storePersistentAuthorization(appId, "getAddressBook", {
+      contacts,
+    });
   }
 
   /**

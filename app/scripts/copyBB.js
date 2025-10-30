@@ -23,38 +23,35 @@ function getPlatformArch() {
   const platform = process.platform;
   const arch = process.arch;
 
-  let platformName, archName;
-
   // Map Node.js platform to GitHub release naming
   switch (platform) {
     case "darwin":
-      platformName = "darwin";
+      // macOS: use format like "arm64-darwin" or "x86_64-darwin"
+      if (arch === "arm64") {
+        return "arm64-darwin";
+      } else if (arch === "x64") {
+        return "x86_64-darwin";
+      }
       break;
     case "linux":
-      platformName = "linux";
-      break;
+      // Linux: both amd64-linux and arm64-linux are available
+      if (arch === "x64") {
+        return "amd64-linux";
+      } else if (arch === "arm64") {
+        return "arm64-linux";
+      }
+      console.error(`✗ Unsupported Linux architecture: ${arch}. Only x64 and ARM64 are supported.`);
+      process.exit(1);
     case "win32":
-      platformName = "windows";
-      break;
+      console.error(`✗ Windows builds are not available for Barretenberg.`);
+      process.exit(1);
     default:
       console.error(`✗ Unsupported platform: ${platform}`);
       process.exit(1);
   }
 
-  // Map Node.js arch to GitHub release naming
-  switch (arch) {
-    case "arm64":
-      archName = "arm64";
-      break;
-    case "x64":
-      archName = "x86_64";
-      break;
-    default:
-      console.error(`✗ Unsupported architecture: ${arch}`);
-      process.exit(1);
-  }
-
-  return `${archName}-${platformName}`;
+  console.error(`✗ Unsupported architecture: ${arch} for platform: ${platform}`);
+  process.exit(1);
 }
 
 // Download file from URL

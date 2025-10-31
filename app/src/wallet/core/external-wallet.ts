@@ -391,7 +391,6 @@ export class ExternalWallet extends BaseNativeWallet {
       }
 
       try {
-        await item.operation.emitProgress("PREPARING");
         const result = await (item.operation as any).prepare(...item.args);
 
         item.displayData = result.displayData;
@@ -441,7 +440,8 @@ export class ExternalWallet extends BaseNativeWallet {
         }
       }
 
-      response = await this.authorizationManager.requestAuthorization(authItems);
+      response =
+        await this.authorizationManager.requestAuthorization(authItems);
     }
 
     // ========================================================================

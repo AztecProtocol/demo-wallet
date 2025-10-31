@@ -112,14 +112,19 @@ export class SendTxOperation extends ExternalOperation<
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const payloadHash = hashExecutionPayload(executionPayload);
-
+    const title = await generateSimulationTitle(
+      executionPayload,
+      this.decodingCache,
+      opts.from,
+      opts.fee?.embeddedPaymentMethodFeePayer
+    );
     const interaction = WalletInteraction.from({
       id: payloadHash,
       type: "sendTx",
-      title: "Send Transaction",
+      title,
       description: `From: ${opts.from.toString()}`,
       complete: false,
-      status: "PREPARING",
+      status: "SIMULATING",
       timestamp: Date.now(),
     });
 

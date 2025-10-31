@@ -5,7 +5,10 @@ import {
 } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import type { UtilitySimulationResult } from "@aztec/stdlib/tx";
+import type {
+  UtilitySimulationResult,
+  SimulationStats,
+} from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
 import {
   WalletInteraction,
@@ -53,6 +56,7 @@ type SimulateUtilityDisplayData = {
   executionTrace: UtilityExecutionTrace;
   title: string;
   contractName: string;
+  stats?: SimulationStats;
 } & Record<string, unknown>;
 
 /**
@@ -104,14 +108,15 @@ export class SimulateUtilityOperation extends ExternalOperation<
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const payloadHash = hashUtilityCall(functionName, args, to, from);
-
+    const contractName = await this.decodingCache.getAddressAlias(to);
+    const title = `${contractName}.${functionName}`;
     const interaction = WalletInteraction.from({
       id: payloadHash,
       type: "simulateUtility",
-      title: `Simulate Utility: ${functionName}`,
+      title,
       description: `Contract: ${to.toString()}`,
       complete: false,
-      status: "PREPARING",
+      status: "SIMULATING",
       timestamp: Date.now(),
     });
 
@@ -178,7 +183,13 @@ export class SimulateUtilityOperation extends ExternalOperation<
     await this.db.storeUtilityTrace(payloadHash, executionTrace);
 
     return {
-      displayData: { payloadHash, executionTrace, title, contractName },
+      displayData: {
+        payloadHash,
+        executionTrace,
+        title,
+        contractName,
+        stats: simulationResult.stats,
+      },
       executionData: { simulationResult, executionTrace, payloadHash },
       persistence: {
         storageKey: `simulateUtility:${payloadHash}`,
@@ -206,6 +217,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
           payloadHash: displayData.payloadHash,
           executionTrace: displayData.executionTrace,
           isUtility: true,
+          stats: displayData.stats,
         },
         timestamp: Date.now(),
         persistence,

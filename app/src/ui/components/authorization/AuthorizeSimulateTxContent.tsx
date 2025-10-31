@@ -20,10 +20,12 @@ export function AuthorizeSimulateTxContent({
     callAuthorizations?: ReadableCallAuthorization[];
     executionTrace?: DecodedExecutionTrace | any;
     isUtility?: boolean;
+    stats?: any;
   };
   const callAuthorizations = params.callAuthorizations || [];
   const executionTrace = params.executionTrace;
   const isUtility = params.isUtility || request.method === "simulateUtility";
+  const stats = params.stats;
 
   return (
     <>
@@ -43,6 +45,7 @@ export function AuthorizeSimulateTxContent({
           <ExecutionTraceDisplay
             trace={executionTrace}
             callAuthorizations={callAuthorizations}
+            stats={stats}
           />
         </Box>
       )}

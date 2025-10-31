@@ -106,6 +106,7 @@ export function InteractionsList({
   const { walletAPI } = useContext(WalletContext);
   const [selectedTrace, setSelectedTrace] =
     useState<DecodedExecutionTrace | null>(null);
+  const [selectedStats, setSelectedStats] = useState<any | null>(null);
   const [traceDialogOpen, setTraceDialogOpen] = useState(false);
 
   const handleInteractionClick = async (
@@ -118,9 +119,10 @@ export function InteractionsList({
       interaction.type === "simulateUtility"
     ) {
       try {
-        const trace = await walletAPI.getExecutionTrace(interaction.id);
-        if (trace) {
-          setSelectedTrace(trace);
+        const result = await walletAPI.getExecutionTrace(interaction.id);
+        if (result?.trace) {
+          setSelectedTrace(result.trace);
+          setSelectedStats(result.stats);
           setTraceDialogOpen(true);
         }
       } catch (error) {
@@ -320,6 +322,7 @@ export function InteractionsList({
         open={traceDialogOpen}
         onClose={() => setTraceDialogOpen(false)}
         trace={selectedTrace}
+        stats={selectedStats}
       />
     </Box>
   );

@@ -197,7 +197,6 @@ export abstract class ExternalOperation<
 
     try {
       // PHASE 2: PREPARE (throws on error)
-      await this.emitProgress("PREPARING");
       const prepared = await this.prepare(...args);
 
       // PHASE 3: REQUEST AUTHORIZATION (throws on error)
@@ -211,7 +210,8 @@ export abstract class ExternalOperation<
       return result;
     } catch (error) {
       // Unified error handling for all phases
-      const description = error instanceof Error ? error.message : String(error);
+      const description =
+        error instanceof Error ? error.message : String(error);
       await this.emitProgress("ERROR", description, true);
       throw error;
     } finally {

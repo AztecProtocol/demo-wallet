@@ -154,9 +154,9 @@ export function AppAuthorizationCard({
       setSelectedSimulationHash(payloadHash);
 
       // Payload hash IS the interaction ID for simulations
-      const trace = await walletAPI.getExecutionTrace(payloadHash);
-      if (trace) {
-        setExecutionTrace(trace);
+      const result = await walletAPI.getExecutionTrace(payloadHash);
+      if (result) {
+        setExecutionTrace(result);
         setTraceDialogOpen(true);
       } else {
         alert("Execution trace not found for this simulation");
@@ -454,7 +454,8 @@ export function AppAuthorizationCard({
       {executionTrace && (
         <ExecutionTraceDialog
           open={traceDialogOpen}
-          trace={executionTrace}
+          trace={executionTrace.trace}
+          stats={executionTrace.stats}
           onClose={() => {
             setTraceDialogOpen(false);
             setExecutionTrace(null);

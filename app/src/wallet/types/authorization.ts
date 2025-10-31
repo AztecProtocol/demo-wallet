@@ -47,6 +47,8 @@ export type SimulateAuthData = {
   executionTrace?: any;
   // To distinguish between tx and utility simulations
   isUtility?: boolean;
+  // Simulation timing stats
+  stats?: any;
 };
 
 // Deprecated: use SimulateAuthData instead

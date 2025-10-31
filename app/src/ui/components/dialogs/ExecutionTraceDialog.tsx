@@ -12,12 +12,14 @@ interface ExecutionTraceDialogProps {
   open: boolean;
   onClose: () => void;
   trace: DecodedExecutionTrace | null;
+  stats?: any;
 }
 
 export function ExecutionTraceDialog({
   open,
   onClose,
   trace,
+  stats,
 }: ExecutionTraceDialogProps) {
   if (!trace) return null;
 
@@ -55,6 +57,7 @@ export function ExecutionTraceDialog({
         <ExecutionTraceDisplay
           trace={trace}
           accordionBgColor="background.default"
+          stats={stats}
         />
       </DialogContent>
       <DialogActions>

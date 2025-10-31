@@ -166,11 +166,11 @@ export class InternalWallet extends BaseNativeWallet {
 
   async getExecutionTrace(
     interactionId: string
-  ): Promise<DecodedExecutionTrace | undefined> {
+  ): Promise<{ trace?: DecodedExecutionTrace; stats?: any } | undefined> {
     // First check if it's a utility trace (simple trace)
     const utilityTrace = await this.db.getUtilityTrace(interactionId);
     if (utilityTrace) {
-      return utilityTrace as DecodedExecutionTrace;
+      return { trace: utilityTrace as DecodedExecutionTrace };
     }
 
     // Otherwise, retrieve the stored simulation result (full tx)
@@ -188,7 +188,7 @@ export class InternalWallet extends BaseNativeWallet {
     const { executionTrace } = await decodingService.decodeTransaction(
       parsedSimulationResult
     );
-    return executionTrace;
+    return { trace: executionTrace, stats: parsedSimulationResult.stats };
   }
 
   // App authorization management methods

@@ -8,7 +8,7 @@ import {
   ExecutionPayload,
   mergeExecutionPayloads,
 } from "@aztec/entrypoints/payload";
-import type { TxSimulationResult, TxExecutionRequest } from "@aztec/stdlib/tx";
+import type { TxSimulationResult, TxExecutionRequest, SimulationStats } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
 import { Fr } from "@aztec/foundation/fields";
 import {
@@ -75,6 +75,7 @@ type SimulateTxDisplayData = {
   title: string;
   from: AztecAddress;
   decoded: ReadableTxInformation;
+  stats?: SimulationStats;
 } & Record<string, unknown>;
 
 /**
@@ -140,8 +141,6 @@ export class SimulateTxOperation extends ExternalOperation<
       SimulateTxExecutionData
     >
   > {
-    // NO TRY-CATCH - let errors throw naturally!
-
     // Generate payload hash and detailed title
     const payloadHash = hashExecutionPayload(executionPayload);
     const title = await generateSimulationTitle(
@@ -199,7 +198,7 @@ export class SimulateTxOperation extends ExternalOperation<
     const decoded = await decodingService.decodeTransaction(simulationResult);
 
     return {
-      displayData: { payloadHash, title, from: opts.from, decoded },
+      displayData: { payloadHash, title, from: opts.from, decoded, stats: simulationResult.stats },
       executionData: {
         simulationResult,
         txRequest,
@@ -219,14 +218,19 @@ export class SimulateTxOperation extends ExternalOperation<
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const payloadHash = hashExecutionPayload(executionPayload);
-
+    const title = await generateSimulationTitle(
+      executionPayload,
+      this.decodingCache,
+      opts.from,
+      opts.fee?.embeddedPaymentMethodFeePayer
+    );
     const interaction = WalletInteraction.from({
       id: payloadHash,
       type: "simulateTx",
-      title: "Simulate Transaction",
+      title,
       description: `From: ${opts.from.toString()}`,
       complete: false,
-      status: "PREPARING",
+      status: "SIMULATING",
       timestamp: Date.now(),
     });
 
@@ -256,6 +260,7 @@ export class SimulateTxOperation extends ExternalOperation<
           executionTrace: displayData.decoded.executionTrace,
           title: displayData.title,
           from: displayData.from.toString(),
+          stats: displayData.stats,
         },
         timestamp: Date.now(),
         persistence,

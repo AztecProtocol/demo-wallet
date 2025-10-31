@@ -67,14 +67,14 @@ export class RegisterSenderOperation extends ExternalOperation<
 
   async createInteraction(
     address: AztecAddress,
-    _alias: string
+    alias: string
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const interaction = WalletInteraction.from({
       type: "registerSender",
       status: "PREPARING",
       complete: false,
-      title: "Register Sender",
+      title: `Register sender ${alias}`,
       description: `Address: ${address.toString()}`,
     });
 

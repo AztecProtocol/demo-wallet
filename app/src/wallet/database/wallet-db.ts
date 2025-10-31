@@ -463,20 +463,25 @@ export class WalletDB {
     return JSON.parse(result);
   }
 
-  async storeUtilityTrace(payloadHash: string, trace: any) {
+  async storeUtilityTrace(payloadHash: string, trace: any, stats?: any) {
     const data = jsonStringify({
       utilityTrace: trace,
+      stats,
     });
     await this.txSimulations.set(payloadHash, data);
     this.logger.info(`Utility trace stored for payload hash ${payloadHash}`);
   }
 
-  async getUtilityTrace(payloadHash: string): Promise<any | undefined> {
+  async getUtilityTrace(payloadHash: string): Promise<{ trace: any; stats?: any } | undefined> {
     const result = await this.txSimulations.getAsync(payloadHash);
     if (!result) {
       return undefined;
     }
     const parsed = JSON.parse(result);
-    return parsed.utilityTrace;
+    // Only return if this is actually a utility trace (not a tx simulation)
+    if (!parsed.utilityTrace) {
+      return undefined;
+    }
+    return { trace: parsed.utilityTrace, stats: parsed.stats };
   }
 }

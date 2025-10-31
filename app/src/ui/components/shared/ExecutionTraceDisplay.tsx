@@ -124,14 +124,14 @@ function SimulationStatsDisplay({ stats, trace }: SimulationStatsDisplayProps) {
           <Box
             sx={{
               position: 'relative',
-              '&::before': {
+              '&::before': depth > 0 ? {
                 content: '""',
                 position: 'absolute',
                 left: -8,
                 top: 0,
                 height: '100%',
                 borderLeft: '1px solid #d0d0d0',
-              }
+              } : {}
             }}
           >
             {nestedCalls.map((nestedCall: any) =>

@@ -179,8 +179,8 @@ export class SimulateUtilityOperation extends ExternalOperation<
 
     const title = `${contractName}.${functionName}`;
 
-    // Store the utility trace for display
-    await this.db.storeUtilityTrace(payloadHash, executionTrace);
+    // Store the utility trace and stats for display
+    await this.db.storeUtilityTrace(payloadHash, executionTrace, simulationResult.stats);
 
     return {
       displayData: {

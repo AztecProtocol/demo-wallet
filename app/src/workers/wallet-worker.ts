@@ -248,7 +248,8 @@ async function main() {
         try {
           messageContent = JSON.parse(content);
         } catch (err) {
-          userLog.debug(`Unable to parse message  ${content}`);
+          userLog.debug(`Unable to parse message ${content}`);
+          return;
         }
         const { type, messageId, args, appId, chainInfo } = messageContent;
         if (appId === "this") {

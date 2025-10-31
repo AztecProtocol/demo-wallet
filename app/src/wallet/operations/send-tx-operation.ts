@@ -51,6 +51,7 @@ type SendTxDisplayData = {
   from: AztecAddress;
   callAuthorizations: ReadableCallAuthorization[];
   executionTrace?: DecodedExecutionTrace;
+  stats?: any;
 };
 
 /**
@@ -181,6 +182,7 @@ export class SendTxOperation extends ExternalOperation<
         from: opts.from,
         callAuthorizations,
         executionTrace,
+        stats: prepared.displayData?.stats,
       },
       executionData: {
         txRequest,
@@ -208,6 +210,7 @@ export class SendTxOperation extends ExternalOperation<
           executionTrace: displayData.executionTrace,
           title: displayData.title,
           from: displayData.from.toString(),
+          stats: displayData.stats,
         },
         timestamp: Date.now(),
       },

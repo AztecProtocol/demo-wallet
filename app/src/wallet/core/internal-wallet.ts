@@ -9,7 +9,6 @@ import type { ExecutionPayload } from "@aztec/entrypoints/payload";
 import { TxHash, TxSimulationResult } from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
-import { DecodingCache } from "../decoding/decoding-cache";
 
 import { inspect } from "node:util";
 import { BaseNativeWallet } from "./base-native-wallet.ts";
@@ -168,9 +167,9 @@ export class InternalWallet extends BaseNativeWallet {
     interactionId: string
   ): Promise<{ trace?: DecodedExecutionTrace; stats?: any } | undefined> {
     // First check if it's a utility trace (simple trace)
-    const utilityTrace = await this.db.getUtilityTrace(interactionId);
-    if (utilityTrace) {
-      return { trace: utilityTrace as DecodedExecutionTrace };
+    const utilityData = await this.db.getUtilityTrace(interactionId);
+    if (utilityData) {
+      return { trace: utilityData.trace as DecodedExecutionTrace, stats: utilityData.stats };
     }
 
     // Otherwise, retrieve the stored simulation result (full tx)
@@ -179,8 +178,8 @@ export class InternalWallet extends BaseNativeWallet {
       return undefined;
     }
 
-    const decodingCache = new DecodingCache(this.pxe, this.db);
-    const decodingService = new TxDecodingService(decodingCache);
+    // Use the shared decoding cache from BaseNativeWallet
+    const decodingService = new TxDecodingService(this.decodingCache);
     const parsedSimulationResult = TxSimulationResult.schema.parse(
       data.simulationResult
     );

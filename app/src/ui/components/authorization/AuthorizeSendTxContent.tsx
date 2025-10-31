@@ -17,9 +17,11 @@ export function AuthorizeSendTxContent({
   const params = request.params as {
     callAuthorizations?: ReadableCallAuthorization[];
     executionTrace?: DecodedExecutionTrace;
+    stats?: any;
   };
   const callAuthorizations = params.callAuthorizations || [];
   const executionTrace = params.executionTrace;
+  const stats = params.stats;
 
   return (
     <>
@@ -34,6 +36,7 @@ export function AuthorizeSendTxContent({
         <ExecutionTraceDisplay
           trace={executionTrace}
           callAuthorizations={callAuthorizations}
+          stats={stats}
         />
       )}
 

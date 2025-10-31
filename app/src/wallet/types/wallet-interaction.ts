@@ -59,6 +59,7 @@ export class WalletInteraction<T extends WalletInteractionType> {
     this.complete = complete ?? this.complete;
     this.title = title ?? this.title;
     this.description = description ?? this.description;
+    this.timestamp = Date.now();
     return this;
   }
 

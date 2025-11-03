@@ -8,7 +8,11 @@ import {
   ExecutionPayload,
   mergeExecutionPayloads,
 } from "@aztec/entrypoints/payload";
-import type { TxSimulationResult, TxExecutionRequest, SimulationStats } from "@aztec/stdlib/tx";
+import type {
+  TxSimulationResult,
+  TxExecutionRequest,
+  SimulationStats,
+} from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
 import { Fr } from "@aztec/foundation/fields";
 import {
@@ -173,11 +177,15 @@ export class SimulateTxOperation extends ExternalOperation<
       instance,
       artifact,
     } = await this.getFakeAccountDataFor(opts.from);
+
+    console.log("FAKE");
     const txRequest = await fromAccount.createTxExecutionRequest(
       finalExecutionPayload,
       feeOptions.gasSettings,
       executionOptions
     );
+
+    console.log("TXREQUEST");
 
     const contractOverrides = {
       [opts.from.toString()]: { instance, artifact },
@@ -198,7 +206,13 @@ export class SimulateTxOperation extends ExternalOperation<
     const decoded = await decodingService.decodeTransaction(simulationResult);
 
     return {
-      displayData: { payloadHash, title, from: opts.from, decoded, stats: simulationResult.stats },
+      displayData: {
+        payloadHash,
+        title,
+        from: opts.from,
+        decoded,
+        stats: simulationResult.stats,
+      },
       executionData: {
         simulationResult,
         txRequest,

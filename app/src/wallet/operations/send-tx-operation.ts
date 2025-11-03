@@ -146,6 +146,8 @@ export class SendTxOperation extends ExternalOperation<
     // Use simulateTx operation's prepare method (will throw if simulation fails)
     const prepared = await this.simulateTxOp.prepare(executionPayload, opts);
 
+    console.log("PREPARED");
+
     // Decode simulation results
     const { callAuthorizations, executionTrace } =
       prepared.executionData!.decoded;

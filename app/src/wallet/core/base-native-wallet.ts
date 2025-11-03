@@ -3,7 +3,7 @@ import {
   SignerlessAccount,
   type ChainInfo,
 } from "@aztec/aztec.js/account";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { AztecAddress, CompleteAddress } from "@aztec/aztec.js/addresses";
 import {
   AccountManager,
   BaseWallet,
@@ -25,11 +25,6 @@ import type {
   AuthorizationRequest,
   AuthorizationResponse,
 } from "../types/authorization";
-import {
-  WalletUpdateEvent,
-  type WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
 import { prepareForFeePayment } from "../utils/sponsored-fpc";
 import { AccountFeePaymentMethodOptions } from "@aztec/entrypoints/account";
 import { GasSettings } from "@aztec/stdlib/gas";
@@ -42,6 +37,9 @@ import {
   createStubAccount,
   StubAccountContractArtifact,
 } from "@aztec/accounts/stub";
+import { ProtocolContractAddress } from "@aztec/protocol-contracts";
+import { getCanonicalMultiCallEntrypoint } from "@aztec/protocol-contracts/multi-call-entrypoint";
+import { type ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -206,28 +204,38 @@ export abstract class BaseNativeWallet
    */
   protected async getFakeAccountDataFor(address: AztecAddress) {
     const chainInfo = await this.getChainInfo();
-    const originalAccount = await this.getAccountFromAddress(address);
-    const originalAddress = originalAccount.getCompleteAddress();
-    const { contractInstance } = await this.pxe.getContractMetadata(
-      originalAddress.address
-    );
-    if (!contractInstance) {
-      throw new Error(
-        `No contract instance found for address: ${originalAddress.address}`
+    if (!address.equals(AztecAddress.ZERO)) {
+      const originalAccount = await this.getAccountFromAddress(address);
+      const originalAddress = originalAccount.getCompleteAddress();
+      const { contractInstance } = await this.pxe.getContractMetadata(
+        originalAddress.address
       );
-    }
-    const stubAccount = createStubAccount(originalAddress, chainInfo);
-    const instance = await getContractInstanceFromInstantiationParams(
-      StubAccountContractArtifact,
-      {
-        salt: Fr.random(),
+      if (!contractInstance) {
+        throw new Error(
+          `No contract instance found for address: ${originalAddress.address}`
+        );
       }
-    );
-    return {
-      account: stubAccount,
-      instance,
-      artifact: StubAccountContractArtifact,
-    };
+      const account = createStubAccount(originalAddress, chainInfo);
+      const instance = await getContractInstanceFromInstantiationParams(
+        StubAccountContractArtifact,
+        {
+          salt: Fr.random(),
+        }
+      );
+      return {
+        account,
+        instance,
+        artifact: StubAccountContractArtifact,
+      };
+    } else {
+      const contract = await getCanonicalMultiCallEntrypoint();
+      const account = new SignerlessAccount(chainInfo);
+      return {
+        instance: contract.instance,
+        account,
+        artifact: contract.artifact,
+      };
+    }
   }
 
   override async getDefaultFeeOptions(

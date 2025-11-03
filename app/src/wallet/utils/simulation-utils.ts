@@ -94,7 +94,7 @@ export async function generateSimulationTitle(
       if (
         callName.includes("fee") ||
         callName.includes("payment") ||
-        callName === "prepare_fee"
+        callName.includes("sponsor_unconditionally")
       ) {
         return false;
       }

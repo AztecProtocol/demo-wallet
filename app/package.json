@@ -58,6 +58,7 @@
     "@aztec/entrypoints": "v3.0.0-devnet.2",
     "@aztec/kv-store": "v3.0.0-devnet.2",
     "@aztec/noir-contracts.js": "v3.0.0-devnet.2",
+    "@aztec/protocol-contracts": "v3.0.0-devnet.2",
     "@aztec/foundation": "v3.0.0-devnet.2",
     "@aztec/pxe": "v3.0.0-devnet.2",
     "@emotion/react": "^11.14.0",

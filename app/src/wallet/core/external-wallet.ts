@@ -152,28 +152,30 @@ export class ExternalWallet extends BaseNativeWallet {
   protected async getAccountFromAddress(
     address: AztecAddress
   ): Promise<Account> {
-    // Check if there's a persistent getAccounts authorization
-    const authData = await this.db.retrievePersistentAuthorization(
-      this.appId,
-      "getAccounts"
-    );
-
-    if (!authData || !authData.accounts) {
-      throw new Error(
-        `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`
+    if (!address.equals(AztecAddress.ZERO)) {
+      // Check if there's a persistent getAccounts authorization
+      const authData = await this.db.retrievePersistentAuthorization(
+        this.appId,
+        "getAccounts"
       );
-    }
 
-    // Check if the specific account is in the authorized list
-    const authorizedAddresses = authData.accounts.map((acc: any) =>
-      acc.item.toString()
-    );
-    const requestedAddress = address.toString();
+      if (!authData || !authData.accounts) {
+        throw new Error(
+          `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`
+        );
+      }
 
-    if (!authorizedAddresses.includes(requestedAddress)) {
-      throw new Error(
-        `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`
+      // Check if the specific account is in the authorized list
+      const authorizedAddresses = authData.accounts.map((acc: any) =>
+        acc.item.toString()
       );
+      const requestedAddress = address.toString();
+
+      if (!authorizedAddresses.includes(requestedAddress)) {
+        throw new Error(
+          `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`
+        );
+      }
     }
 
     // Authorization passed, delegate to base implementation
@@ -440,8 +442,22 @@ export class ExternalWallet extends BaseNativeWallet {
         }
       }
 
-      response =
-        await this.authorizationManager.requestAuthorization(authItems);
+      try {
+        response =
+          await this.authorizationManager.requestAuthorization(authItems);
+      } catch (error) {
+        // Authorization was denied - mark all pending items as ERROR
+        for (const item of items) {
+          if (item.earlyReturn === undefined && !item.error) {
+            await item.operation.emitProgress(
+              "ERROR",
+              "Authorization denied",
+              true
+            );
+          }
+        }
+        throw error;
+      }
     }
 
     // ========================================================================

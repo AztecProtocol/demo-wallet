@@ -75,36 +75,19 @@ jobs:
         working-directory: ./extension
         run: yarn install --frozen-lockfile
 
-      - name: Build Chrome extension
-        working-directory: ./extension
-        run: yarn run build
-
-      - name: Build Firefox extension
-        working-directory: ./extension
-        run: yarn run build:firefox
-
-      - name: Zip Chrome extension (release mode)
+      - name: Zip extensions (release mode)
         if: ${{ inputs.release-mode }}
         working-directory: ./extension
-        run: yarn run zip
+        run: |
+          yarn run zip
+          yarn run zip:firefox
 
-      - name: Zip Firefox extension (release mode)
-        if: ${{ inputs.release-mode }}
-        working-directory: ./extension
-        run: yarn run zip:firefox
-
-      - name: Upload Chrome extension zip (release)
+      - name: Upload extension artifacts (release)
         if: ${{ inputs.release-mode }}
         uses: actions/upload-artifact@v4
         with:
-          name: extension-chrome-release
-          path: extension/.output/*-chrome.zip
-          retention-days: ${{ inputs.retention-days }}
-
-      - name: Upload Firefox extension zip (release)
-        if: ${{ inputs.release-mode }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension-firefox-release
-          path: extension/.output/*-firefox.zip
+          name: extension-releases
+          path: |
+            extension/.output/*-chrome.zip
+            extension/.output/*-firefox.zip
           retention-days: ${{ inputs.retention-days }}

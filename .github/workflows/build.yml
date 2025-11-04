@@ -87,7 +87,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: extension-releases
-          path: |
-            extension/.output/*-chrome.zip
-            extension/.output/*-firefox.zip
+          path: extension/.output/*.zip
           retention-days: ${{ inputs.retention-days }}

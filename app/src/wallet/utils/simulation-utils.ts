@@ -76,7 +76,7 @@ export async function generateSimulationTitle(
   executionPayload: ExecutionPayload,
   cache: DecodingCache,
   fromAccount: AztecAddress,
-  userFeePaymentMethod?: AztecAddress
+  embeddedPaymentMethodFeePayer?: AztecAddress
 ): Promise<string> {
   // Filter out wallet-added calls:
   // 1. Account entrypoint call (call to the account contract itself)
@@ -87,9 +87,9 @@ export async function generateSimulationTitle(
       return false;
     }
 
-    // If user didn't provide a fee payment method, exclude any fee payment calls
+    // If user provided a fee payment method, exclude any fee payment calls
     // We identify these by checking common fee payment contract names
-    if (!userFeePaymentMethod) {
+    if (embeddedPaymentMethodFeePayer) {
       const callName = call.name?.toLowerCase() || "";
       if (
         callName.includes("fee") ||

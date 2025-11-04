@@ -1,9 +1,16 @@
 import { type Account } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { type Aliased, type SendOptions } from "@aztec/aztec.js/wallet";
+import {
+  type Aliased,
+  type DeployAccountOptions,
+  type SendOptions,
+} from "@aztec/aztec.js/wallet";
 import { type Fr } from "@aztec/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
-import { WalletInteraction } from "../types/wallet-interaction";
+import {
+  WalletInteraction,
+  type WalletInteractionType,
+} from "../types/wallet-interaction";
 import type { ExecutionPayload } from "@aztec/entrypoints/payload";
 
 import { TxHash, TxSimulationResult } from "@aztec/stdlib/tx";
@@ -12,7 +19,7 @@ import { TxDecodingService } from "../decoding/tx-decoding-service";
 
 import { inspect } from "node:util";
 import { BaseNativeWallet } from "./base-native-wallet.ts";
-import type { AuthorizationResponse } from "../types/authorization.ts";
+import { SentTx, toSendOptions } from "@aztec/aztec.js/contracts";
 
 // Enriched account type for internal use
 export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
@@ -90,7 +97,7 @@ export class InternalWallet extends BaseNativeWallet {
       });
       await this.interactionManager.storeAndEmit(
         interaction.update({
-          status: "PROVING & SENDING DEPLOYMENT",
+          status: "PREPARING ACCOUNT",
           description: `Address ${accountManager.address.toString()}`,
         })
       );
@@ -100,7 +107,7 @@ export class InternalWallet extends BaseNativeWallet {
         "../utils/sponsored-fpc.ts"
       );
       const paymentMethod = await prepareForFeePayment(this);
-      const opts = {
+      const opts: DeployAccountOptions = {
         from: AztecAddress.ZERO,
         fee: {
           paymentMethod,
@@ -109,7 +116,19 @@ export class InternalWallet extends BaseNativeWallet {
         skipInstancePublication: true,
       };
 
-      await deployMethod.send(opts).wait();
+      const sentTx = new SentTx(this, async () => {
+        const exec = await deployMethod.request({
+          ...opts,
+          deployer: AztecAddress.ZERO,
+        });
+        return this.sendTx(exec, await toSendOptions(opts), interaction);
+      });
+      await this.interactionManager.storeAndEmit(
+        interaction.update({
+          status: "MINING",
+        })
+      );
+      await sentTx.wait();
       await this.interactionManager.storeAndEmit(
         interaction.update({ status: "DEPLOYED", complete: true })
       );
@@ -129,13 +148,19 @@ export class InternalWallet extends BaseNativeWallet {
 
   override async sendTx(
     executionPayload: ExecutionPayload,
-    opts: SendOptions
+    opts: SendOptions,
+    interaction?: WalletInteraction<WalletInteractionType>
   ): Promise<TxHash> {
     const fee = await this.getDefaultFeeOptions(opts.from, opts.fee);
     const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
       executionPayload,
       opts.from,
       fee
+    );
+    await this.interactionManager.storeAndEmit(
+      interaction.update({
+        status: "PROVING",
+      })
     );
     const provenTx = await this.pxe.proveTx(txRequest);
     const tx = await provenTx.toTx();
@@ -145,6 +170,11 @@ export class InternalWallet extends BaseNativeWallet {
         `A settled tx with equal hash ${txHash.toString()} exists.`
       );
     }
+    await this.interactionManager.storeAndEmit(
+      interaction.update({
+        status: "SENDING",
+      })
+    );
     this.log.debug(`Sending transaction ${txHash}`);
     await this.aztecNode.sendTx(tx).catch((err) => {
       throw this.contextualizeError(err, inspect(tx));
@@ -169,7 +199,10 @@ export class InternalWallet extends BaseNativeWallet {
     // First check if it's a utility trace (simple trace)
     const utilityData = await this.db.getUtilityTrace(interactionId);
     if (utilityData) {
-      return { trace: utilityData.trace as DecodedExecutionTrace, stats: utilityData.stats };
+      return {
+        trace: utilityData.trace as DecodedExecutionTrace,
+        stats: utilityData.stats,
+      };
     }
 
     // Otherwise, retrieve the stored simulation result (full tx)

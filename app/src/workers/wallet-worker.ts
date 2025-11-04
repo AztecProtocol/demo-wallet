@@ -7,7 +7,7 @@ import { jsonStringify } from "@aztec/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import { ExternalWallet } from "../wallet/core/external-wallet.ts";
 import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
-import { createPXE, getPXEConfig } from "@aztec/pxe/server";
+import { createPXE, getPXEConfig, type PXEConfig } from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
@@ -65,7 +65,7 @@ async function init(
 
       const keychainHomeDir = join(homedir(), "keychain");
 
-      const configOverrides = {
+      const configOverrides: Partial<PXEConfig> = {
         dataDirectory: resolve(keychainHomeDir, `./pxe-${rollupAddress}`),
         proverEnabled: true,
       };
@@ -76,7 +76,7 @@ async function init(
           prover: createProxyLogger("bb:native", logPort),
         },
         store: await createStore(
-          "pxe_data",
+          `pxe-${rollupAddress}`,
           2,
           {
             dataDirectory: configOverrides.dataDirectory,
@@ -116,7 +116,7 @@ async function init(
         logPort
       );
       const internalWalletLogger = createProxyLogger(
-        "wallet:external",
+        "wallet:internal",
         logPort
       );
 

@@ -27,11 +27,11 @@ export const NETWORKS: NetworkConfig[] = [
     version: 1667575857,
     description: "Aztec Labs Devnet",
     color: "#2196f3", // Blue
-    nodeUrl: "http://localhost:8280",
+    nodeUrl: "https://devnet.aztec-labs.com/",
   },
 ];
 
-export const DEFAULT_NETWORK = NETWORKS[0];
+export const DEFAULT_NETWORK = NETWORKS[1];
 
 export function getNetworkById(id: string): NetworkConfig | undefined {
   return NETWORKS.find((network) => network.id === id);

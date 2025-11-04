@@ -441,11 +441,13 @@ export class WalletDB {
   async storeTxSimulation(
     payloadHash: string,
     simulationResult: TxSimulationResult,
-    txRequest: TxExecutionRequest
+    txRequest: TxExecutionRequest,
+    metadata?: { from?: string; embeddedPaymentMethodFeePayer?: string }
   ) {
     const data = jsonStringify({
       simulationResult,
       txRequest,
+      metadata,
     });
     await this.txSimulations.set(payloadHash, data);
     this.logger.info(
@@ -455,7 +457,7 @@ export class WalletDB {
 
   async getTxSimulation(
     payloadHash: string
-  ): Promise<{ simulationResult: any; txRequest: any } | undefined> {
+  ): Promise<{ simulationResult: any; txRequest: any; metadata?: { from?: string; embeddedPaymentMethodFeePayer?: string } } | undefined> {
     const result = await this.txSimulations.getAsync(payloadHash);
     if (!result) {
       return undefined;

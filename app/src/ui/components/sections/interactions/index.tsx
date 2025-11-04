@@ -107,6 +107,8 @@ export function InteractionsList({
   const [selectedTrace, setSelectedTrace] =
     useState<DecodedExecutionTrace | null>(null);
   const [selectedStats, setSelectedStats] = useState<any | null>(null);
+  const [selectedFrom, setSelectedFrom] = useState<string | null>(null);
+  const [selectedFeePayer, setSelectedFeePayer] = useState<string | null>(null);
   const [traceDialogOpen, setTraceDialogOpen] = useState(false);
 
   const handleInteractionClick = async (
@@ -123,6 +125,8 @@ export function InteractionsList({
         if (result?.trace) {
           setSelectedTrace(result.trace);
           setSelectedStats(result.stats);
+          setSelectedFrom(result.from || null);
+          setSelectedFeePayer(result.embeddedPaymentMethodFeePayer || null);
           setTraceDialogOpen(true);
         }
       } catch (error) {
@@ -323,6 +327,8 @@ export function InteractionsList({
         onClose={() => setTraceDialogOpen(false)}
         trace={selectedTrace}
         stats={selectedStats}
+        from={selectedFrom}
+        embeddedPaymentMethodFeePayer={selectedFeePayer}
       />
     </Box>
   );

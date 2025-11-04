@@ -52,6 +52,7 @@ type SendTxDisplayData = {
   callAuthorizations: ReadableCallAuthorization[];
   executionTrace?: DecodedExecutionTrace;
   stats?: any;
+  embeddedPaymentMethodFeePayer?: AztecAddress;
 };
 
 /**
@@ -185,6 +186,7 @@ export class SendTxOperation extends ExternalOperation<
         callAuthorizations,
         executionTrace,
         stats: prepared.displayData?.stats,
+        embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer,
       },
       executionData: {
         txRequest,
@@ -213,6 +215,7 @@ export class SendTxOperation extends ExternalOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
+          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer?.toString(),
         },
         timestamp: Date.now(),
       },

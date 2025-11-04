@@ -1,5 +1,7 @@
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
+import Alert from "@mui/material/Alert";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { AuthorizationItem } from "../../../wallet/types/authorization";
 import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../../../wallet/decoding/tx-callstack-decoder";
@@ -21,11 +23,18 @@ export function AuthorizeSimulateTxContent({
     executionTrace?: DecodedExecutionTrace | any;
     isUtility?: boolean;
     stats?: any;
+    from?: string;
+    embeddedPaymentMethodFeePayer?: string;
   };
   const callAuthorizations = params.callAuthorizations || [];
   const executionTrace = params.executionTrace;
   const isUtility = params.isUtility || request.method === "simulateUtility";
   const stats = params.stats;
+  const from = params.from;
+  const embeddedPaymentMethodFeePayer = params.embeddedPaymentMethodFeePayer;
+
+  const isFromZero = from && AztecAddress.fromString(from).equals(AztecAddress.ZERO);
+  const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
     <>
@@ -35,6 +44,18 @@ export function AuthorizeSimulateTxContent({
           {isUtility ? "utility function" : "transaction"} and receive the
           execution details.
         </Typography>
+      )}
+
+      {isFromZero && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This request uses the MulticallEntrypoint and does not execute from any of your accounts.
+        </Alert>
+      )}
+
+      {hasEmbeddedFeePayer && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          The app is providing the fee payment method for this transaction.
+        </Alert>
       )}
 
       {executionTrace && (

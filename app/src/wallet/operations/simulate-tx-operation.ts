@@ -80,6 +80,7 @@ type SimulateTxDisplayData = {
   from: AztecAddress;
   decoded: ReadableTxInformation;
   stats?: SimulationStats;
+  embeddedPaymentMethodFeePayer?: AztecAddress;
 } & Record<string, unknown>;
 
 /**
@@ -200,7 +201,10 @@ export class SimulateTxOperation extends ExternalOperation<
       { contracts: contractOverrides }
     );
 
-    await this.db.storeTxSimulation(payloadHash, simulationResult, txRequest);
+    await this.db.storeTxSimulation(payloadHash, simulationResult, txRequest, {
+      from: opts.from.toString(),
+      embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer?.toString(),
+    });
 
     const decodingService = new TxDecodingService(this.decodingCache);
     const decoded = await decodingService.decodeTransaction(simulationResult);
@@ -212,6 +216,7 @@ export class SimulateTxOperation extends ExternalOperation<
         from: opts.from,
         decoded,
         stats: simulationResult.stats,
+        embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer,
       },
       executionData: {
         simulationResult,
@@ -275,6 +280,7 @@ export class SimulateTxOperation extends ExternalOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
+          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer?.toString(),
         },
         timestamp: Date.now(),
         persistence,

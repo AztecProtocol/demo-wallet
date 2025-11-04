@@ -90,7 +90,7 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   getInteractions(): Promise<WalletInteraction<WalletInteractionType>[]>;
   getExecutionTrace(
     interactionId: string
-  ): Promise<{ trace?: DecodedExecutionTrace; stats?: any } | undefined>;
+  ): Promise<{ trace?: DecodedExecutionTrace; stats?: any; from?: string; embeddedPaymentMethodFeePayer?: string } | undefined>;
   resolveAuthorization(response: AuthorizationResponse): void;
   onWalletUpdate(callback: OnWalletUpdateListener): void;
   onAuthorizationRequest(callback: OnAuthorizationRequestListener): void;
@@ -151,6 +151,8 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       .returns(z.object({
         trace: DecodedExecutionTraceSchema.optional(),
         stats: z.any().optional(),
+        from: z.string().optional(),
+        embeddedPaymentMethodFeePayer: z.string().optional(),
       }).optional()),
     // @ts-ignore
     resolveAuthorization: z.function().args(

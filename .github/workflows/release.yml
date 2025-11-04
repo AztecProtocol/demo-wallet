@@ -9,89 +9,15 @@ on:
         type: string
 
 jobs:
-  build-electron-release:
-    name: Build Electron App for Release
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "yarn"
-          cache-dependency-path: app/yarn.lock
-
-      - name: Install dependencies
-        working-directory: ./app
-        run: yarn install --frozen-lockfile
-
-      - name: Build Electron app
-        working-directory: ./app
-        run: yarn run make
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CI: true
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-release-${{ matrix.os }}
-          path: |
-            app/out/make/**/*
-          retention-days: 30
-
-  build-extension-release:
-    name: Build Browser Extension for Release
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "yarn"
-          cache-dependency-path: extension/yarn.lock
-
-      - name: Install dependencies
-        working-directory: ./extension
-        run: yarn install --frozen-lockfile
-
-      - name: Build and zip Chrome extension
-        working-directory: ./extension
-        run: yarn run zip
-
-      - name: Build and zip Firefox extension
-        working-directory: ./extension
-        run: yarn run zip:firefox
-
-      - name: Upload Chrome extension zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension-chrome-release
-          path: extension/.output/*.zip
-          retention-days: 30
-
-      - name: Upload Firefox extension zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension-firefox-release
-          path: extension/.output/*.zip
-          retention-days: 30
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      release-mode: true
+      retention-days: 30
 
   create-release:
     name: Create GitHub Release
-    needs: [build-electron-release, build-extension-release]
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write

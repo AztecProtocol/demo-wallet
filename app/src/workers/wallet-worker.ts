@@ -31,10 +31,19 @@ const ChainInfoSchema = z.object({
   version: schemas.Fr,
 });
 
-const RUNNING_SESSIONS = new Map<
-  string,
-  Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>
->();
+// Session data indexed by sessionId (chainId-version)
+// Each session contains shared PXE resources and a map of wallets per appId
+type SessionData = {
+  sharedResources: Promise<{
+    pxe: any;
+    node: any;
+    db: any;
+    pendingAuthorizations: Map<string, any>;
+  }>;
+  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
+};
+
+const RUNNING_SESSIONS = new Map<string, SessionData>();
 
 async function init(
   chainInfo: ChainInfo,
@@ -57,12 +66,15 @@ async function init(
     chainInfo.version = new Fr(rollupVersion);
   }
   const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
-  if (!RUNNING_SESSIONS.get(appId)?.has(sessionId)) {
-    const internalInit = async () => {
+
+  let session = RUNNING_SESSIONS.get(sessionId);
+  const walletExists = session?.wallets.has(appId);
+
+  // First, ensure we have a session with shared PXE resources
+  if (!session) {
+    const pxeInit = (async () => {
       const l1Contracts = await node.getL1ContractAddresses();
-
       const rollupAddress = l1Contracts.rollupAddress;
-
       const keychainHomeDir = join(homedir(), "keychain");
 
       const configOverrides: Partial<PXEConfig> = {
@@ -97,6 +109,7 @@ async function init(
         walletDBLogger
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
+
       const pxe = await createPXE(
         node,
         { ...getPXEConfig(), ...configOverrides },
@@ -111,30 +124,46 @@ async function init(
         }
       >();
 
+      return { pxe, node, db, pendingAuthorizations };
+    })();
+
+    session = {
+      sharedResources: pxeInit,
+      wallets: new Map(),
+    };
+    RUNNING_SESSIONS.set(sessionId, session);
+  }
+
+  // Wait for the shared PXE to be ready
+  const sharedResources = await session.sharedResources;
+
+  // Now create wallet instances for this specific appId if they don't exist
+  if (!walletExists) {
+    const internalInit = async () => {
       const externalWalletLogger = createProxyLogger(
-        "wallet:external",
+        `wallet:external:${appId}`,
         logPort
       );
       const internalWalletLogger = createProxyLogger(
-        "wallet:internal",
+        `wallet:internal:${appId}`,
         logPort
       );
 
       // Create both wallet instances sharing the same db, pxe and authorization logic
       const externalWallet = new ExternalWallet(
-        pxe,
-        node,
-        db,
-        pendingAuthorizations,
+        sharedResources.pxe,
+        sharedResources.node,
+        sharedResources.db,
+        sharedResources.pendingAuthorizations,
         appId,
         chainInfo,
         externalWalletLogger
       );
       const internalWallet = new InternalWallet(
-        pxe,
-        node,
-        db,
-        pendingAuthorizations,
+        sharedResources.pxe,
+        sharedResources.node,
+        sharedResources.db,
+        sharedResources.pendingAuthorizations,
         appId,
         chainInfo,
         internalWalletLogger
@@ -175,12 +204,12 @@ async function init(
 
       return { external: externalWallet, internal: internalWallet };
     };
-    const appMap = RUNNING_SESSIONS.get(appId) ?? new Map();
-    RUNNING_SESSIONS.set(appId, appMap);
+
     const walletPromise = internalInit();
-    appMap.set(sessionId, walletPromise);
+    session.wallets.set(appId, walletPromise);
   }
-  const wallets = await RUNNING_SESSIONS.get(appId)!.get(sessionId)!;
+
+  const wallets = await session.wallets.get(appId)!;
   return wallets;
 }
 

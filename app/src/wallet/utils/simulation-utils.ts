@@ -1,10 +1,9 @@
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { ExecutionPayload } from "@aztec/entrypoints/payload";
 import { sha256 } from "@aztec/foundation/crypto";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
 import { serializeToBuffer } from "@aztec/foundation/serialize";
-import { FunctionType } from "@aztec/stdlib/abi";
+import { FunctionCall, FunctionType } from "@aztec/stdlib/abi";
 import type { DecodingCache } from "../decoding/decoding-cache";
+import type { ExecutionPayload } from "@aztec/stdlib/tx";
 
 /**
  * Creates a deterministic hash of an execution payload for comparison.
@@ -32,13 +31,18 @@ export function hashExecutionPayload(payload: ExecutionPayload): string {
   }
 
   // Serialize capsules
-  for (const capsule of payload.capsules) {
+  for (const capsule of payload.capsules || []) {
     buffers.push(capsule.toBuffer());
   }
 
-  // Serialize extra hashed args
-  for (const hashedValue of payload.extraHashedArgs) {
+  // Serialize extra hashed args (optional parameter, may be undefined after deserialization)
+  for (const hashedValue of payload.extraHashedArgs || []) {
     buffers.push(hashedValue.toBuffer());
+  }
+
+  // Serialize feePayer if present
+  if (payload.feePayer) {
+    buffers.push(serializeToBuffer(payload.feePayer));
   }
 
   const concatenated = Buffer.concat(buffers);
@@ -50,21 +54,17 @@ export function hashExecutionPayload(payload: ExecutionPayload): string {
  * Creates a deterministic hash of a utility function call for comparison.
  * This is used to determine if a utility simulation authorization can be reused.
  */
-export function hashUtilityCall(
-  functionName: string,
-  args: any[],
-  to: AztecAddress,
-  from?: AztecAddress
-): string {
-  const callData = {
-    functionName,
-    args,
-    to: to.toString(),
-    from: from?.toString(),
-  };
-
-  const serialized = jsonStringify(callData);
-  return sha256(Buffer.from(serialized)).toString("hex");
+export function hashUtilityCall(call: FunctionCall): string {
+  const buffer = serializeToBuffer(
+    call.to,
+    call.selector,
+    call.type,
+    call.hideMsgSender,
+    call.isStatic,
+    call.args.length,
+    ...call.args
+  );
+  return sha256(buffer).toString("hex");
 }
 
 /**

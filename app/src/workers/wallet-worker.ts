@@ -235,6 +235,9 @@ const handleEvent = async (
     result = await wallet[type](...sanitizedArgs);
   } catch (err: any) {
     userLog.error(`Error handling ${type}: ${err.message}`);
+    if (err.stack) {
+      userLog.error(`Stack trace: ${err.stack}`);
+    }
     // Serialize error properly - Error objects don't stringify well
     error = err instanceof Error ? err.message : String(err);
   }

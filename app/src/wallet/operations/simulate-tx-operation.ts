@@ -5,13 +5,11 @@ import {
 } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
-  ExecutionPayload,
+  type TxSimulationResult,
+  type TxExecutionRequest,
+  type SimulationStats,
+  type ExecutionPayload,
   mergeExecutionPayloads,
-} from "@aztec/entrypoints/payload";
-import type {
-  TxSimulationResult,
-  TxExecutionRequest,
-  SimulationStats,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
 import { Fr } from "@aztec/foundation/fields";
@@ -35,6 +33,8 @@ import type { FeeOptions, SimulateOptions } from "@aztec/aztec.js/wallet";
 import type { Logger } from "@aztec/aztec.js/log";
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
+import type { GasSettings } from "@aztec/stdlib/gas";
+import type { FieldsOf } from "@aztec/foundation/types";
 
 // Readable transaction information with decoded data
 interface ReadableTxInformation {
@@ -80,7 +80,7 @@ type SimulateTxDisplayData = {
   from: AztecAddress;
   decoded: ReadableTxInformation;
   stats?: SimulationStats;
-  embeddedPaymentMethodFeePayer?: AztecAddress;
+  embeddedPaymentMethodFeePayer?: string;
 } & Record<string, unknown>;
 
 /**
@@ -109,13 +109,15 @@ export class SimulateTxOperation extends ExternalOperation<
     private decodingCache: DecodingCache,
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
-    private getFeeOptionsForGasEstimation: (
+    private completeFeeOptionsForEstimation: (
       from: AztecAddress,
-      fee: SimulateOptions["fee"]
+      feePayer: AztecAddress | undefined,
+      gasSettings?: Partial<FieldsOf<GasSettings>>
     ) => Promise<FeeOptions>,
-    private getDefaultFeeOptions: (
+    private completeFeeOptions: (
       from: AztecAddress,
-      fee: SimulateOptions["fee"]
+      feePayer: AztecAddress | undefined,
+      gasSettings?: Partial<FieldsOf<GasSettings>>
     ) => Promise<FeeOptions>,
     private getFakeAccountDataFor: (
       address: AztecAddress
@@ -152,13 +154,13 @@ export class SimulateTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      opts.fee?.embeddedPaymentMethodFeePayer
+      executionPayload.feePayer
     );
 
     // Process fee options
     const feeOptions = opts.fee?.estimateGas
-      ? await this.getFeeOptionsForGasEstimation(opts.from, opts.fee)
-      : await this.getDefaultFeeOptions(opts.from, opts.fee);
+      ? await this.completeFeeOptionsForEstimation(opts.from, executionPayload.feePayer, opts.fee?.gasSettings)
+      : await this.completeFeeOptions(opts.from, executionPayload.feePayer, opts.fee?.gasSettings);
 
     const feeExecutionPayload =
       await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
@@ -179,14 +181,11 @@ export class SimulateTxOperation extends ExternalOperation<
       artifact,
     } = await this.getFakeAccountDataFor(opts.from);
 
-    console.log("FAKE");
     const txRequest = await fromAccount.createTxExecutionRequest(
       finalExecutionPayload,
       feeOptions.gasSettings,
       executionOptions
     );
-
-    console.log("TXREQUEST");
 
     const contractOverrides = {
       [opts.from.toString()]: { instance, artifact },
@@ -203,7 +202,7 @@ export class SimulateTxOperation extends ExternalOperation<
 
     await this.db.storeTxSimulation(payloadHash, simulationResult, txRequest, {
       from: opts.from.toString(),
-      embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer?.toString(),
+      embeddedPaymentMethodFeePayer: executionPayload.feePayer?.toString(),
     });
 
     const decodingService = new TxDecodingService(this.decodingCache);
@@ -216,7 +215,7 @@ export class SimulateTxOperation extends ExternalOperation<
         from: opts.from,
         decoded,
         stats: simulationResult.stats,
-        embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer,
+        embeddedPaymentMethodFeePayer: executionPayload.feePayer?.toString(),
       },
       executionData: {
         simulationResult,
@@ -241,7 +240,7 @@ export class SimulateTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      opts.fee?.embeddedPaymentMethodFeePayer
+      executionPayload.feePayer
     );
     const interaction = WalletInteraction.from({
       id: payloadHash,
@@ -280,7 +279,8 @@ export class SimulateTxOperation extends ExternalOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
-          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer?.toString(),
+          embeddedPaymentMethodFeePayer:
+            displayData.embeddedPaymentMethodFeePayer,
         },
         timestamp: Date.now(),
         persistence,

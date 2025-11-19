@@ -2,12 +2,7 @@ import type { PXE } from "@aztec/pxe/server";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { WalletDB } from "../database/wallet-db";
-import type {
-  ContractInstanceWithAddress,
-  ContractInstantiationData,
-} from "@aztec/stdlib/contract";
-import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
-import { type ContractInstanceAndArtifact } from "@aztec/aztec.js/wallet";
+import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 
 interface ContractMetadata {
   contractInstance?: {
@@ -111,43 +106,11 @@ export class DecodingCache {
   }
 
   /**
-   * Resolve contract address from various instanceData formats.
-   * Handles AztecAddress, ContractInstanceWithAddress, ContractInstantiationData, etc.
-   */
-  async resolveContractAddress(
-    instanceData:
-      | AztecAddress
-      | ContractInstanceWithAddress
-      | ContractInstantiationData
-      | ContractInstanceAndArtifact,
-    artifact?: ContractArtifact
-  ): Promise<AztecAddress> {
-    if (instanceData instanceof AztecAddress) {
-      return instanceData;
-    } else if ("address" in instanceData) {
-      return instanceData.address;
-    } else if ("instance" in instanceData) {
-      return instanceData.instance.address;
-    } else {
-      // ContractInstantiationData - compute the address
-      const instance = await getContractInstanceFromInstantiationParams(
-        artifact!,
-        instanceData
-      );
-      return instance.address;
-    }
-  }
-
-  /**
    * Resolve contract name from various sources.
    * Uses caching internally via getAddressAlias and getContractArtifact.
    */
   async resolveContractName(
-    instanceData:
-      | AztecAddress
-      | ContractInstanceWithAddress
-      | ContractInstantiationData
-      | ContractInstanceAndArtifact,
+    instance: ContractInstanceWithAddress,
     artifact: ContractArtifact | undefined,
     address: AztecAddress
   ): Promise<string> {
@@ -157,10 +120,10 @@ export class DecodingCache {
     // Check if instanceData contains an artifact
     if (
       !contractName &&
-      typeof instanceData === "object" &&
-      "artifact" in instanceData
+      typeof instance === "object" &&
+      "artifact" in instance
     ) {
-      contractName = (instanceData as any).artifact?.name;
+      contractName = (instance as any).artifact?.name;
     }
 
     // If we still don't have a name, try to fetch using cached methods

@@ -11,10 +11,10 @@ import type {
 import {
   getContractInstanceFromInstantiationParams,
   computePartialAddress,
+  getContractClassFromArtifact,
 } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { Fr } from "@aztec/foundation/fields";
-import type { ContractInstanceAndArtifact } from "@aztec/aztec.js/wallet";
 import type { PXE } from "@aztec/pxe/server";
 import {
   WalletInteraction,
@@ -24,16 +24,9 @@ import type { DecodingCache } from "../decoding/decoding-cache";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 
-// Type for the possible instance data inputs
-type RegisterContractInstanceData =
-  | AztecAddress
-  | ContractInstanceWithAddress
-  | ContractInstantiationData
-  | ContractInstanceAndArtifact;
-
 // Arguments tuple for the operation
 type RegisterContractArgs = [
-  instanceData: RegisterContractInstanceData,
+  instance: ContractInstanceWithAddress,
   artifact?: ContractArtifact,
   secretKey?: Fr,
 ];
@@ -43,7 +36,7 @@ type RegisterContractResult = ContractInstanceWithAddress;
 
 // Execution data stored between prepare and execute phases
 interface RegisterContractExecutionData {
-  instanceData: RegisterContractInstanceData;
+  instance: ContractInstanceWithAddress;
   artifact?: ContractArtifact;
   secretKey?: Fr;
 }
@@ -81,15 +74,12 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async check(
-    instanceData: RegisterContractInstanceData,
+    instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
     _secretKey?: Fr
   ): Promise<RegisterContractResult | undefined> {
     // Resolve contract address
-    const contractAddress = await this.decodingCache.resolveContractAddress(
-      instanceData,
-      artifact
-    );
+    const contractAddress = instance.address;
 
     // Check if already registered (early return case)
     const metadata = await this.pxe.getContractMetadata(contractAddress);
@@ -101,18 +91,15 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async createInteraction(
-    instanceData: RegisterContractInstanceData,
+    instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
     _secretKey?: Fr
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
-    const contractAddress = await this.decodingCache.resolveContractAddress(
-      instanceData,
-      artifact
-    );
+    const contractAddress = instance.address;
 
     const contractName = await this.decodingCache.resolveContractName(
-      instanceData,
+      instance,
       artifact,
       contractAddress
     );
@@ -131,7 +118,7 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async prepare(
-    instanceData: RegisterContractInstanceData,
+    instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
     secretKey?: Fr
   ): Promise<
@@ -142,21 +129,17 @@ export class RegisterContractOperation extends ExternalOperation<
     >
   > {
     // Resolve contract address
-    const contractAddress = await this.decodingCache.resolveContractAddress(
-      instanceData,
-      artifact
-    );
-
+    const contractAddress = instance.address;
     // Resolve contract name for display
     const contractName = await this.decodingCache.resolveContractName(
-      instanceData,
+      instance,
       artifact,
       contractAddress
     );
 
     return {
       displayData: { contractAddress, contractName },
-      executionData: { instanceData, artifact, secretKey },
+      executionData: { instance, artifact, secretKey },
     };
   }
 
@@ -184,67 +167,41 @@ export class RegisterContractOperation extends ExternalOperation<
   async execute(
     executionData: RegisterContractExecutionData
   ): Promise<RegisterContractResult> {
-    const { instanceData, artifact, secretKey } = executionData;
+    let { instance, artifact, secretKey } = executionData;
+    const { contractInstance: existingInstance } =
+      await this.pxe.getContractMetadata(instance.address);
 
-    // Type guards
-    const isInstanceWithAddress = (
-      data: RegisterContractInstanceData
-    ): data is ContractInstanceWithAddress =>
-      typeof data === "object" &&
-      data !== null &&
-      "address" in data &&
-      !("instance" in data);
-    const isContractInstantiationData = (
-      data: RegisterContractInstanceData
-    ): data is ContractInstantiationData =>
-      typeof data === "object" && data !== null && "salt" in data;
-    const isContractInstanceAndArtifact = (
-      data: RegisterContractInstanceData
-    ): data is ContractInstanceAndArtifact =>
-      typeof data === "object" &&
-      data !== null &&
-      "instance" in data &&
-      "artifact" in data;
-
-    let instance: ContractInstanceWithAddress;
-
-    if (isContractInstanceAndArtifact(instanceData)) {
-      // Already has instance and artifact
-      instance = instanceData.instance;
-      await this.pxe.registerContract(instanceData);
-    } else if (isInstanceWithAddress(instanceData)) {
-      // Has instance with address
-      instance = instanceData;
-      await this.pxe.registerContract({ artifact, instance });
-    } else if (isContractInstantiationData(instanceData)) {
-      // Need to create instance from instantiation data
-      if (!artifact) {
-        throw new Error(
-          `Contract artifact must be provided when registering a contract using instantiation data`
-        );
+    if (existingInstance) {
+      // Instance already registered in the wallet
+      if (artifact) {
+        const thisContractClass = await getContractClassFromArtifact(artifact);
+        if (
+          !thisContractClass.id.equals(existingInstance.currentContractClassId)
+        ) {
+          // wallet holds an outdated version of this contract
+          await this.pxe.updateContract(instance.address, artifact);
+          instance.currentContractClassId = thisContractClass.id;
+        }
       }
-      instance = await getContractInstanceFromInstantiationParams(
-        artifact,
-        instanceData
-      );
-      await this.pxe.registerContract({ artifact, instance });
+      // If no artifact provided, we just use the existing registration
     } else {
-      // instanceData is AztecAddress
+      // Instance not registered yet
       if (!artifact) {
-        throw new Error(
-          `Contract artifact must be provided when registering a contract from an address`
+        // Try to get the artifact from the wallet's contract class storage
+        const classMetadata = await this.pxe.getContractClassMetadata(
+          instance.currentContractClassId,
+          true
         );
-      }
-      instance = await this.pxe.getContractInstance(instanceData);
-      if (!instance) {
-        throw new Error(
-          `No contract instance found for address: ${instanceData}`
-        );
+        if (!classMetadata.artifact) {
+          throw new Error(
+            `Cannot register contract at ${instance.address.toString()}: artifact is required but not provided, and wallet does not have the artifact for contract class ${instance.currentContractClassId.toString()}`
+          );
+        }
+        artifact = classMetadata.artifact;
       }
       await this.pxe.registerContract({ artifact, instance });
     }
 
-    // Register secret key if provided
     if (secretKey) {
       await this.pxe.registerAccount(
         secretKey,

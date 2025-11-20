@@ -24,6 +24,7 @@ import { AuthorizeSimulateTxContent } from "../authorization/AuthorizeSimulateTx
 import { AuthorizeContractContent } from "../authorization/AuthorizeContractContent";
 import { AuthorizeSenderContent } from "../authorization/AuthorizeSenderContent";
 import { AuthorizeAccountsContent } from "../authorization/AuthorizeAccountsContent";
+import { AuthorizeAddressBookContent } from "../authorization/AuthorizeAddressBookContent";
 import { WalletContext } from "../../renderer";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
@@ -54,6 +55,8 @@ function formatMethodName(method: string): string {
       return "Register Sender";
     case "getAccounts":
       return "Get Accounts";
+    case "getAddressBook":
+      return "Get Address Book";
     default:
       return method;
   }
@@ -144,6 +147,7 @@ export function AuthorizationDialog({
           approved: true,
           persistent:
             item.method === "getAccounts" ||
+            item.method === "getAddressBook" ||
             item.method === "simulateTx" ||
             item.method === "simulateUtility",
         },
@@ -161,6 +165,7 @@ export function AuthorizationDialog({
             approved: true,
             persistent:
               item.method === "getAccounts" ||
+              item.method === "getAddressBook" ||
               item.method === "simulateTx" ||
               item.method === "simulateUtility",
           },
@@ -440,6 +445,16 @@ export function AuthorizationDialog({
                         request={item}
                         onAccountsChange={(accounts) => {
                           handleItemDataChange(item.id, { accounts });
+                        }}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "getAddressBook" && (
+                      <AuthorizeAddressBookContent
+                        request={item}
+                        onContactsChange={(contacts) => {
+                          handleItemDataChange(item.id, { contacts });
                         }}
                         showAppId={false}
                       />

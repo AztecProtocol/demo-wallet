@@ -104,6 +104,7 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   listAuthorizedApps(): Promise<string[]>;
   getAppAuthorizations(appId: string): Promise<{
     accounts: { alias: string; item: string }[];
+    contacts: { alias: string; item: string }[];
     simulations: Array<{
       type: "simulateTx" | "simulateUtility";
       payloadHash: string;
@@ -115,6 +116,10 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   updateAccountAuthorization(
     appId: string,
     accounts: { alias: string; item: string }[]
+  ): Promise<void>;
+  updateAddressBookAuthorization(
+    appId: string,
+    contacts: { alias: string; item: string }[]
   ): Promise<void>;
   revokeAuthorization(key: string): Promise<void>;
   revokeAppAuthorizations(appId: string): Promise<void>;
@@ -182,6 +187,7 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       .returns(
         z.object({
           accounts: z.array(z.object({ alias: z.string(), item: z.string() })),
+          contacts: z.array(z.object({ alias: z.string(), item: z.string() })),
           simulations: z.array(
             z.object({
               type: z.enum(["simulateTx", "simulateUtility"]),
@@ -195,6 +201,13 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       ),
     // @ts-ignore
     updateAccountAuthorization: z
+      .function()
+      .args(
+        z.string(),
+        z.array(z.object({ alias: z.string(), item: z.string() }))
+      ),
+    // @ts-ignore
+    updateAddressBookAuthorization: z
       .function()
       .args(
         z.string(),

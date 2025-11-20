@@ -249,6 +249,7 @@ export class InternalWallet extends BaseNativeWallet {
 
   async getAppAuthorizations(appId: string): Promise<{
     accounts: { alias: string; item: string }[];
+    contacts: { alias: string; item: string }[];
     simulations: Array<{
       type: "simulateTx" | "simulateUtility";
       payloadHash: string;

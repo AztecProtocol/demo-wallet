@@ -200,6 +200,7 @@ app.on("ready", async () => {
     "listAuthorizedApps",
     "getAppAuthorizations",
     "updateAccountAuthorization",
+    "updateAddressBookAuthorization",
     "revokeAuthorization",
     "revokeAppAuthorizations",
   ];

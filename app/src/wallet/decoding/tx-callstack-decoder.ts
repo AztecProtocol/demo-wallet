@@ -477,10 +477,14 @@ export class TxCallStackDecoder {
       return [];
     }
 
-    const decodedReturns = decodeFromAbi(
+    // Decode the Fr[] return values using the function's return types
+    const decoded = decodeFromAbi(
       functionAbi.returnTypes,
       returnValues
-    ) as AbiDecoded[];
+    );
+
+    // decodeFromAbi returns a single value if there's one return type, or an array for multiple
+    const decodedReturns = Array.isArray(decoded) ? decoded : [decoded];
 
     return await Promise.all(
       decodedReturns.map(async (value, i) => ({

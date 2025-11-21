@@ -25,6 +25,7 @@ import type {
 import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
+import { WALLET_ID } from "../config/constants.ts";
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -40,7 +41,10 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
-  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
+  wallets: Map<
+    string,
+    Promise<{ external: ExternalWallet; internal: InternalWallet }>
+  >;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -232,20 +236,20 @@ const handleNetworkSupportCheck = (
     externalPort.postMessage({
       origin: "wallet",
       content: JSON.stringify({
-        type: '__network_support_response',
+        type: "__network_support_response",
         messageId,
-        result: isSupported
-      })
+        result: isSupported,
+      }),
     });
   } catch (error) {
     // If we can't parse the chain info, we don't support it
     externalPort.postMessage({
       origin: "wallet",
       content: JSON.stringify({
-        type: '__network_support_response',
+        type: "__network_support_response",
         messageId,
-        result: false
-      })
+        result: false,
+      }),
     });
   }
 };
@@ -280,7 +284,7 @@ const handleEvent = async (
   }
   port.postMessage({
     origin: "wallet",
-    content: jsonStringify({ messageId, result, error }),
+    content: jsonStringify({ walletId: WALLET_ID, messageId, result, error }),
   });
 };
 
@@ -323,7 +327,7 @@ async function main() {
         const { type, messageId, args, appId, chainInfo } = messageContent;
 
         // Handle network support check
-        if (type === '__check_network_support') {
+        if (type === "__check_network_support") {
           handleNetworkSupportCheck(externalPort, messageId, chainInfo);
           return;
         }

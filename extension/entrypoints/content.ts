@@ -30,10 +30,9 @@ export default defineContentScript({
             {
               type: "aztec-wallet-discovery-response",
               requestId,
-              extensionInfo: {
-                id: "demo-wallet-extension",
-                name: "Demo Wallet",
-                icon: browser.runtime.getURL("/icon/128.png"),
+              walletInfo: {
+                id: "aztec-keychain",
+                name: "Aztec Keychain",
                 version: browser.runtime.getManifest().version,
               },
             },

@@ -43,13 +43,13 @@ export default defineContentScript({
         return;
       }
 
-      // Handle wallet method calls
-      if (data.result || data.error) {
+      // Ignore wallet responses (messages with walletId and result/error)
+      if (parsed?.walletId && (parsed?.result !== undefined || parsed?.error !== undefined)) {
         return;
       }
 
-      const { data: content } = event;
-      browser.runtime.sendMessage({ origin: "injected", content });
+      // Forward wallet method calls to background
+      browser.runtime.sendMessage({ origin: "injected", content: data });
     });
 
     browser.runtime.onMessage.addListener((event: any) => {

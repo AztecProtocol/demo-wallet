@@ -324,7 +324,13 @@ async function main() {
           userLog.debug(`Unable to parse message ${content}`);
           return;
         }
-        const { type, messageId, args, appId, chainInfo } = messageContent;
+        const { type, messageId, args, appId, chainInfo, walletId } = messageContent;
+
+        // Ignore wallet response messages (shouldn't receive these here)
+        if (walletId && (messageContent.result !== undefined || messageContent.error !== undefined)) {
+          userLog.debug("Ignoring wallet response message");
+          return;
+        }
 
         // Handle network support check
         if (type === "__check_network_support") {

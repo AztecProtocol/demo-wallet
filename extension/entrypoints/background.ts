@@ -66,7 +66,7 @@ export default defineBackground(() => {
           return;
         }
 
-        // Forward wallet method responses to content script
+        // Forward wallet method responses to content script as JSON string
         const [tab] = await browser.tabs.query({
           active: true,
           currentWindow: true,
@@ -77,7 +77,7 @@ export default defineBackground(() => {
         }
         browser.tabs.sendMessage(tab.id, {
           origin: "background",
-          content: data,
+          content: event.data, // Forward the JSON string directly
         });
       };
 

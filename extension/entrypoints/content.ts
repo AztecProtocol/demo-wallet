@@ -27,7 +27,7 @@ export default defineContentScript({
 
         if (isSupported) {
           window.postMessage(
-            {
+            JSON.stringify({
               type: "aztec-wallet-discovery-response",
               requestId,
               walletInfo: {
@@ -35,7 +35,7 @@ export default defineContentScript({
                 name: "Aztec Keychain",
                 version: browser.runtime.getManifest().version,
               },
-            },
+            }),
             "*"
           );
         }
@@ -58,7 +58,8 @@ export default defineContentScript({
       if (origin !== "background") {
         return;
       }
-      window.postMessage(content);
+      // Forward JSON string directly to page
+      window.postMessage(content, "*");
     });
   },
 });

@@ -29,7 +29,7 @@ const externalDependencies = ["@aztec/kv-store", "@aztec/bb.js"];
 // Map to swap dependency names: key = dependency name to copy, value = source package name
 const dependencyMap: Record<string, string> = {
   // Example: "@some/package": "@some/other-package"
-  "@spalladino/viem": "viem",
+  "@aztec/viem": "viem",
 };
 
 const config: ForgeConfig = {

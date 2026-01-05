@@ -12,7 +12,7 @@ import {
   mergeExecutionPayloads,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
-import { Fr } from "@aztec/foundation/fields";
+import { Fr } from "@aztec/foundation/curves/bn254";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -159,8 +159,16 @@ export class SimulateTxOperation extends ExternalOperation<
 
     // Process fee options
     const feeOptions = opts.fee?.estimateGas
-      ? await this.completeFeeOptionsForEstimation(opts.from, executionPayload.feePayer, opts.fee?.gasSettings)
-      : await this.completeFeeOptions(opts.from, executionPayload.feePayer, opts.fee?.gasSettings);
+      ? await this.completeFeeOptionsForEstimation(
+          opts.from,
+          executionPayload.feePayer,
+          opts.fee?.gasSettings
+        )
+      : await this.completeFeeOptions(
+          opts.from,
+          executionPayload.feePayer,
+          opts.fee?.gasSettings
+        );
 
     const feeExecutionPayload =
       await feeOptions.walletFeePaymentMethod?.getExecutionPayload();

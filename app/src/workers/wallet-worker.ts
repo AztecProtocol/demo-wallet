@@ -9,6 +9,7 @@ import { ExternalWallet } from "../wallet/core/external-wallet.ts";
 import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
 import { createPXE, getPXEConfig, type PXEConfig } from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
+import { BackendType, Barretenberg } from "@aztec/bb.js";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
 import { resolve, join } from "node:path";
@@ -40,7 +41,10 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
-  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
+  wallets: Map<
+    string,
+    Promise<{ external: ExternalWallet; internal: InternalWallet }>
+  >;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -81,6 +85,7 @@ async function init(
         dataDirectory: resolve(keychainHomeDir, `./pxe-${rollupAddress}`),
         proverEnabled: true,
       };
+
       const options = {
         loggers: {
           store: createProxyLogger("pxe:data:lmdb", logPort),
@@ -271,6 +276,7 @@ async function main() {
     if (message.data.type === "ports" && message.ports?.length) {
       const [externalPort, internalPort, logPort] = message.ports;
       userLog = createProxyLogger("wallet:worker", logPort);
+
       externalPort.on("message", async (event) => {
         const { origin, content } = event.data;
         if (origin !== "websocket") {

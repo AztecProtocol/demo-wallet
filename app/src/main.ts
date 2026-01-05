@@ -57,12 +57,16 @@ if (app.isPackaged) {
     );
   }
 
+  if (process.env.BB_NAPI_PATH?.includes("__RESOURCES_PATH__")) {
+    process.env.BB_NAPI_PATH = process.env.BB_NAPI_PATH.replace(
+      "__RESOURCES_PATH__",
+      resourcesPath
+    );
+  }
+
   console.log("BB_BINARY_PATH:", process.env.BB_BINARY_PATH);
+  console.log("BB_NAPI_PATH:", process.env.BB_NAPI_PATH);
   console.log("BB_WASM_PATH:", process.env.BB_WASM_PATH);
-  console.log(
-    "BB_WORKING_DIRECTORY (from env):",
-    process.env.BB_WORKING_DIRECTORY
-  );
 
   // Verify binary exists and is executable
   try {

@@ -113,11 +113,11 @@ const config: ForgeConfig = {
         },
         {
           entry: "src/workers/ws-worker.ts",
-          config: "vite.preload.config.ts",
+          config: "vite.worker.config.ts",
         },
         {
           entry: "src/workers/wallet-worker.ts",
-          config: "vite.preload.config.ts",
+          config: "vite.worker.config.ts",
         },
       ],
       renderer: [

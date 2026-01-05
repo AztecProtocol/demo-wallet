@@ -4,34 +4,29 @@ import {
   type PersistenceConfig,
 } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { ExecutionPayload } from "@aztec/entrypoints/payload";
 import { TxHash } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
-import type { TxExecutionRequest } from "@aztec/stdlib/tx";
+import type { ExecutionPayload, TxExecutionRequest } from "@aztec/stdlib/tx";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import { inspect } from "util";
 import {
   WalletInteraction,
   type WalletInteractionType,
 } from "../types/wallet-interaction";
-import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
-import { TxDecodingService } from "../decoding/tx-decoding-service";
 import type { ReadableCallAuthorization } from "../decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import {
   hashExecutionPayload,
   generateSimulationTitle,
 } from "../utils/simulation-utils";
-import type {
-  SendOptions,
-  FeeOptions,
-  UserFeeOptions,
-} from "@aztec/aztec.js/wallet";
+import type { SendOptions, FeeOptions } from "@aztec/aztec.js/wallet";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
+import type { GasSettings } from "@aztec/stdlib/gas";
+import type { FieldsOf } from "@aztec/foundation/types";
 
 // Arguments tuple for the operation
 type SendTxArgs = [executionPayload: ExecutionPayload, opts: SendOptions];
@@ -90,9 +85,10 @@ export class SendTxOperation extends ExternalOperation<
       from: AztecAddress,
       fee: FeeOptions
     ) => Promise<TxExecutionRequest>,
-    private getDefaultFeeOptions: (
+    private completeFeeOptions: (
       from: AztecAddress,
-      fee: UserFeeOptions
+      feePayer: AztecAddress | undefined,
+      gasSettings?: Partial<FieldsOf<GasSettings>>
     ) => Promise<FeeOptions>,
     private contextualizeError: (err: unknown, context: string) => Error
   ) {
@@ -118,7 +114,7 @@ export class SendTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      opts.fee?.embeddedPaymentMethodFeePayer
+      executionPayload.feePayer
     );
     const interaction = WalletInteraction.from({
       id: payloadHash,
@@ -142,12 +138,14 @@ export class SendTxOperation extends ExternalOperation<
     PrepareResult<SendTxResult, SendTxDisplayData, SendTxExecutionData>
   > {
     const payloadHash = hashExecutionPayload(executionPayload);
-    const fee = await this.getDefaultFeeOptions(opts.from, opts.fee);
+    const fee = await this.completeFeeOptions(
+      opts.from,
+      executionPayload.feePayer,
+      opts.fee?.gasSettings
+    );
 
     // Use simulateTx operation's prepare method (will throw if simulation fails)
     const prepared = await this.simulateTxOp.prepare(executionPayload, opts);
-
-    console.log("PREPARED");
 
     // Decode simulation results
     const { callAuthorizations, executionTrace } =
@@ -175,7 +173,7 @@ export class SendTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      opts.fee?.embeddedPaymentMethodFeePayer
+      executionPayload.feePayer
     );
 
     return {
@@ -186,7 +184,7 @@ export class SendTxOperation extends ExternalOperation<
         callAuthorizations,
         executionTrace,
         stats: prepared.displayData?.stats,
-        embeddedPaymentMethodFeePayer: opts.fee?.embeddedPaymentMethodFeePayer,
+        embeddedPaymentMethodFeePayer: executionPayload.feePayer,
       },
       executionData: {
         txRequest,
@@ -215,7 +213,8 @@ export class SendTxOperation extends ExternalOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
-          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer?.toString(),
+          embeddedPaymentMethodFeePayer:
+            displayData.embeddedPaymentMethodFeePayer?.toString(),
         },
         timestamp: Date.now(),
       },

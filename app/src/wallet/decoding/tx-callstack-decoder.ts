@@ -178,37 +178,18 @@ export class TxCallStackDecoder {
               functionAbi
             );
 
-            const decoded = decodeFromAbi(
-              functionAbi.parameters.map((p) => p.type),
-              argsValues
-            );
-
-            // decodeFromAbi returns a single value if there's one param, or an array for multiple
-            const decodedArgs = Array.isArray(decoded) ? decoded : [decoded];
-
-            args = await Promise.all(
-              decodedArgs.map(async (value, i) => ({
-                name: functionAbi.parameters[i]?.name || `arg_${i}`,
-                value: await this.formatAndResolveValue(value),
-              }))
-            );
+            // Reuse the generic argument decoding helper
+            args = await this.decodeAndFormatArguments(functionAbi, argsValues);
           } catch (error) {
             // Silently fail - args will remain empty
           }
         }
 
-        // Decode return values
+        // Decode return values - reuse the generic return value decoding helper
         if (functionAbi.returnTypes.length > 0) {
-          const decodedReturns = decodeFromAbi(
-            functionAbi.returnTypes,
+          returnValues = await this.decodeAndFormatReturnValues(
+            functionAbi,
             call.returnValues
-          ) as AbiDecoded[];
-
-          returnValues = await Promise.all(
-            decodedReturns.map(async (value, i) => ({
-              name: `return_${i}`,
-              value: await this.formatAndResolveValue(value),
-            }))
           );
         }
       }
@@ -366,21 +347,10 @@ export class TxCallStackDecoder {
               if (functionAbi.parameters.length > 0 && calldata.length > 1) {
                 try {
                   const argsData = calldata.slice(1); // Skip the selector
-                  const decoded = decodeFromAbi(
-                    functionAbi.parameters.map((p) => p.type),
+                  // Reuse the generic argument decoding helper
+                  args = await this.decodeAndFormatArguments(
+                    functionAbi,
                     argsData
-                  );
-
-                  // decodeFromAbi returns a single value if there's one param, or an array for multiple
-                  const decodedArgs = Array.isArray(decoded)
-                    ? decoded
-                    : [decoded];
-
-                  args = await Promise.all(
-                    decodedArgs.map(async (value, i) => ({
-                      name: functionAbi.parameters[i]?.name || `arg_${i}`,
-                      value: await this.formatAndResolveValue(value),
-                    }))
                   );
                 } catch (error) {
                   // Silently fail - args will remain empty
@@ -458,21 +428,89 @@ export class TxCallStackDecoder {
   }
 
   /**
+   * Generic helper to decode and format function arguments.
+   * Reused by both transaction decoding and utility function decoding.
+   *
+   * @param functionAbi - The function ABI containing parameter definitions
+   * @param args - Raw Fr[] arguments to decode
+   * @returns Array of formatted arguments with names and display values
+   */
+  private async decodeAndFormatArguments(
+    functionAbi: FunctionAbi,
+    args: Fr[]
+  ): Promise<Array<{ name: string; value: string }>> {
+    if (!functionAbi.parameters || functionAbi.parameters.length === 0) {
+      return [];
+    }
+
+    // Decode the Fr[] args using the function's parameter types
+    const decoded = decodeFromAbi(
+      functionAbi.parameters.map((p) => p.type),
+      args
+    );
+
+    // decodeFromAbi returns a single value if there's one param, or an array for multiple
+    const decodedArgs = Array.isArray(decoded) ? decoded : [decoded];
+
+    // Format each decoded argument with address resolution
+    return await Promise.all(
+      decodedArgs.map(async (value, i) => ({
+        name: functionAbi.parameters[i]?.name || `arg_${i}`,
+        value: await this.formatAndResolveValue(value),
+      }))
+    );
+  }
+
+  /**
+   * Generic helper to decode and format function return values.
+   * Reused by both transaction decoding and utility function decoding.
+   *
+   * @param functionAbi - The function ABI containing return type definitions
+   * @param returnValues - Raw Fr[] return values to decode
+   * @returns Array of formatted return values with names and display values
+   */
+  private async decodeAndFormatReturnValues(
+    functionAbi: FunctionAbi,
+    returnValues: Fr[]
+  ): Promise<Array<{ name: string; value: string }>> {
+    if (!functionAbi.returnTypes || functionAbi.returnTypes.length === 0) {
+      return [];
+    }
+
+    // Decode the Fr[] return values using the function's return types
+    const decoded = decodeFromAbi(
+      functionAbi.returnTypes,
+      returnValues
+    );
+
+    // decodeFromAbi returns a single value if there's one return type, or an array for multiple
+    const decodedReturns = Array.isArray(decoded) ? decoded : [decoded];
+
+    return await Promise.all(
+      decodedReturns.map(async (value, i) => ({
+        name: `return_${i}`,
+        value: await this.formatAndResolveValue(value),
+      }))
+    );
+  }
+
+  /**
    * Format utility function arguments for display.
-   * Retrieves contract metadata and artifact, then formats args with address resolution.
+   * Takes raw Fr[] from FunctionCall.args, decodes using function's parameter types ABI,
+   * then formats with address resolution.
+   *
+   * This method reuses the generic decoding helpers that are also used by transaction decoding.
    */
   async formatUtilityArguments(
     contractAddress: AztecAddress,
     functionName: string,
-    args: any[]
+    args: Fr[]
   ): Promise<Array<{ name: string; value: string }>> {
     if (args.length === 0) {
       return [];
     }
 
     try {
-      console.log("[formatUtilityArguments] Raw args:", args);
-
       // Retrieve contract metadata and artifact
       const metadata = await this.cache.getContractMetadata(contractAddress);
       if (!metadata.contractInstance) {
@@ -491,48 +529,28 @@ export class TxCallStackDecoder {
         throw new Error(`Function ${functionName} not found in artifact`);
       }
 
-      console.log(
-        "[formatUtilityArguments] Function ABI parameters:",
-        functionAbi.parameters
-      );
-
-      // Args are already decoded values, just need to format and resolve addresses
-      const formatted = await Promise.all(
-        args.map(async (value, i) => {
-          const formattedValue = await this.formatAndResolveValue(value);
-          console.log(
-            `[formatUtilityArguments] Arg ${i}:`,
-            value,
-            "=>",
-            formattedValue
-          );
-          return {
-            name: functionAbi.parameters[i]?.name || `arg_${i}`,
-            value: formattedValue,
-          };
-        })
-      );
-
-      console.log("[formatUtilityArguments] Formatted result:", formatted);
-      return formatted;
+      // Reuse the generic argument decoding helper (same logic as transaction decoding)
+      return await this.decodeAndFormatArguments(functionAbi, args);
     } catch (error) {
-      console.error("[formatUtilityArguments] Error formatting args:", error);
-      // If formatting fails, return raw args
+      // If formatting fails, return raw representation of Fr[] values
       return args.map((arg, i) => ({
         name: `arg_${i}`,
-        value: JSON.stringify(arg),
+        value: arg.toString(),
       }));
     }
   }
 
   /**
    * Format utility function result for display with address resolution.
-   * Retrieves contract metadata and artifact, then formats result with address aliases.
+   * Takes raw Fr[] from UtilitySimulationResult, decodes using function's return type ABI,
+   * then formats with address aliases.
+   *
+   * This method reuses the generic decoding helpers that are also used by transaction decoding.
    */
   async formatUtilityResult(
     contractAddress: AztecAddress,
     functionName: string,
-    result: any
+    result: Fr[]
   ): Promise<string> {
     try {
       // Retrieve contract metadata and artifact
@@ -553,11 +571,29 @@ export class TxCallStackDecoder {
         throw new Error(`Function ${functionName} not found in artifact`);
       }
 
-      // Format the result value with address resolution
-      return await this.formatAndResolveValue(result);
+      // If the function has no return type, return empty string
+      if (!functionAbi.returnTypes || functionAbi.returnTypes.length === 0) {
+        return "void";
+      }
+
+      // Reuse the generic return value decoding helper (same logic as transaction decoding)
+      const formattedReturns = await this.decodeAndFormatReturnValues(
+        functionAbi,
+        result
+      );
+
+      // For utility functions, we typically have a single return value
+      // If there are multiple, join them with commas
+      if (formattedReturns.length === 0) {
+        return "void";
+      } else if (formattedReturns.length === 1) {
+        return formattedReturns[0].value;
+      } else {
+        return `[${formattedReturns.map((r) => r.value).join(", ")}]`;
+      }
     } catch (error) {
-      // If formatting fails, return raw JSON
-      return JSON.stringify(result, null, 2);
+      // If formatting fails, return raw representation of Fr[] values
+      return `[${result.map((fr) => fr.toString()).join(", ")}]`;
     }
   }
 }

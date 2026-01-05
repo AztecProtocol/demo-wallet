@@ -3,12 +3,11 @@ import {
   SignerlessAccount,
   type ChainInfo,
 } from "@aztec/aztec.js/account";
-import { AztecAddress, CompleteAddress } from "@aztec/aztec.js/addresses";
+import { AztecAddress } from "@aztec/aztec.js/addresses";
 import {
   AccountManager,
   BaseWallet,
   type FeeOptions,
-  type UserFeeOptions,
   type Aliased,
 } from "@aztec/aztec.js/wallet";
 import { Fq, Fr } from "@aztec/aztec.js/fields";
@@ -27,7 +26,7 @@ import type {
 } from "../types/authorization";
 import { prepareForFeePayment } from "../utils/sponsored-fpc";
 import { AccountFeePaymentMethodOptions } from "@aztec/entrypoints/account";
-import { GasSettings } from "@aztec/stdlib/gas";
+import { Gas, GasSettings } from "@aztec/stdlib/gas";
 import {
   EcdsaKAccountContract,
   EcdsaRAccountContract,
@@ -37,9 +36,8 @@ import {
   createStubAccount,
   StubAccountContractArtifact,
 } from "@aztec/accounts/stub";
-import { ProtocolContractAddress } from "@aztec/protocol-contracts";
 import { getCanonicalMultiCallEntrypoint } from "@aztec/protocol-contracts/multi-call-entrypoint";
-import { type ContractInstanceWithAddress } from "@aztec/stdlib/contract";
+import type { FieldsOf } from "@aztec/foundation/types";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -238,35 +236,33 @@ export abstract class BaseNativeWallet
     }
   }
 
-  override async getDefaultFeeOptions(
+  override async completeFeeOptions(
     from: AztecAddress,
-    userFeeOptions: UserFeeOptions | undefined
+    feePayer?: AztecAddress,
+    gasSettings?: Partial<FieldsOf<GasSettings>>
   ): Promise<FeeOptions> {
     const maxFeesPerGas =
-      userFeeOptions?.gasSettings?.maxFeesPerGas ??
+      gasSettings?.maxFeesPerGas ??
       (await this.aztecNode.getCurrentBaseFees()).mul(1 + this.baseFeePadding);
     let walletFeePaymentMethod;
     let accountFeePaymentMethodOptions;
     // The transaction does not include a fee payment method, so we set a default
-    if (!userFeeOptions?.embeddedPaymentMethodFeePayer) {
+    if (!feePayer) {
       walletFeePaymentMethod = await prepareForFeePayment(this);
       accountFeePaymentMethodOptions = AccountFeePaymentMethodOptions.EXTERNAL;
     } else {
       // The transaction includes fee payment method, so we check if we are the fee payer for it
       // (this can only happen if the embedded payment method is FeeJuiceWithClaim)
-      accountFeePaymentMethodOptions = from.equals(
-        userFeeOptions.embeddedPaymentMethodFeePayer
-      )
+      accountFeePaymentMethodOptions = from.equals(feePayer)
         ? AccountFeePaymentMethodOptions.FEE_JUICE_WITH_CLAIM
         : AccountFeePaymentMethodOptions.EXTERNAL;
     }
-    const gasSettings: GasSettings = GasSettings.default({
-      ...userFeeOptions?.gasSettings,
+    const fullGasSettings: GasSettings = GasSettings.default({
+      ...gasSettings,
       maxFeesPerGas,
     });
-    this.log.debug(`Using L2 gas settings`, gasSettings);
     return {
-      gasSettings,
+      gasSettings: fullGasSettings,
       walletFeePaymentMethod,
       accountFeePaymentMethodOptions,
     };

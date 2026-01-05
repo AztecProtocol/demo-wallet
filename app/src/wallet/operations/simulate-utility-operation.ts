@@ -20,6 +20,7 @@ import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import { TxCallStackDecoder } from "../decoding/tx-callstack-decoder";
 import { hashUtilityCall } from "../utils/simulation-utils";
+import type { FunctionCall } from "@aztec/aztec.js/abi";
 
 // Utility execution trace with decoded arguments and formatted result
 interface UtilityExecutionTrace {
@@ -33,11 +34,9 @@ interface UtilityExecutionTrace {
 
 // Arguments tuple for the operation
 type SimulateUtilityArgs = [
-  functionName: string,
-  args: unknown[],
-  to: AztecAddress,
+  call: FunctionCall,
   authwits?: AuthWitness[],
-  from?: AztecAddress,
+  scopes?: AztecAddress[],
 ];
 
 // Result type for the operation
@@ -89,32 +88,28 @@ export class SimulateUtilityOperation extends ExternalOperation<
   }
 
   async check(
-    _functionName: string,
-    _args: unknown[],
-    _to: AztecAddress,
+    _call: FunctionCall,
     _authwits?: AuthWitness[],
-    _from?: AztecAddress
+    _scopes?: AztecAddress[]
   ): Promise<SimulateUtilityResult | undefined> {
     // No early return checks for this operation
     return undefined;
   }
 
   async createInteraction(
-    functionName: string,
-    args: unknown[],
-    to: AztecAddress,
+    call: FunctionCall,
     _authwits?: AuthWitness[],
-    from?: AztecAddress
+    _scopes?: AztecAddress[]
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
-    const payloadHash = hashUtilityCall(functionName, args, to, from);
-    const contractName = await this.decodingCache.getAddressAlias(to);
-    const title = `${contractName}.${functionName}`;
+    const payloadHash = hashUtilityCall(call);
+    const contractName = await this.decodingCache.getAddressAlias(call.to);
+    const title = `${contractName}.${call.name}`;
     const interaction = WalletInteraction.from({
       id: payloadHash,
       type: "simulateUtility",
       title,
-      description: `Contract: ${to.toString()}`,
+      description: `Contract: ${call.to.toString()}`,
       complete: false,
       status: "SIMULATING",
       timestamp: Date.now(),
@@ -126,11 +121,9 @@ export class SimulateUtilityOperation extends ExternalOperation<
   }
 
   async prepare(
-    functionName: string,
-    args: unknown[],
-    to: AztecAddress,
+    call: FunctionCall,
     authwits?: AuthWitness[],
-    from?: AztecAddress
+    scopes?: AztecAddress[]
   ): Promise<
     PrepareResult<
       SimulateUtilityResult,
@@ -141,46 +134,54 @@ export class SimulateUtilityOperation extends ExternalOperation<
     // NO TRY-CATCH - let errors throw naturally!
 
     // Generate hash for deduplication
-    const payloadHash = hashUtilityCall(functionName, args, to, from);
+    const payloadHash = hashUtilityCall(call);
 
     // Simulate the utility function
     const simulationResult = await this.pxe.simulateUtility(
-      functionName,
-      args,
-      to,
+      call,
       authwits,
-      from
+      scopes
     );
 
     // Get contract name for better display
-    const contractName = await this.decodingCache.getAddressAlias(to);
+    const contractName = await this.decodingCache.getAddressAlias(call.to);
 
     // Format arguments and result using the TxCallStackDecoder
+    // Note: UtilitySimulationResult.result is now Fr[] (raw field elements)
+    // We need to decode them using the function's return type ABI
     const decoder = new TxCallStackDecoder(this.decodingCache);
+
+    // Format the input arguments (these come from FunctionCall.args which are already typed)
     const decodedArgs = await decoder.formatUtilityArguments(
-      to,
-      functionName,
-      args
+      call.to,
+      call.name,
+      call.args
     );
+
+    // Format the result (now an array of Fr that needs decoding based on return type)
     const formattedResult = await decoder.formatUtilityResult(
-      to,
-      functionName,
+      call.to,
+      call.name,
       simulationResult.result
     );
 
     const executionTrace = {
-      functionName,
+      functionName: call.name,
       args: decodedArgs,
-      contractAddress: to.toString(),
+      contractAddress: call.to.toString(),
       contractName,
       result: formattedResult,
       isUtility: true as const,
     };
 
-    const title = `${contractName}.${functionName}`;
+    const title = `${contractName}.${call.name}`;
 
     // Store the utility trace and stats for display
-    await this.db.storeUtilityTrace(payloadHash, executionTrace, simulationResult.stats);
+    await this.db.storeUtilityTrace(
+      payloadHash,
+      executionTrace,
+      simulationResult.stats
+    );
 
     return {
       displayData: {

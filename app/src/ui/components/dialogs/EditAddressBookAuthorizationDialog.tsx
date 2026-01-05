@@ -16,80 +16,80 @@ import {
 } from "@mui/material";
 import { WalletContext } from "../../renderer";
 
-interface EditAccountAuthorizationDialogProps {
+interface EditAddressBookAuthorizationDialogProps {
   open: boolean;
   appId: string;
-  currentAccounts: Array<{ alias: string; item: string }>;
+  currentContacts: Array<{ alias: string; item: string }>;
   onClose: () => void;
   onSave: () => Promise<void>;
 }
 
-interface AccountWithSelection {
+interface ContactWithSelection {
   address: string;
   originalAlias: string;
   displayAlias: string;
   selected: boolean;
 }
 
-export function EditAccountAuthorizationDialog({
+export function EditAddressBookAuthorizationDialog({
   open,
   appId,
-  currentAccounts,
+  currentContacts,
   onClose,
   onSave,
-}: EditAccountAuthorizationDialogProps) {
+}: EditAddressBookAuthorizationDialogProps) {
   const { walletAPI } = useContext(WalletContext);
-  const [allAccounts, setAllAccounts] = useState<AccountWithSelection[]>([]);
+  const [allContacts, setAllContacts] = useState<ContactWithSelection[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      loadAccounts();
+      loadContacts();
     }
-  }, [open, currentAccounts]);
+  }, [open, currentContacts]);
 
-  const loadAccounts = async () => {
+  const loadContacts = async () => {
     try {
       setError(null);
-      const accounts = await walletAPI.getAccounts();
-      const currentAddresses = new Set(currentAccounts.map((a) => a.item));
+      const contacts = await walletAPI.getAddressBook();
+      const currentAddresses = new Set(currentContacts.map((c) => c.item));
 
-      const accountsWithSelection = accounts.map((acc) => {
-        const isSelected = currentAddresses.has(acc.item.toString());
-        const currentAccount = currentAccounts.find(
-          (ca) => ca.item === acc.item.toString()
+      const contactsWithSelection = contacts.map((contact) => {
+        const isSelected = currentAddresses.has(contact.item.toString());
+        const currentContact = currentContacts.find(
+          (cc) => cc.item === contact.item.toString()
         );
 
         return {
-          address: acc.item.toString(),
-          originalAlias: acc.alias,
+          address: contact.item.toString(),
+          originalAlias: contact.alias,
           displayAlias: isSelected
-            ? currentAccount?.alias || acc.alias
-            : acc.alias,
+            ? currentContact?.alias || contact.alias
+            : contact.alias,
           selected: isSelected,
         };
       });
 
-      setAllAccounts(accountsWithSelection);
+      setAllContacts(contactsWithSelection);
     } catch (err) {
-      console.error("Failed to load accounts:", err);
+      console.error("Failed to load address book:", err);
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  const handleToggleAccount = (address: string) => {
-    setAllAccounts((prev) =>
-      prev.map((acc) =>
-        acc.address === address ? { ...acc, selected: !acc.selected } : acc
+  const handleToggleContact = (address: string) => {
+    setAllContacts((prev) =>
+      prev.map((contact) =>
+        contact.address === address ? { ...contact, selected: !contact.selected } : contact
       )
     );
   };
 
   const handleAliasChange = (address: string, newAlias: string) => {
-    setAllAccounts((prev) =>
-      prev.map((acc) =>
-        acc.address === address ? { ...acc, displayAlias: newAlias } : acc
+    setAllContacts((prev) =>
+      prev.map((contact) =>
+        contact.address === address ? { ...contact, displayAlias: newAlias } : contact
       )
     );
   };
@@ -99,14 +99,14 @@ export function EditAccountAuthorizationDialog({
       setSaving(true);
       setError(null);
 
-      const selectedAccounts = allAccounts
-        .filter((acc) => acc.selected)
-        .map((acc) => ({
-          alias: acc.displayAlias,
-          item: acc.address,
+      const selectedContacts = allContacts
+        .filter((contact) => contact.selected)
+        .map((contact) => ({
+          alias: contact.displayAlias,
+          item: contact.address,
         }));
 
-      await walletAPI.updateAccountAuthorization(appId, selectedAccounts);
+      await walletAPI.updateAddressBookAuthorization(appId, selectedContacts);
       await onSave();
       onClose();
     } catch (err) {
@@ -117,14 +117,14 @@ export function EditAccountAuthorizationDialog({
     }
   };
 
-  const selectedCount = allAccounts.filter((a) => a.selected).length;
+  const selectedCount = allContacts.filter((c) => c.selected).length;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Account Authorization for {appId}</DialogTitle>
+      <DialogTitle>Edit Address Book Authorization for {appId}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Select which accounts this app can access and customize the aliases
+          Select which contacts this app can access and customize the aliases
           shown to the app.
         </Typography>
 
@@ -135,13 +135,13 @@ export function EditAccountAuthorizationDialog({
         )}
 
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Selected Accounts: {selectedCount}
+          Selected Contacts: {selectedCount}
         </Typography>
 
         <List>
-          {allAccounts.map((account) => (
+          {allContacts.map((contact) => (
             <ListItem
-              key={account.address}
+              key={contact.address}
               sx={{
                 flexDirection: "column",
                 alignItems: "stretch",
@@ -155,34 +155,34 @@ export function EditAccountAuthorizationDialog({
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={account.selected}
-                    onChange={() => handleToggleAccount(account.address)}
+                    checked={contact.selected}
+                    onChange={() => handleToggleContact(contact.address)}
                   />
                 }
                 label={
                   <Box>
                     <Typography variant="body2">
-                      {account.originalAlias}
+                      {contact.originalAlias}
                     </Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
                       sx={{ fontFamily: "monospace" }}
                     >
-                      {account.address.slice(0, 10)}...
-                      {account.address.slice(-8)}
+                      {contact.address.slice(0, 10)}...
+                      {contact.address.slice(-8)}
                     </Typography>
                   </Box>
                 }
               />
-              {account.selected && (
+              {contact.selected && (
                 <TextField
                   fullWidth
                   size="small"
                   label="Alias shown to app"
-                  value={account.displayAlias}
+                  value={contact.displayAlias}
                   onChange={(e) =>
-                    handleAliasChange(account.address, e.target.value)
+                    handleAliasChange(contact.address, e.target.value)
                   }
                   sx={{
                     mt: 1,
@@ -192,16 +192,16 @@ export function EditAccountAuthorizationDialog({
                       textOverflow: 'ellipsis'
                     }
                   }}
-                  helperText="The app will see this account under this alias"
+                  helperText="The app will see this contact under this alias"
                 />
               )}
             </ListItem>
           ))}
         </List>
 
-        {allAccounts.length === 0 && (
+        {allContacts.length === 0 && (
           <Alert severity="info">
-            No accounts available. Create an account first.
+            No contacts available. Add contacts to your address book first.
           </Alert>
         )}
       </DialogContent>

@@ -11,9 +11,12 @@ import {
   WalletInteraction,
   type WalletInteractionType,
 } from "../types/wallet-interaction";
-import type { ExecutionPayload } from "@aztec/entrypoints/payload";
 
-import { TxHash, TxSimulationResult } from "@aztec/stdlib/tx";
+import {
+  type ExecutionPayload,
+  TxHash,
+  TxSimulationResult,
+} from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
 
@@ -151,7 +154,11 @@ export class InternalWallet extends BaseNativeWallet {
     opts: SendOptions,
     interaction?: WalletInteraction<WalletInteractionType>
   ): Promise<TxHash> {
-    const fee = await this.getDefaultFeeOptions(opts.from, opts.fee);
+    const fee = await this.completeFeeOptions(
+      opts.from,
+      executionPayload.feePayer,
+      opts.fee?.gasSettings
+    );
     const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
       executionPayload,
       opts.from,
@@ -193,9 +200,15 @@ export class InternalWallet extends BaseNativeWallet {
     return this.db.listInteractions();
   }
 
-  async getExecutionTrace(
-    interactionId: string
-  ): Promise<{ trace?: DecodedExecutionTrace; stats?: any; from?: string; embeddedPaymentMethodFeePayer?: string } | undefined> {
+  async getExecutionTrace(interactionId: string): Promise<
+    | {
+        trace?: DecodedExecutionTrace;
+        stats?: any;
+        from?: string;
+        embeddedPaymentMethodFeePayer?: string;
+      }
+    | undefined
+  > {
     // First check if it's a utility trace (simple trace)
     const utilityData = await this.db.getUtilityTrace(interactionId);
     if (utilityData) {
@@ -224,7 +237,8 @@ export class InternalWallet extends BaseNativeWallet {
       trace: executionTrace,
       stats: parsedSimulationResult.stats,
       from: data.metadata?.from,
-      embeddedPaymentMethodFeePayer: data.metadata?.embeddedPaymentMethodFeePayer,
+      embeddedPaymentMethodFeePayer:
+        data.metadata?.embeddedPaymentMethodFeePayer,
     };
   }
 
@@ -235,6 +249,7 @@ export class InternalWallet extends BaseNativeWallet {
 
   async getAppAuthorizations(appId: string): Promise<{
     accounts: { alias: string; item: string }[];
+    contacts: { alias: string; item: string }[];
     simulations: Array<{
       type: "simulateTx" | "simulateUtility";
       payloadHash: string;

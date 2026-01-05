@@ -6,22 +6,18 @@ import {
   type BatchedMethod,
   type BatchableMethods,
   type BatchResults,
-  type ContractInstanceAndArtifact,
 } from "@aztec/aztec.js/wallet";
 import { type AztecNode } from "@aztec/aztec.js/node";
 import { type Logger } from "@aztec/aztec.js/log";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import { type ContractArtifact } from "@aztec/stdlib/abi";
-import type {
-  ContractInstanceWithAddress,
-  ContractInstantiationData,
-} from "@aztec/stdlib/contract";
-import { ExecutionPayload } from "@aztec/entrypoints/payload";
+import { FunctionCall, type ContractArtifact } from "@aztec/stdlib/abi";
+import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { Fr } from "@aztec/foundation/fields";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   type TxSimulationResult,
   type UtilitySimulationResult,
+  ExecutionPayload,
   TxHash,
 } from "@aztec/stdlib/tx";
 import { type PXE } from "@aztec/pxe/server";
@@ -108,8 +104,8 @@ export class ExternalWallet extends BaseNativeWallet {
       this.decodingCache,
       this.interactionManager,
       this.authorizationManager,
-      this.getFeeOptionsForGasEstimation.bind(this),
-      this.getDefaultFeeOptions.bind(this),
+      this.completeFeeOptionsForEstimation.bind(this),
+      this.completeFeeOptions.bind(this),
       this.getFakeAccountDataFor.bind(this),
       this.cancellableTransactions,
       this.appId,
@@ -133,7 +129,7 @@ export class ExternalWallet extends BaseNativeWallet {
       simulateTxOp,
       this.createAuthWit.bind(this),
       this.createTxExecutionRequestFromPayloadAndFee.bind(this),
-      this.getDefaultFeeOptions.bind(this),
+      this.completeFeeOptions.bind(this),
       this.contextualizeError.bind(this)
     );
   }
@@ -220,16 +216,12 @@ export class ExternalWallet extends BaseNativeWallet {
    * Uses the RegisterContractOperation for clean separation of concerns.
    */
   override async registerContract(
-    instanceData:
-      | AztecAddress
-      | ContractInstanceWithAddress
-      | ContractInstantiationData
-      | ContractInstanceAndArtifact,
+    instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
     secretKey?: Fr
   ): Promise<ContractInstanceWithAddress> {
     const op = this.createRegisterContractOperation();
-    return await op.executeStandalone(instanceData, artifact, secretKey);
+    return await op.executeStandalone(instance, artifact, secretKey);
   }
 
   override async registerSender(
@@ -287,7 +279,8 @@ export class ExternalWallet extends BaseNativeWallet {
       | ContractInstanceWithAddress
       | TxHash
       | AztecAddress
-      | UtilitySimulationResult;
+      | UtilitySimulationResult
+      | TxSimulationResult;
 
     interface BatchItem {
       operation: ExternalOperation<any, any, any>;
@@ -320,6 +313,9 @@ export class ExternalWallet extends BaseNativeWallet {
           break;
         case "simulateUtility":
           operation = this.createSimulateUtilityOperation();
+          break;
+        case "simulateTx":
+          operation = this.createSimulateTxOperation();
           break;
         case "sendTx":
           // Only create simulateTxOp when needed for sendTx operations
@@ -420,11 +416,23 @@ export class ExternalWallet extends BaseNativeWallet {
       }
 
       const itemId = Fr.random().toString();
+
+      // Flatten displayData for simulateTx to match standalone flow format
+      let params = item.displayData!;
+      if (item.originalName === "simulateTx" && (params as any).decoded) {
+        params = {
+          ...params,
+          callAuthorizations: (params as any).decoded.callAuthorizations,
+          executionTrace: (params as any).decoded.executionTrace,
+        };
+        delete (params as any).decoded; // Remove nested structure
+      }
+
       authItems.push({
         id: itemId,
         appId: this.appId,
         method: item.originalName,
-        params: item.displayData!,
+        params,
         timestamp: Date.now(),
         persistence: item.persistence,
       });
@@ -530,13 +538,11 @@ export class ExternalWallet extends BaseNativeWallet {
    * Handles interaction tracking and user authorization.
    */
   override async simulateUtility(
-    functionName: string,
-    args: unknown[],
-    to: AztecAddress,
+    call: FunctionCall,
     authwits?: AuthWitness[],
-    from?: AztecAddress
+    scopes?: AztecAddress[]
   ): Promise<UtilitySimulationResult> {
     const op = this.createSimulateUtilityOperation();
-    return await op.executeStandalone(functionName, args, to, authwits, from);
+    return await op.executeStandalone(call, authwits, scopes);
   }
 }

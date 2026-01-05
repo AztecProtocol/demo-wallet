@@ -25,6 +25,7 @@ import type {
 import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
+import { WALLET_ID } from "../config/constants.ts";
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -40,7 +41,10 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
-  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
+  wallets: Map<
+    string,
+    Promise<{ external: ExternalWallet; internal: InternalWallet }>
+  >;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -213,6 +217,43 @@ async function init(
   return wallets;
 }
 
+const handleNetworkSupportCheck = (
+  externalPort: MessagePortMain,
+  messageId: string,
+  chainInfo: any
+) => {
+  try {
+    // Parse the chain info
+    const parsedChainInfo = ChainInfoSchema.parse(chainInfo);
+
+    // Check against the networks whitelist
+    const chainIdNum = parsedChainInfo.chainId.toNumber();
+    const versionNum = parsedChainInfo.version.toNumber();
+
+    const network = getNetworkByChainId(chainIdNum, versionNum);
+    const isSupported = network !== undefined;
+
+    externalPort.postMessage({
+      origin: "wallet",
+      content: JSON.stringify({
+        type: "__network_support_response",
+        messageId,
+        result: isSupported,
+      }),
+    });
+  } catch (error) {
+    // If we can't parse the chain info, we don't support it
+    externalPort.postMessage({
+      origin: "wallet",
+      content: JSON.stringify({
+        type: "__network_support_response",
+        messageId,
+        result: false,
+      }),
+    });
+  }
+};
+
 const handleEvent = async (
   port: MessagePortMain,
   wallet: ExternalWallet | InternalWallet,
@@ -243,7 +284,7 @@ const handleEvent = async (
   }
   port.postMessage({
     origin: "wallet",
-    content: jsonStringify({ messageId, result, error }),
+    content: jsonStringify({ walletId: WALLET_ID, messageId, result, error }),
   });
 };
 
@@ -283,7 +324,20 @@ async function main() {
           userLog.debug(`Unable to parse message ${content}`);
           return;
         }
-        const { type, messageId, args, appId, chainInfo } = messageContent;
+        const { type, messageId, args, appId, chainInfo, walletId } = messageContent;
+
+        // Ignore wallet response messages (shouldn't receive these here)
+        if (walletId && (messageContent.result !== undefined || messageContent.error !== undefined)) {
+          userLog.debug("Ignoring wallet response message");
+          return;
+        }
+
+        // Handle network support check
+        if (type === "__check_network_support") {
+          handleNetworkSupportCheck(externalPort, messageId, chainInfo);
+          return;
+        }
+
         if (appId === "this") {
           throw new Error("External messages cannot have this as appId");
         }

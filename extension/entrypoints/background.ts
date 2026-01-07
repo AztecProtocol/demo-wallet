@@ -1,4 +1,8 @@
-import type { ExportedPublicKey } from "@aztec/wallet-sdk/crypto";
+import {
+  type ExportedPublicKey,
+  generateKeyPair,
+  exportPublicKey,
+} from "@aztec/wallet-sdk/crypto";
 import type {
   DiscoveryRequest,
   DiscoveryResponse,
@@ -12,53 +16,45 @@ const WALLET_ID = "demo-aztec-wallet";
 const WALLET_NAME = "Demo Aztec Wallet";
 const WALLET_VERSION = "1.0.0";
 
-// Store wallet's ECDH key pair (in a real wallet, this would be managed more securely)
+/**
+ * Stored wallet ECDH key pair for secure channel establishment.
+ * The private key is stored as JWK for transmission to content script.
+ */
 let walletKeyPair: {
-  publicKey: JsonWebKey;
+  publicKey: ExportedPublicKey;
   privateKey: JsonWebKey;
 } | null = null;
 
 /**
- * Generates an ECDH key pair for the wallet
+ * Generates a new ECDH key pair for the wallet.
+ * The public key is exported for transmission in discovery responses.
+ * The private key is exported as JWK for the content script to derive shared secrets.
  */
-async function generateWalletKeyPair() {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: "ECDH",
-      namedCurve: "P-256",
-    },
-    true, // extractable
-    ["deriveKey"]
-  );
+async function generateWalletKeyPair(): Promise<void> {
+  const keyPair = await generateKeyPair();
+  const publicKey = await exportPublicKey(keyPair.publicKey);
+
+  // Export private key as JWK for content script to use in key derivation
+  const privateKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
 
   walletKeyPair = {
-    publicKey: await crypto.subtle.exportKey("jwk", keyPair.publicKey),
-    privateKey: await crypto.subtle.exportKey("jwk", keyPair.privateKey),
+    publicKey,
+    privateKey: privateKeyJwk,
   };
-
-  return walletKeyPair;
 }
 
 /**
- * Gets the wallet's public key in the format expected by the SDK
+ * Gets the exported public key for discovery responses.
  */
-function getExportedPublicKey(): ExportedPublicKey | null {
-  if (!walletKeyPair) return null;
-  return {
-    kty: walletKeyPair.publicKey.kty!,
-    crv: walletKeyPair.publicKey.crv!,
-    x: walletKeyPair.publicKey.x!,
-    y: walletKeyPair.publicKey.y!,
-  };
+function getExportedPublicKey(): ExportedPublicKey | undefined {
+  return walletKeyPair?.publicKey;
 }
 
-export default defineBackground(() => {
+export default defineBackground(async () => {
   let webSocket: WebSocket | null = null;
 
   // Generate key pair on startup
-  generateWalletKeyPair().then(() => {
-    console.log("Wallet ECDH key pair generated");
-  });
+  await generateWalletKeyPair();
 
   // Handle messages from content script
   browser.runtime.onMessage.addListener((event: any, sender, sendResponse) => {

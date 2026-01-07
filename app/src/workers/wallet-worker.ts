@@ -9,7 +9,6 @@ import { ExternalWallet } from "../wallet/core/external-wallet.ts";
 import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
 import { createPXE, getPXEConfig, type PXEConfig } from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
-import { BackendType, Barretenberg } from "@aztec/bb.js";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
 import { resolve, join } from "node:path";

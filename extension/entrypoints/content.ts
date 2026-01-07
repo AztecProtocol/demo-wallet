@@ -6,6 +6,7 @@ import {
 } from "@aztec/wallet-sdk/crypto";
 import type {
   ConnectRequest,
+  DiscoveryRequest,
   SecureMessage,
   SecureResponse,
   WalletMessage,
@@ -34,7 +35,14 @@ export default defineContentScript({
         return;
       }
 
-      const data = event.data;
+      // SDK sends JSON stringified messages, so we need to parse them
+      let data: DiscoveryRequest | ConnectRequest;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        // Not a JSON string, ignore
+        return;
+      }
 
       // Handle discovery requests (public, unencrypted)
       if (data?.type === "aztec-wallet-discovery") {
@@ -62,8 +70,9 @@ export default defineContentScript({
       }
 
       // Handle discovery responses (public, unencrypted - sent via postMessage)
+      // SDK expects JSON stringified messages
       if (type === "discovery-response") {
-        window.postMessage(content);
+        window.postMessage(JSON.stringify(content));
         return;
       }
 

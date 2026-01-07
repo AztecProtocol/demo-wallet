@@ -1,4 +1,5 @@
 import {
+  type EncryptedPayload,
   type ExportedPublicKey,
   type SecureKeyPair,
   generateKeyPair,
@@ -12,8 +13,6 @@ import type {
   ConnectRequest,
   DiscoveryRequest,
   DiscoveryResponse,
-  SecureMessage,
-  SecureResponse,
   WalletInfo,
   WalletMessage,
   WalletResponse,
@@ -142,7 +141,7 @@ export default defineBackground(async () => {
           return true; // Keep channel open for async response
 
         case "secure-message":
-          handleSecureMessage(appId, content as SecureMessage);
+          handleSecureMessage(appId, content as EncryptedPayload);
           break;
       }
     }
@@ -211,13 +210,10 @@ export default defineBackground(async () => {
   }
 
   /**
-   * Handles encrypted messages from dApp (SecureMessage).
+   * Handles encrypted messages from dApp.
    * Decrypts in background, processes, encrypts response.
    */
-  async function handleSecureMessage(
-    appId: string,
-    secureMessage: SecureMessage
-  ) {
+  async function handleSecureMessage(appId: string, encrypted: EncryptedPayload) {
     const connection = connections.get(appId);
     if (!connection) {
       console.error(`No connection found for app ${appId}`);
@@ -228,7 +224,7 @@ export default defineBackground(async () => {
       // Decrypt the message (only background script can do this)
       const message = await decrypt<WalletMessage>(
         connection.sharedKey,
-        secureMessage.encrypted
+        encrypted
       );
 
       console.log("Received RPC call:", message.type);
@@ -252,7 +248,7 @@ export default defineBackground(async () => {
   }
 
   /**
-   * Encrypts and sends a SecureResponse back to the dApp via content script.
+   * Encrypts and sends response back to the dApp via content script.
    */
   async function sendSecureResponse(appId: string, response: WalletResponse) {
     const connection = connections.get(appId);
@@ -264,14 +260,13 @@ export default defineBackground(async () => {
     try {
       // Encrypt the response (only background script can do this)
       const encrypted = await encrypt(connection.sharedKey, response);
-      const secureResponse: SecureResponse = { encrypted };
 
       // Send encrypted response through content script
       browser.tabs.sendMessage(connection.tabId, {
         origin: "background",
         type: "secure-response",
         appId,
-        content: secureResponse,
+        content: encrypted,
       });
     } catch (err) {
       console.error("Failed to encrypt response:", err);

@@ -1,9 +1,5 @@
-import type {
-  ConnectRequest,
-  DiscoveryRequest,
-  SecureMessage,
-  SecureResponse,
-} from "@aztec/wallet-sdk/types";
+import type { EncryptedPayload } from "@aztec/wallet-sdk/crypto";
+import type { ConnectRequest, DiscoveryRequest } from "@aztec/wallet-sdk/types";
 
 /**
  * Content script that acts as a pure message relay between the web page and the background script.
@@ -126,7 +122,7 @@ export default defineContentScript({
         });
 
         // Set up message handler - relay encrypted messages to background
-        port.onmessage = (event: MessageEvent<SecureMessage>) => {
+        port.onmessage = (event: MessageEvent<EncryptedPayload>) => {
           browser.runtime.sendMessage({
             origin: "content-script",
             type: "secure-message",

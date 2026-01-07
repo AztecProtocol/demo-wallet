@@ -3,14 +3,14 @@ import {
   deriveSharedKey,
   encrypt,
   importPublicKey,
-} from "@aztec/wallet-sdk/providers/extension/crypto";
+} from "@aztec/wallet-sdk/crypto";
 import type {
   ConnectRequest,
   SecureMessage,
   SecureResponse,
   WalletMessage,
   WalletResponse,
-} from "@aztec/wallet-sdk/providers/types";
+} from "@aztec/wallet-sdk/types";
 
 /**
  * Manages a secure channel connection with a dApp

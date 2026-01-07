@@ -1,11 +1,11 @@
-import type { ExportedPublicKey } from "@aztec/wallet-sdk/providers/extension/crypto";
+import type { ExportedPublicKey } from "@aztec/wallet-sdk/crypto";
 import type {
   DiscoveryRequest,
   DiscoveryResponse,
   WalletInfo,
   WalletMessage,
   WalletResponse,
-} from "@aztec/wallet-sdk/providers/types";
+} from "@aztec/wallet-sdk/types";
 
 // Wallet configuration
 const WALLET_ID = "demo-aztec-wallet";

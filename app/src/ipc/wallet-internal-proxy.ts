@@ -22,10 +22,20 @@ type FunctionsOf<T> = {
 type OnWalletUpdateListener = (interaction: WalletInteraction<any>) => void;
 type OnAuthorizationRequestListener = (request: AuthorizationRequest) => void;
 
+export interface ProofDebugExportRequest {
+  id: string;
+  errorMessage: string;
+  interactionTitle: string;
+  debugData: string; // Base64 encoded msgpack data
+}
+
+type OnProofDebugExportRequestListener = (request: ProofDebugExportRequest) => void;
+
 export class WalletInternalProxy {
   private inFlight = new Map<string, PromiseWithResolvers<any>>();
   private internalEventCallback!: OnWalletUpdateListener;
   private authRequestCallback!: OnAuthorizationRequestListener;
+  private proofDebugExportCallback!: OnProofDebugExportRequestListener;
 
   private constructor(private internalPort: MessagePortMain) {}
 
@@ -35,6 +45,10 @@ export class WalletInternalProxy {
 
   public onAuthorizationRequest(callback: OnAuthorizationRequestListener) {
     this.authRequestCallback = callback;
+  }
+
+  public onProofDebugExportRequest(callback: OnProofDebugExportRequestListener) {
+    this.proofDebugExportCallback = callback;
   }
 
   static create(internalPort: MessagePortMain) {
@@ -50,6 +64,11 @@ export class WalletInternalProxy {
 
       if (type === "wallet-update") {
         wallet.internalEventCallback?.(event.data);
+        return;
+      }
+
+      if (type === "proof-debug-export-request") {
+        wallet.proofDebugExportCallback?.(event.data.content);
         return;
       }
 
@@ -82,7 +101,11 @@ export class WalletInternalProxy {
           return target[prop];
         }
       },
-    }) as unknown as InternalWalletInterface;
+    }) as unknown as InternalWalletInterface & {
+      onWalletUpdate: (callback: OnWalletUpdateListener) => void;
+      onAuthorizationRequest: (callback: OnAuthorizationRequestListener) => void;
+      onProofDebugExportRequest: (callback: OnProofDebugExportRequestListener) => void;
+    };
   }
 
   private async postMessage({

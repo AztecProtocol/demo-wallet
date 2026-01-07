@@ -201,6 +201,21 @@ async function init(
             });
           }
         );
+
+        wallet.addEventListener(
+          "proof-debug-export-request",
+          (event: CustomEvent) => {
+            internalPort.postMessage({
+              origin: "wallet",
+              type: "proof-debug-export-request",
+              content: event.detail,
+              chainInfo: {
+                chainId: chainInfo.chainId.toString(),
+                version: chainInfo.version.toString(),
+              },
+            });
+          }
+        );
       };
 
       setupWalletEvents(externalWallet);

@@ -1,10 +1,10 @@
-import { app, BrowserWindow, MessageChannelMain } from "electron";
+import { app, BrowserWindow, MessageChannelMain, dialog } from "electron";
 import { join } from "node:path";
 import started from "electron-squirrel-startup";
 import { ipcMain, utilityProcess } from "electron/main";
 import { WalletInternalProxy } from "./ipc/wallet-internal-proxy";
 import { inspect } from "node:util";
-import fs, { mkdirSync } from "node:fs";
+import fs, { mkdirSync, writeFile } from "node:fs";
 import os from "node:os";
 
 // Setup logging to file for debugging
@@ -192,6 +192,9 @@ app.on("ready", async () => {
   walletProxy.onAuthorizationRequest((event) => {
     mainWindow.webContents.send("authorization-request", event);
   });
+  walletProxy.onProofDebugExportRequest((event) => {
+    mainWindow.webContents.send("proof-debug-export-request", event);
+  });
   const internalMethods = [
     "getAccounts",
     "getAddressBook",
@@ -213,6 +216,36 @@ app.on("ready", async () => {
       return walletProxy[method](...(args ? JSON.parse(args) : []));
     });
   }
+
+  // IPC handler for saving proof debug data
+  ipcMain.handle("saveProofDebugData", async (_event, data: string) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Save Proof Debug Data",
+      defaultPath: `ivc-inputs-${Date.now()}.msgpack`,
+      filters: [
+        { name: "MessagePack", extensions: ["msgpack"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true };
+    }
+
+    return new Promise((resolve) => {
+      // Data is base64 encoded from the renderer
+      const buffer = Buffer.from(data, "base64");
+      writeFile(result.filePath, buffer, (err) => {
+        if (err) {
+          console.error("Failed to write debug data:", err);
+          resolve({ success: false, error: err.message });
+        } else {
+          console.log("Debug data saved to:", result.filePath);
+          resolve({ success: true, filePath: result.filePath });
+        }
+      });
+    });
+  });
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common

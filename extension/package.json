@@ -1,6 +1,6 @@
 {
-  "name": "wxt-react-starter",
-  "description": "manifest.json description",
+  "name": "demo-aztec-wallet",
+  "description": "Demo Aztec wallet browser extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,6 +15,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@aztec/wallet-sdk": "portal:/mnt/user-data/grego/repos/aztec-packages/yarn-project/wallet-sdk",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

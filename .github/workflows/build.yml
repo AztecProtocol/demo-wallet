@@ -35,10 +35,6 @@ jobs:
       - name: Corepack enable
         run: corepack enable
 
-      - name: Prepare yarn
-        working-directory: ./app
-        run: corepack prepare
-
       - name: Install dependencies
         working-directory: ./app
         run: yarn install --immutable

@@ -12,12 +12,16 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
 // Package.json files to modify (relative to repo root)
 const PACKAGE_FILES = ["app/package.json", "extension/package.json"];
+
+// Directories containing package.json files (for yarn install)
+const PACKAGE_DIRS = ["app", "extension"];
 
 // Mapping of @aztec/* packages to their paths within aztec-packages
 const PACKAGE_MAPPINGS = {
@@ -83,6 +87,37 @@ function generateResolutions(aztecPath) {
   return resolutions;
 }
 
+function setupGitHooks() {
+  const hooksPath = resolve(ROOT, ".githooks");
+  if (!existsSync(hooksPath)) {
+    console.log("Warning: .githooks directory not found, skipping hook setup");
+    return;
+  }
+
+  try {
+    execSync("git config core.hooksPath .githooks", { cwd: ROOT, stdio: "pipe" });
+    console.log("Configured git hooks to use .githooks directory");
+  } catch (error) {
+    console.log("Warning: Failed to configure git hooks:", error.message);
+  }
+}
+
+function runYarnInstall() {
+  console.log("\nRunning yarn install...");
+  for (const dir of PACKAGE_DIRS) {
+    const fullPath = resolve(ROOT, dir);
+    if (!existsSync(fullPath)) {
+      continue;
+    }
+    console.log(`  Installing dependencies in ${dir}...`);
+    try {
+      execSync("yarn install", { cwd: fullPath, stdio: "inherit" });
+    } catch (error) {
+      console.error(`  Failed to install in ${dir}:`, error.message);
+    }
+  }
+}
+
 function enable(aztecPath) {
   if (!aztecPath) {
     console.error("Error: aztec-packages path is required for enable command");
@@ -115,9 +150,14 @@ function enable(aztecPath) {
     console.log(`Enabled local resolutions in ${file}`);
   }
 
+  // Setup git hooks to prevent accidental commits
+  setupGitHooks();
+
   console.log(`\nLocal aztec-packages resolutions enabled.`);
   console.log(`Path: ${resolvedPath}`);
-  console.log(`\nRun 'yarn install' in each package to apply changes.`);
+
+  // Run yarn install
+  runYarnInstall();
 }
 
 function disable() {
@@ -138,7 +178,9 @@ function disable() {
   }
 
   console.log(`\nLocal aztec-packages resolutions disabled.`);
-  console.log(`\nRun 'yarn install' in each package to apply changes.`);
+
+  // Run yarn install
+  runYarnInstall();
 }
 
 function status() {
@@ -157,6 +199,14 @@ function status() {
     } else {
       console.log(`${file}: disabled`);
     }
+  }
+
+  // Check git hooks status
+  try {
+    const hooksPath = execSync("git config core.hooksPath", { cwd: ROOT, stdio: "pipe" }).toString().trim();
+    console.log(`git hooks: ${hooksPath || "default"}`);
+  } catch {
+    console.log("git hooks: default");
   }
 }
 

@@ -7,7 +7,12 @@ import { jsonStringify } from "@aztec/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import { ExternalWallet } from "../wallet/core/external-wallet.ts";
 import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
-import { createPXE, getPXEConfig, type PXEConfig } from "@aztec/pxe/server";
+import {
+  createPXE,
+  getPXEConfig,
+  type PXEConfig,
+  type PXECreationOptions,
+} from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
@@ -25,6 +30,7 @@ import type {
 import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
+import { BackendType } from "@aztec/bb.js";
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -85,7 +91,7 @@ async function init(
         proverEnabled: true,
       };
 
-      const options = {
+      const options: PXECreationOptions = {
         loggers: {
           store: createProxyLogger("pxe:data:lmdb", logPort),
           pxe: createProxyLogger("pxe:service", logPort),
@@ -100,6 +106,10 @@ async function init(
           },
           createProxyLogger("pxe:data:lmdb", logPort)
         ),
+        proverOrOptions: {
+          backend: BackendType.NativeUnixSocket,
+          bbPath: process.env.BB_BINARY_PATH,
+        },
       };
 
       const walletDBLogger = createProxyLogger("wallet:data:lmdb", logPort);

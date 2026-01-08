@@ -43,21 +43,18 @@ export default defineContentScript({
         return;
       }
 
-      // Handle discovery requests (public, unencrypted)
-      if (data?.type === "aztec-wallet-discovery") {
-        // Forward to background script
-        browser.runtime.sendMessage({
-          origin: "content-script",
-          type: "aztec-wallet-discovery",
-          content: data,
-        });
+      if (!data?.type) {
         return;
       }
 
-      // Handle connection requests
-      if (data?.type === "aztec-wallet-connect") {
-        await handleConnectRequest(data as ConnectRequest, event.ports[0]);
-        return;
+      switch (data.type) {
+        case "aztec-wallet-discovery":
+          handleDiscoveryRequest(data as DiscoveryRequest);
+          break;
+
+        case "aztec-wallet-connect":
+          await handleConnectRequest(data as ConnectRequest, event.ports[0]);
+          break;
       }
     });
 
@@ -68,25 +65,41 @@ export default defineContentScript({
         return;
       }
 
-      // Handle discovery responses (public, unencrypted)
-      if (type === "aztec-wallet-discovery-response") {
-        window.postMessage(JSON.stringify(content));
-        return;
-      }
+      switch (type) {
+        case "aztec-wallet-discovery-response":
+          window.postMessage(JSON.stringify(content));
+          break;
 
-      // Handle encrypted responses from background - relay to page via MessagePort
-      if (type === "secure-response") {
-        const connection = ports.get(appId);
-        if (!connection) {
-          console.error(`No port found for app ${appId}`);
-          return;
-        }
-
-        // Forward encrypted response to page
-        connection.port.postMessage(content);
-        return;
+        case "secure-response":
+          handleSecureResponse(appId, content);
+          break;
       }
     });
+
+    /**
+     * Handles wallet discovery requests from the page.
+     * Forwards to background script for processing.
+     */
+    function handleDiscoveryRequest(request: DiscoveryRequest) {
+      browser.runtime.sendMessage({
+        origin: "content-script",
+        type: "aztec-wallet-discovery",
+        content: request,
+      });
+    }
+
+    /**
+     * Handles encrypted responses from background.
+     * Relays to the page via the stored MessagePort.
+     */
+    function handleSecureResponse(appId: string, content: EncryptedPayload) {
+      const connection = ports.get(appId);
+      if (!connection) {
+        console.error(`No port found for app ${appId}`);
+        return;
+      }
+      connection.port.postMessage(content);
+    }
 
     /**
      * Handles a connection request from a dApp.

@@ -85,67 +85,58 @@ export default defineBackground(async () => {
    * Broadcasts status update to any open popups.
    */
   function broadcastStatus() {
-    browser.runtime.sendMessage({
-      origin: "background",
-      type: "status-update",
-      status: getStatus(),
-    }).catch(() => {
-      // Popup might not be open, ignore errors
-    });
+    browser.runtime
+      .sendMessage({
+        origin: "background",
+        type: "status-update",
+        status: getStatus(),
+      })
+      .catch(() => {
+        // Popup might not be open, ignore errors
+      });
   }
 
   // Generate key pair on startup
   await initializeKeyPair();
 
   // Handle messages from content script and popup
-  browser.runtime.onMessage.addListener(
-    (event: any, sender, sendResponse) => {
-      const { origin, type, content, appId } = event;
+  browser.runtime.onMessage.addListener((event: any, sender, sendResponse) => {
+    const { origin, type, content, appId } = event;
 
-      // Handle popup requests
-      if (origin === "popup") {
-        if (type === "get-status") {
-          sendResponse(getStatus());
-          return true;
-        }
-        return;
-      }
-
-      if (origin !== "content-script") {
-        return;
-      }
-
-      const tabId = sender.tab?.id;
-      if (!tabId) {
-        console.error("Message received without tab ID");
-        return;
-      }
-
-      // Route based on message type (matches SDK types where applicable)
-      switch (type) {
-        case "aztec-wallet-discovery":
-          handleDiscovery(content as DiscoveryRequest, tabId);
-          break;
-
-        case "aztec-wallet-connect":
-          // Use async IIFE for cleaner async/await handling
-          (async () => {
-            try {
-              await establishSecureChannel(content as ConnectRequest, tabId);
-              sendResponse({ success: true });
-            } catch (err: any) {
-              console.error("Failed to establish secure channel:", err);
-              sendResponse({ success: false, error: err.message });
-            }
-          })();
-          return true; // Keep channel open for async response
-
-        case "secure-message":
-          handleSecureMessage(appId, content as EncryptedPayload);
-          break;
-      }
+    if (origin !== "content-script") {
+      return;
     }
-  );
+
+    const tabId = sender.tab?.id;
+    if (!tabId) {
+      console.error("Message received without tab ID");
+      return;
+    }
+
+    // Route based on message type (matches SDK types where applicable)
+    switch (type) {
+      case "aztec-wallet-discovery":
+        handleDiscovery(content as DiscoveryRequest, tabId);
+        break;
+
+      case "aztec-wallet-connect":
+        // Use async IIFE for cleaner async/await handling
+        (async () => {
+          try {
+            await establishSecureChannel(content as ConnectRequest, tabId);
+            sendResponse({ success: true });
+          } catch (err: any) {
+            console.error("Failed to establish secure channel:", err);
+            sendResponse({ success: false, error: err.message });
+          }
+        })();
+        return true; // Keep channel open for async response
+
+      case "secure-message":
+        handleSecureMessage(appId, content as EncryptedPayload);
+        break;
+    }
+  });
 
   /**
    * Handles wallet discovery requests.
@@ -213,7 +204,10 @@ export default defineBackground(async () => {
    * Handles encrypted messages from dApp.
    * Decrypts in background, processes, encrypts response.
    */
-  async function handleSecureMessage(appId: string, encrypted: EncryptedPayload) {
+  async function handleSecureMessage(
+    appId: string,
+    encrypted: EncryptedPayload
+  ) {
     const connection = connections.get(appId);
     if (!connection) {
       console.error(`No connection found for app ${appId}`);

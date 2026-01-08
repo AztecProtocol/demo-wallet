@@ -31,15 +31,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "yarn"
-          cache-dependency-path: app/yarn.lock
 
       - name: Corepack enable
         run: corepack enable
 
       - name: Install dependencies
         working-directory: ./app
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build Electron app (development)
         if: ${{ !inputs.release-mode }}
@@ -88,12 +86,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "yarn"
-          cache-dependency-path: extension/yarn.lock
+
+      - name: Corepack enable
+        run: corepack enable
 
       - name: Install dependencies
         working-directory: ./extension
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build Chrome extension (development)
         if: ${{ !inputs.release-mode }}

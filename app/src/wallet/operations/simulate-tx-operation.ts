@@ -30,7 +30,6 @@ import {
   generateSimulationTitle,
 } from "../utils/simulation-utils";
 import type { SimulateOptions } from "@aztec/aztec.js/wallet";
-import type { Logger } from "@aztec/aztec.js/log";
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { GasSettings } from "@aztec/stdlib/gas";

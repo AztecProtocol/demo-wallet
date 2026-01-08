@@ -4,32 +4,19 @@ import {
 } from "@aztec/foundation/promise";
 import { schemaHasMethod } from "@aztec/foundation/schemas";
 import type { MessagePortMain } from "electron/main";
-import type {
-  AuthorizationRequest,
-} from "../wallet/types/authorization";
-import type {
-  WalletInteraction,
-} from "../wallet/types/wallet-interaction";
+import type { AuthorizationRequest } from "../wallet/types/authorization";
+import type { WalletInteraction } from "../wallet/types/wallet-interaction";
 import {
   type InternalWalletInterface,
   InternalWalletInterfaceSchema,
+  type OnAuthorizationRequestListener,
+  type OnProofDebugExportRequestListener,
+  type OnWalletUpdateListener,
 } from "./wallet-internal-interface";
 
 type FunctionsOf<T> = {
   [K in keyof T as T[K] extends Function ? K : never]: T[K];
 };
-
-type OnWalletUpdateListener = (interaction: WalletInteraction<any>) => void;
-type OnAuthorizationRequestListener = (request: AuthorizationRequest) => void;
-
-export interface ProofDebugExportRequest {
-  id: string;
-  errorMessage: string;
-  interactionTitle: string;
-  debugData: string; // Base64 encoded msgpack data
-}
-
-type OnProofDebugExportRequestListener = (request: ProofDebugExportRequest) => void;
 
 export class WalletInternalProxy {
   private inFlight = new Map<string, PromiseWithResolvers<any>>();
@@ -47,7 +34,9 @@ export class WalletInternalProxy {
     this.authRequestCallback = callback;
   }
 
-  public onProofDebugExportRequest(callback: OnProofDebugExportRequestListener) {
+  public onProofDebugExportRequest(
+    callback: OnProofDebugExportRequestListener
+  ) {
     this.proofDebugExportCallback = callback;
   }
 
@@ -101,11 +90,7 @@ export class WalletInternalProxy {
           return target[prop];
         }
       },
-    }) as unknown as InternalWalletInterface & {
-      onWalletUpdate: (callback: OnWalletUpdateListener) => void;
-      onAuthorizationRequest: (callback: OnAuthorizationRequestListener) => void;
-      onProofDebugExportRequest: (callback: OnProofDebugExportRequestListener) => void;
-    };
+    }) as unknown as InternalWalletInterface;
   }
 
   private async postMessage({

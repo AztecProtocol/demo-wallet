@@ -132,3 +132,10 @@ export class WalletUpdateEvent extends CustomEvent<string> {
     super("wallet-update", { detail: jsonStringify(content) });
   }
 }
+
+export interface ProofDebugExportRequest {
+  id: string;
+  errorMessage: string;
+  interactionTitle: string;
+  debugData: string; // Base64 encoded msgpack data
+}

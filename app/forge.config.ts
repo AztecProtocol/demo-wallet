@@ -76,6 +76,14 @@ const config: ForgeConfig = {
           );
           const destPath = path.join(destNodeModulesPath, packageName);
 
+          // Check if source exists (handles hoisted/symlinked deps that may not resolve)
+          try {
+            await fsp.access(sourcePath);
+          } catch {
+            console.warn(`⚠ Skipping ${packageName}: source path not found`);
+            return;
+          }
+
           await fsp.mkdir(path.dirname(destPath), { recursive: true });
           await fsp.cp(sourcePath, destPath, {
             recursive: true,

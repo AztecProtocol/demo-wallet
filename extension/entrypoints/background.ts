@@ -8,9 +8,9 @@ import {
   deriveSharedKey,
   encrypt,
   decrypt,
+  hashSharedSecret,
 } from "@aztec/wallet-sdk/crypto";
 import type {
-  ConnectRequest,
   DiscoveryRequest,
   DiscoveryResponse,
   WalletInfo,
@@ -19,19 +19,24 @@ import type {
 } from "@aztec/wallet-sdk/types";
 
 // Wallet configuration
-const WALLET_ID = "demo-aztec-wallet";
-const WALLET_NAME = "Demo Aztec Wallet";
+const WALLET_ID = "aztec-keychain";
+const WALLET_NAME = "Aztec Keychain";
 const WALLET_VERSION = "1.0.0";
 const NATIVE_HOST_NAME = "com.aztec.keychain";
 
 /**
- * Secure connection state for a connected dApp.
+ * Active session with a connected dApp.
  * The shared key is derived via ECDH and never leaves the background script.
+ * The verificationHash is the cryptographic proof for anti-MITM verification.
  */
-interface SecureConnection {
+interface ActiveSession {
   sharedKey: CryptoKey;
-  appId: string;
+  requestId: string;
   tabId: number;
+  origin: string;
+  /** Hash of the shared secret - the canonical verification value */
+  verificationHash: string;
+  connectedAt: number;
 }
 
 /**
@@ -46,13 +51,13 @@ let walletKeyPair: SecureKeyPair | null = null;
 let walletPublicKey: ExportedPublicKey | null = null;
 
 /**
- * Active secure connections by app ID.
- * Stores the derived shared key for each connected dApp.
+ * Active sessions by request ID (from discovery).
+ * Stores the derived shared key and session info for each connected dApp.
  */
-const connections = new Map<string, SecureConnection>();
+const sessions = new Map<string, ActiveSession>();
 
 /**
- * Tracks pending requests by messageId -> appId.
+ * Tracks pending requests by messageId -> requestId.
  * Used to route native messaging responses back to the correct dApp.
  */
 const pendingRequests = new Map<string, string>();
@@ -79,7 +84,6 @@ export default defineBackground(async () => {
     return {
       // Only report connected when native host confirms backend connection
       connected: backendConnected,
-      connectedApps: connections.size,
       walletId: WALLET_ID,
       walletName: WALLET_NAME,
       walletVersion: WALLET_VERSION,
@@ -104,14 +108,47 @@ export default defineBackground(async () => {
   // Generate key pair on startup
   await initializeKeyPair();
 
+  // Clean up sessions when tabs are closed
+  browser.tabs.onRemoved.addListener((tabId) => {
+    for (const [requestId, session] of sessions) {
+      if (session.tabId === tabId) {
+        sessions.delete(requestId);
+        console.log(`Session removed (tab closed): ${session.origin}`);
+      }
+    }
+  });
+
+  // Clean up sessions when tabs navigate away (refresh or navigate to different page)
+  browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    // 'loading' status indicates navigation started (refresh or new URL)
+    if (changeInfo.status === "loading") {
+      for (const [requestId, session] of sessions) {
+        if (session.tabId === tabId) {
+          sessions.delete(requestId);
+          console.log(`Session removed (tab navigated): ${session.origin}`);
+        }
+      }
+    }
+  });
+
   // Handle messages from content script and popup
   browser.runtime.onMessage.addListener((event: any, sender, sendResponse) => {
-    const { origin, type, content, appId } = event;
+    const { origin, type, content, requestId } = event;
 
     // Handle popup messages
     if (origin === "popup") {
       if (type === "get-status") {
         sendResponse(getStatus());
+      } else if (type === "get-sessions") {
+        // Return verificationHash - popup computes emoji lazily for display
+        const sessionList = Array.from(sessions.values()).map((s) => ({
+          requestId: s.requestId,
+          origin: s.origin,
+          verificationHash: s.verificationHash,
+          connectedAt: s.connectedAt,
+        }));
+        console.log(`Popup requested sessions, returning ${sessionList.length} sessions`);
+        sendResponse(sessionList);
       }
       return;
     }
@@ -121,44 +158,72 @@ export default defineBackground(async () => {
     }
 
     const tabId = sender.tab?.id;
+    const tabOrigin = sender.tab?.url
+      ? new URL(sender.tab.url).origin
+      : "unknown";
     if (!tabId) {
-      console.error("Message received without tab ID");
       return;
     }
 
     // Route based on message type (matches SDK types where applicable)
     switch (type) {
       case "aztec-wallet-discovery":
-        handleDiscovery(content as DiscoveryRequest, tabId);
-        break;
-
-      case "aztec-wallet-connect":
         // Use async IIFE for cleaner async/await handling
         (async () => {
           try {
-            await establishSecureChannel(content as ConnectRequest, tabId);
-            sendResponse({ success: true });
+            const result = await handleDiscovery(
+              content as DiscoveryRequest,
+              tabId,
+              tabOrigin
+            );
+            sendResponse(result);
           } catch (err: any) {
-            console.error("Failed to establish secure channel:", err);
             sendResponse({ success: false, error: err.message });
           }
         })();
         return true; // Keep channel open for async response
 
       case "secure-message":
-        handleSecureMessage(appId, content as EncryptedPayload);
+        handleSecureMessage(requestId, content as EncryptedPayload);
         break;
     }
   });
 
   /**
    * Handles wallet discovery requests.
-   * Discovery is public/unencrypted - wallet announces itself to the page.
+   * Now also establishes the secure channel by deriving the shared key from the dApp's public key.
+   * Returns the wallet info so content script can send it with the MessagePort.
    */
-  async function handleDiscovery(request: DiscoveryRequest, tabId: number) {
-    if (!walletPublicKey) {
+  async function handleDiscovery(
+    request: DiscoveryRequest,
+    tabId: number,
+    tabOrigin: string
+  ): Promise<{ success: true; response: DiscoveryResponse }> {
+    if (!walletKeyPair || !walletPublicKey) {
       await initializeKeyPair();
     }
+
+    // Import the dApp's public key and derive shared secret
+    const dAppPublicKey = await importPublicKey(request.publicKey);
+    const sharedKey = await deriveSharedKey(
+      walletKeyPair!.privateKey,
+      dAppPublicKey
+    );
+
+    // Compute verification hash - this is the canonical anti-MITM proof
+    // Emoji representation is computed lazily when displaying to the user
+    const verificationHash = await hashSharedSecret(sharedKey);
+
+    // Store the session
+    sessions.set(request.requestId, {
+      sharedKey,
+      requestId: request.requestId,
+      tabId,
+      origin: tabOrigin,
+      verificationHash,
+      connectedAt: Date.now(),
+    });
+    console.log(`Session created: ${tabOrigin} (${request.requestId}), hash: ${verificationHash.slice(0, 8)}..., total sessions: ${sessions.size}`);
 
     const walletInfo: WalletInfo = {
       id: WALLET_ID,
@@ -173,44 +238,8 @@ export default defineBackground(async () => {
       walletInfo,
     };
 
-    browser.tabs.sendMessage(tabId, {
-      origin: "background",
-      type: "aztec-wallet-discovery-response",
-      content: response,
-    });
-  }
-
-  /**
-   * Establishes a secure channel with a dApp.
-   * Derives shared key using ECDH - private key and shared key never leave this script.
-   *
-   * This mirrors the SDK's ExtensionWallet.establishSecureChannel() but on the wallet side.
-   */
-  async function establishSecureChannel(
-    request: ConnectRequest,
-    tabId: number
-  ): Promise<void> {
-    if (!walletKeyPair) {
-      throw new Error("Wallet key pair not initialized");
-    }
-
-    // Import the dApp's public key
-    const dAppPublicKey = await importPublicKey(request.publicKey);
-
-    // Derive shared secret (this stays in background script)
-    const sharedKey = await deriveSharedKey(
-      walletKeyPair.privateKey,
-      dAppPublicKey
-    );
-
-    // Store the connection by appId
-    connections.set(request.appId, {
-      sharedKey,
-      appId: request.appId,
-      tabId,
-    });
-
-    console.log(`Secure channel established with app ${request.appId}`);
+    // Return the response data - content script will send it with the MessagePort
+    return { success: true, response };
   }
 
   /**
@@ -218,19 +247,19 @@ export default defineBackground(async () => {
    * Decrypts in background, processes, encrypts response.
    */
   async function handleSecureMessage(
-    appId: string,
+    requestId: string,
     encrypted: EncryptedPayload
   ) {
-    const connection = connections.get(appId);
-    if (!connection) {
-      console.error(`No connection found for app ${appId}`);
+    const session = sessions.get(requestId);
+    if (!session) {
+      console.error(`No session found for requestId ${requestId}`);
       return;
     }
 
     try {
       // Decrypt the message (only background script can do this)
       const message = await decrypt<WalletMessage>(
-        connection.sharedKey,
+        session.sharedKey,
         encrypted
       );
 
@@ -238,12 +267,12 @@ export default defineBackground(async () => {
 
       // Forward to native host
       if (nativePort) {
-        // Track which appId this request came from
-        pendingRequests.set(message.messageId, appId);
+        // Track which requestId this request came from
+        pendingRequests.set(message.messageId, requestId);
         nativePort.postMessage(message);
       } else {
         // Send error response if not connected
-        await sendSecureResponse(appId, {
+        await sendSecureResponse(requestId, {
           messageId: message.messageId,
           walletId: WALLET_ID,
           error: { message: "Wallet backend not connected" },
@@ -257,22 +286,22 @@ export default defineBackground(async () => {
   /**
    * Encrypts and sends response back to the dApp via content script.
    */
-  async function sendSecureResponse(appId: string, response: WalletResponse) {
-    const connection = connections.get(appId);
-    if (!connection) {
-      console.error(`No connection found for app ${appId}`);
+  async function sendSecureResponse(requestId: string, response: WalletResponse) {
+    const session = sessions.get(requestId);
+    if (!session) {
+      console.error(`No session found for requestId ${requestId}`);
       return;
     }
 
     try {
       // Encrypt the response (only background script can do this)
-      const encrypted = await encrypt(connection.sharedKey, response);
+      const encrypted = await encrypt(session.sharedKey, response);
 
       // Send encrypted response through content script
-      browser.tabs.sendMessage(connection.tabId, {
+      browser.tabs.sendMessage(session.tabId, {
         origin: "background",
         type: "secure-response",
-        appId,
+        requestId,
         content: encrypted,
       });
     } catch (err) {
@@ -301,9 +330,9 @@ export default defineBackground(async () => {
           return;
         }
 
-        // Look up which appId this response is for
-        const appId = pendingRequests.get(response.messageId);
-        if (!appId) {
+        // Look up which requestId this response is for
+        const requestId = pendingRequests.get(response.messageId);
+        if (!requestId) {
           console.error(
             `No pending request found for messageId ${response.messageId}`
           );
@@ -317,7 +346,7 @@ export default defineBackground(async () => {
         }
 
         // Encrypt and send response to the correct dApp
-        sendSecureResponse(appId, response as WalletResponse);
+        sendSecureResponse(requestId, response as WalletResponse);
       });
 
       nativePort.onDisconnect.addListener(() => {

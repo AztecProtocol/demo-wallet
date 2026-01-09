@@ -1,24 +1,36 @@
 import { useEffect, useState } from "react";
+import { hashToEmoji } from "@aztec/wallet-sdk/crypto";
 import "./App.css";
 
 interface WalletStatus {
   connected: boolean;
-  connectedApps: number;
   walletId: string;
   walletName: string;
   walletVersion: string;
 }
 
+interface ActiveSession {
+  requestId: string;
+  /** The canonical verification hash from the shared secret */
+  verificationHash: string;
+  origin: string;
+  connectedAt: number;
+}
+
 function App() {
   const [status, setStatus] = useState<WalletStatus | null>(null);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial status
-    browser.runtime
-      .sendMessage({ origin: "popup", type: "get-status" })
-      .then((response) => {
-        setStatus(response);
+    // Get initial status and sessions
+    Promise.all([
+      browser.runtime.sendMessage({ origin: "popup", type: "get-status" }),
+      browser.runtime.sendMessage({ origin: "popup", type: "get-sessions" }),
+    ])
+      .then(([statusResponse, sessionsResponse]) => {
+        setStatus(statusResponse);
+        setSessions(sessionsResponse || []);
         setLoading(false);
       })
       .catch((err) => {
@@ -69,7 +81,7 @@ function App() {
               strokeLinejoin="round"
             />
           </svg>
-          <h1 className="title">Keychain</h1>
+          <h1 className="title">Aztec Keychain</h1>
         </div>
         {status && <span className="version">v{status.walletVersion}</span>}
       </header>
@@ -102,12 +114,24 @@ function App() {
               </div>
             </div>
 
-            <div className="status-card">
-              <div className="status-row">
-                <span className="status-label">Connected dApps</span>
-                <span className="status-count">{status.connectedApps}</span>
+            {sessions.length > 0 && (
+              <div className="session-section">
+                <h3 className="section-title">Open Sessions</h3>
+                <div className="session-list">
+                  {sessions.map((s) => (
+                    <div key={s.requestId} className="session-item">
+                      <span className="session-app">
+                        {new URL(s.origin).hostname}
+                      </span>
+                      <span className="session-emoji">
+                        {/* Compute emoji lazily from verificationHash for display */}
+                        {hashToEmoji(s.verificationHash)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {!status.connected && (
               <div className="warning-card">
@@ -128,7 +152,7 @@ function App() {
                 <div className="warning-content">
                   <span className="warning-title">Wallet backend offline</span>
                   <span className="warning-text">
-                    Start the demo-wallet app to enable transactions
+                    Start the Aztec Keychain app to enable transactions
                   </span>
                 </div>
               </div>

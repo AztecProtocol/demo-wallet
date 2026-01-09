@@ -256,3 +256,45 @@ body {
   font-weight: 600;
   color: var(--color-text-secondary);
 }
+
+/* Session section */
+.session-section {
+  background: var(--color-primary-transparent);
+  border: 1px solid var(--color-primary-border);
+  padding: 12px 16px;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary-border);
+  padding: 8px 12px;
+}
+
+.session-app {
+  font-size: 0.8rem;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.session-emoji {
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+}

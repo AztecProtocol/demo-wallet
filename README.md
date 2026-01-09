@@ -7,10 +7,10 @@ An Aztec wallet application that allows dApps to interact with user accounts thr
 The wallet uses **Native Messaging** for secure communication between the browser extension and the Electron app:
 
 ```
-┌─────────────────┐      stdio        ┌──────────────────┐     Unix socket     ┌──────────────────┐
-│ Browser         │ ←──(length-prefix)──→ │ Native Host     │ ←──(newline JSON)──→ │ Electron App     │
-│ Extension       │      JSON         │ (compiled binary) │                     │ (wallet-worker)  │
-└─────────────────┘                   └──────────────────┘                     └──────────────────┘
+┌─────────────────┐      stdio            ┌──────────────────┐     Unix socket      ┌──────────────────┐
+│ Browser         │ ←──(length-prefix)──→ │ Native Host      │ ←──(newline JSON)──→ │ Electron App     │
+│ Extension       │      JSON             │ (compiled binary)│                      │ (wallet-worker)  │
+└─────────────────┘                       └──────────────────┘                      └──────────────────┘
 ```
 
 - **Browser Extension**: Communicates with dApps via secure encrypted channels (ECDH + AES-GCM)
@@ -91,6 +91,7 @@ yarn zip:firefox
 ## Native Messaging Reference
 
 The native messaging system requires three components:
+
 1. **Native Host Binary** - The executable that bridges extension ↔ Electron
 2. **Native Messaging Manifest** - JSON file that tells the browser where to find the native host
 3. **IPC Socket** - Communication channel between native host and Electron app
@@ -107,37 +108,37 @@ The native messaging system requires three components:
 
 ### Native Host Binary
 
-| Environment | Path |
-|-------------|------|
+| Environment | Path                                                                            |
+| ----------- | ------------------------------------------------------------------------------- |
 | Development | `app/dist/native-host/darwin-arm64/native-host` (arm64) or `darwin-x64` (Intel) |
-| Production  | Inside app bundle: `AztecKeychain.app/Contents/Resources/native-host` |
+| Production  | Inside app bundle: `AztecKeychain.app/Contents/Resources/native-host`           |
 
 ### IPC Socket
 
-| Environment | Path |
-|-------------|------|
-| All | `~/keychain/wallet.sock` |
+| Environment | Path                     |
+| ----------- | ------------------------ |
+| All         | `~/keychain/wallet.sock` |
 
 ### Chrome / Chromium Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| Development (WXT) | `/Library/Google/Chrome/NativeMessagingHosts/com.aztec.keychain.json` | Manual (`sudo`) |
-| Production | `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.aztec.keychain.json` | App (auto) |
-| Production (Chromium) | `~/Library/Application Support/Chromium/NativeMessagingHosts/com.aztec.keychain.json` | App (auto) |
+| Environment           | Path                                                                                       | Installed By    |
+| --------------------- | ------------------------------------------------------------------------------------------ | --------------- |
+| Development (WXT)     | `/Library/Google/Chrome/NativeMessagingHosts/com.aztec.keychain.json`                      | Manual (`sudo`) |
+| Production            | `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.aztec.keychain.json` | App (auto)      |
+| Production (Chromium) | `~/Library/Application Support/Chromium/NativeMessagingHosts/com.aztec.keychain.json`      | App (auto)      |
 
 ### Firefox Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| All | `~/Library/Application Support/Mozilla/NativeMessagingHosts/com.aztec.keychain.json` | App (auto) |
+| Environment | Path                                                                                 | Installed By |
+| ----------- | ------------------------------------------------------------------------------------ | ------------ |
+| All         | `~/Library/Application Support/Mozilla/NativeMessagingHosts/com.aztec.keychain.json` | App (auto)   |
 
 ### Debug Logs
 
-| Component | Path |
-|-----------|------|
+| Component    | Path                                  |
+| ------------ | ------------------------------------- |
 | Electron App | `~/keychain/aztec-keychain-debug.log` |
-| Native Host | `~/keychain/native-host.log` |
+| Native Host  | `~/keychain/native-host.log`          |
 
 ### Dev Mode Setup (macOS + Chrome)
 
@@ -157,6 +158,7 @@ EOF
 ```
 
 Replace:
+
 - `/absolute/path/to/demo-wallet` with your actual repo path
 - `<EXTENSION_ID>` with your extension's ID (shown in `chrome://extensions`)
 
@@ -166,37 +168,37 @@ Replace:
 
 ### Native Host Binary
 
-| Environment | Path |
-|-------------|------|
-| Development | `app/dist/native-host/linux-x64/native-host` |
+| Environment | Path                                                                 |
+| ----------- | -------------------------------------------------------------------- |
+| Development | `app/dist/native-host/linux-x64/native-host`                         |
 | Production  | Packaged location (e.g., `/opt/AztecKeychain/resources/native-host`) |
 
 ### IPC Socket
 
-| Environment | Path |
-|-------------|------|
-| All | `~/keychain/wallet.sock` |
+| Environment | Path                     |
+| ----------- | ------------------------ |
+| All         | `~/keychain/wallet.sock` |
 
 ### Chrome / Chromium Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| Development (WXT) | `/etc/opt/chrome/native-messaging-hosts/com.aztec.keychain.json` | Manual (`sudo`) |
-| Production (Chrome) | `~/.config/google-chrome/NativeMessagingHosts/com.aztec.keychain.json` | App (auto) |
-| Production (Chromium) | `~/.config/chromium/NativeMessagingHosts/com.aztec.keychain.json` | App (auto) |
+| Environment           | Path                                                                   | Installed By    |
+| --------------------- | ---------------------------------------------------------------------- | --------------- |
+| Development (WXT)     | `/etc/opt/chrome/native-messaging-hosts/com.aztec.keychain.json`       | Manual (`sudo`) |
+| Production (Chrome)   | `~/.config/google-chrome/NativeMessagingHosts/com.aztec.keychain.json` | App (auto)      |
+| Production (Chromium) | `~/.config/chromium/NativeMessagingHosts/com.aztec.keychain.json`      | App (auto)      |
 
 ### Firefox Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| All | `~/.mozilla/native-messaging-hosts/com.aztec.keychain.json` | App (auto) |
+| Environment | Path                                                        | Installed By |
+| ----------- | ----------------------------------------------------------- | ------------ |
+| All         | `~/.mozilla/native-messaging-hosts/com.aztec.keychain.json` | App (auto)   |
 
 ### Debug Logs
 
-| Component | Path |
-|-----------|------|
+| Component    | Path                                  |
+| ------------ | ------------------------------------- |
 | Electron App | `~/keychain/aztec-keychain-debug.log` |
-| Native Host | `~/keychain/native-host.log` |
+| Native Host  | `~/keychain/native-host.log`          |
 
 ### Dev Mode Setup (Linux + Chrome)
 
@@ -219,44 +221,44 @@ EOF
 
 ### Native Host Binary
 
-| Environment | Path |
-|-------------|------|
+| Environment | Path                                             |
+| ----------- | ------------------------------------------------ |
 | Development | `app\dist\native-host\win32-x64\native-host.exe` |
-| Production  | Inside app installation directory |
+| Production  | Inside app installation directory                |
 
 ### IPC Socket (Named Pipe)
 
-| Environment | Path |
-|-------------|------|
-| All | `\\.\pipe\aztec-keychain-wallet` |
+| Environment | Path                             |
+| ----------- | -------------------------------- |
+| All         | `\\.\pipe\aztec-keychain-wallet` |
 
 ### Chrome Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| All | `%LOCALAPPDATA%\AztecKeychain\com.aztec.keychain.json` | App (auto) |
+| Environment | Path                                                   | Installed By |
+| ----------- | ------------------------------------------------------ | ------------ |
+| All         | `%LOCALAPPDATA%\AztecKeychain\com.aztec.keychain.json` | App (auto)   |
 
 ### Firefox Manifest
 
-| Environment | Path | Installed By |
-|-------------|------|--------------|
-| All | `%LOCALAPPDATA%\AztecKeychain\com.aztec.keychain.json` | App (auto) |
+| Environment | Path                                                   | Installed By |
+| ----------- | ------------------------------------------------------ | ------------ |
+| All         | `%LOCALAPPDATA%\AztecKeychain\com.aztec.keychain.json` | App (auto)   |
 
 ### Registry Keys
 
 The app automatically creates these registry keys pointing to the manifest file:
 
-| Browser | Registry Key |
-|---------|--------------|
-| Chrome | `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.aztec.keychain` |
-| Firefox | `HKCU\Software\Mozilla\NativeMessagingHosts\com.aztec.keychain` |
+| Browser | Registry Key                                                          |
+| ------- | --------------------------------------------------------------------- |
+| Chrome  | `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.aztec.keychain` |
+| Firefox | `HKCU\Software\Mozilla\NativeMessagingHosts\com.aztec.keychain`       |
 
 ### Debug Logs
 
-| Component | Path |
-|-----------|------|
+| Component    | Path                                              |
+| ------------ | ------------------------------------------------- |
 | Electron App | `%USERPROFILE%\keychain\aztec-keychain-debug.log` |
-| Native Host | `%USERPROFILE%\keychain\native-host.log` |
+| Native Host  | `%USERPROFILE%\keychain\native-host.log`          |
 
 ---
 
@@ -320,6 +322,7 @@ To avoid the "this app is damaged" message.
 ### WXT dev mode can't connect (Chrome)
 
 In dev mode, Chrome uses a custom `--user-data-dir` and only checks **system-wide** manifest locations:
+
 - macOS: `/Library/Google/Chrome/NativeMessagingHosts/`
 - Linux: `/etc/opt/chrome/native-messaging-hosts/`
 

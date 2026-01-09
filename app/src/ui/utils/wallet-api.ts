@@ -54,6 +54,15 @@ export class WalletApi {
                 safeCallback(callback)
               );
             };
+          } else if (prop.toString() === "onProofDebugExportRequest") {
+            return (callback: any) => {
+              // Note: proof debug export doesn't need chain filtering since it's a local operation
+              return window.walletAPI.onProofDebugExportRequest(callback);
+            };
+          } else if (prop.toString() === "saveProofDebugData") {
+            return (base64Data: string) => {
+              return window.walletAPI.saveProofDebugData(base64Data);
+            };
           } else {
             throw new Error(`Invalid method ${prop.toString()}`);
           }

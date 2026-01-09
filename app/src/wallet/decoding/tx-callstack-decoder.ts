@@ -13,7 +13,7 @@ import {
 import { decodeFromAbi } from "@aztec/aztec.js/abi";
 import { formatAbiValue } from "./utils";
 import type { DecodingCache } from "./decoding-cache";
-import { Fr } from "@aztec/foundation/fields";
+import { Fr } from "@aztec/foundation/curves/bn254";
 import { PRIVATE_CONTEXT_INPUTS_LENGTH } from "@aztec/constants";
 
 export type ExecutionEvent = PrivateCallEvent | PublicEnqueueEvent;
@@ -478,10 +478,7 @@ export class TxCallStackDecoder {
     }
 
     // Decode the Fr[] return values using the function's return types
-    const decoded = decodeFromAbi(
-      functionAbi.returnTypes,
-      returnValues
-    );
+    const decoded = decodeFromAbi(functionAbi.returnTypes, returnValues);
 
     // decodeFromAbi returns a single value if there's one return type, or an array for multiple
     const decodedReturns = Array.isArray(decoded) ? decoded : [decoded];

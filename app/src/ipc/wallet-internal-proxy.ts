@@ -4,28 +4,25 @@ import {
 } from "@aztec/foundation/promise";
 import { schemaHasMethod } from "@aztec/foundation/schemas";
 import type { MessagePortMain } from "electron/main";
-import type {
-  AuthorizationRequest,
-} from "../wallet/types/authorization";
-import type {
-  WalletInteraction,
-} from "../wallet/types/wallet-interaction";
+import type { AuthorizationRequest } from "../wallet/types/authorization";
+import type { WalletInteraction } from "../wallet/types/wallet-interaction";
 import {
   type InternalWalletInterface,
   InternalWalletInterfaceSchema,
+  type OnAuthorizationRequestListener,
+  type OnProofDebugExportRequestListener,
+  type OnWalletUpdateListener,
 } from "./wallet-internal-interface";
 
 type FunctionsOf<T> = {
   [K in keyof T as T[K] extends Function ? K : never]: T[K];
 };
 
-type OnWalletUpdateListener = (interaction: WalletInteraction<any>) => void;
-type OnAuthorizationRequestListener = (request: AuthorizationRequest) => void;
-
 export class WalletInternalProxy {
   private inFlight = new Map<string, PromiseWithResolvers<any>>();
   private internalEventCallback!: OnWalletUpdateListener;
   private authRequestCallback!: OnAuthorizationRequestListener;
+  private proofDebugExportCallback!: OnProofDebugExportRequestListener;
 
   private constructor(private internalPort: MessagePortMain) {}
 
@@ -35,6 +32,12 @@ export class WalletInternalProxy {
 
   public onAuthorizationRequest(callback: OnAuthorizationRequestListener) {
     this.authRequestCallback = callback;
+  }
+
+  public onProofDebugExportRequest(
+    callback: OnProofDebugExportRequestListener
+  ) {
+    this.proofDebugExportCallback = callback;
   }
 
   static create(internalPort: MessagePortMain) {
@@ -50,6 +53,11 @@ export class WalletInternalProxy {
 
       if (type === "wallet-update") {
         wallet.internalEventCallback?.(event.data);
+        return;
+      }
+
+      if (type === "proof-debug-export-request") {
+        wallet.proofDebugExportCallback?.(event.data.content);
         return;
       }
 

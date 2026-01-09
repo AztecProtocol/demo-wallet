@@ -1,0 +1,10 @@
+{
+  "name": "demo-wallet",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "local-aztec:enable": "node scripts/toggle-local-aztec.js enable",
+    "local-aztec:disable": "node scripts/toggle-local-aztec.js disable",
+    "local-aztec:status": "node scripts/toggle-local-aztec.js status"
+  }
+}

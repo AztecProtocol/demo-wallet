@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
-import { randomBytes } from "@aztec/foundation/crypto";
+import { randomBytes } from "@aztec/foundation/crypto/random";
 import { AccountBox } from "./components/AccountBox.tsx";
 import { DraggableFab } from "../../shared/DraggableFab.tsx";
 import { WalletContext } from "../../../renderer";

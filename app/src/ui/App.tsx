@@ -17,6 +17,10 @@ import { AccountsManager } from "./components/sections/accounts/index.tsx";
 import { ContactsManager } from "./components/sections/contacts/index.tsx";
 import { AuthorizedApps } from "./components/sections/authorized-apps/index.tsx";
 import { AuthorizationDialog } from "./components/dialogs/AuthorizationDialog.tsx";
+import {
+  ProofDebugExportDialog,
+  type ProofDebugExportRequest,
+} from "./components/dialogs/ProofDebugExportDialog.tsx";
 import { NetworkSelector } from "./components/NetworkSelector.tsx";
 
 import type {
@@ -60,6 +64,9 @@ export function App() {
   const [authQueue, setAuthQueue] = useState<AuthorizationRequest[]>([]);
   const currentAuth = authQueue[0] || null;
 
+  const [proofDebugExportRequest, setProofDebugExportRequest] =
+    useState<(ProofDebugExportRequest & { debugData: string }) | null>(null);
+
   const { walletAPI } = useContext(WalletContext);
   const { currentNetwork } = useNetwork();
 
@@ -99,6 +106,14 @@ export function App() {
         return [...prev, request];
       });
     });
+
+    // Listen for proof debug export requests (on proving failure)
+    walletAPI.onProofDebugExportRequest(
+      (request: ProofDebugExportRequest & { debugData: string }) => {
+        console.log("Proof debug export request:", request.id);
+        setProofDebugExportRequest(request);
+      }
+    );
   }, [currentNetwork.id, walletAPI]); // Reload when network changes
 
   const handleMenuToggle = () => {
@@ -144,6 +159,24 @@ export function App() {
       // Remove the processed request from the queue
       setAuthQueue((prev) => prev.slice(1));
     }
+  };
+
+  const handleProofDebugExport = async () => {
+    if (proofDebugExportRequest) {
+      const result = await walletAPI.saveProofDebugData(
+        proofDebugExportRequest.debugData
+      );
+      if (result.success) {
+        console.log("Debug data saved to:", result.filePath);
+      } else if (!result.canceled) {
+        console.error("Failed to save debug data:", result.error);
+      }
+      setProofDebugExportRequest(null);
+    }
+  };
+
+  const handleProofDebugCancel = () => {
+    setProofDebugExportRequest(null);
   };
 
   const handleMouseDown = (e: MouseEvent) => {
@@ -439,6 +472,15 @@ export function App() {
           onApprove={handleAuthApprove}
           onDeny={handleAuthDeny}
           queueLength={authQueue.length}
+        />
+      )}
+
+      {/* Proof Debug Export Dialog - Shown on proving failure */}
+      {proofDebugExportRequest && (
+        <ProofDebugExportDialog
+          request={proofDebugExportRequest}
+          onExport={handleProofDebugExport}
+          onCancel={handleProofDebugCancel}
         />
       )}
     </Box>

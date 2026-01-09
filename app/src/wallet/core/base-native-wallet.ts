@@ -4,12 +4,7 @@ import {
   type ChainInfo,
 } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
-import {
-  AccountManager,
-  BaseWallet,
-  type FeeOptions,
-  type Aliased,
-} from "@aztec/aztec.js/wallet";
+import { AccountManager, type Aliased } from "@aztec/aztec.js/wallet";
 import { Fq, Fr } from "@aztec/aztec.js/fields";
 import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
 import { type AztecNode } from "@aztec/aztec.js/node";
@@ -26,7 +21,7 @@ import type {
 } from "../types/authorization";
 import { prepareForFeePayment } from "../utils/sponsored-fpc";
 import { AccountFeePaymentMethodOptions } from "@aztec/entrypoints/account";
-import { Gas, GasSettings } from "@aztec/stdlib/gas";
+import { GasSettings } from "@aztec/stdlib/gas";
 import {
   EcdsaKAccountContract,
   EcdsaRAccountContract,
@@ -38,6 +33,7 @@ import {
 } from "@aztec/accounts/stub";
 import { getCanonicalMultiCallEntrypoint } from "@aztec/protocol-contracts/multi-call-entrypoint";
 import type { FieldsOf } from "@aztec/foundation/types";
+import { BaseWallet, type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 
 /**
  * Base class for native wallet implementations (external and internal).

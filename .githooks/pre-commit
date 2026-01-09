@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Pre-commit hook to strip local aztec-packages resolutions from package.json files
+# This prevents accidentally committing local development paths
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Package.json files to check
+PACKAGE_FILES=(
+  "app/package.json"
+  "extension/package.json"
+)
+
+MODIFIED=0
+
+for FILE in "${PACKAGE_FILES[@]}"; do
+  FULL_PATH="$REPO_ROOT/$FILE"
+
+  if [ ! -f "$FULL_PATH" ]; then
+    continue
+  fi
+
+  # Check if file is staged
+  if ! git diff --cached --name-only | grep -q "^$FILE$"; then
+    continue
+  fi
+
+  # Check if resolutions field exists with link: entries
+  if grep -q '"resolutions"' "$FULL_PATH" && grep -q '"link:' "$FULL_PATH"; then
+    echo "Stripping local resolutions from $FILE..."
+
+    # Use node to remove the resolutions field
+    node -e "
+      const fs = require('fs');
+      const pkg = JSON.parse(fs.readFileSync('$FULL_PATH', 'utf-8'));
+      if (pkg.resolutions) {
+        delete pkg.resolutions;
+        fs.writeFileSync('$FULL_PATH', JSON.stringify(pkg, null, 2) + '\n');
+      }
+    "
+
+    # Re-stage the file
+    git add "$FULL_PATH"
+    MODIFIED=1
+  fi
+done
+
+if [ $MODIFIED -eq 1 ]; then
+  echo ""
+  echo "Local resolutions have been stripped from package.json files."
+  echo "The commit will proceed with the cleaned files."
+  echo ""
+fi
+
+exit 0

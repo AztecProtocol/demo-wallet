@@ -293,8 +293,6 @@ export default defineBackground(async () => {
       nativePort = browser.runtime.connectNative(NATIVE_HOST_NAME);
 
       nativePort.onMessage.addListener((response: any) => {
-        console.log("Received from native host:", response);
-
         // Handle status messages from native host
         if (response.type === "status") {
           backendConnected = response.status === "connected";

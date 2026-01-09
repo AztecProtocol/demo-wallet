@@ -24,7 +24,7 @@ export const NETWORKS: NetworkConfig[] = [
     id: "devnet",
     name: "Devnet",
     chainId: 11155111,
-    version: 1667575857,
+    version: 1647720761,
     description: "Aztec Labs Devnet",
     color: "#2196f3", // Blue
     nodeUrl: "https://next.devnet.aztec-labs.com/",

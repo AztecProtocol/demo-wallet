@@ -32,10 +32,17 @@ const dependencyMap: Record<string, string> = {
   "@aztec/viem": "viem",
 };
 
+// Get native host directory for current platform
+function getNativeHostDir(): string {
+  const platform = process.platform;
+  const arch = process.arch;
+  return `./dist/native-host/${platform}-${arch}`;
+}
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    extraResource: ["./bb"],
+    extraResource: ["./bb", getNativeHostDir()],
   },
   hooks: {
     async packageAfterCopy(_forgeConfig, buildPath) {
@@ -118,10 +125,6 @@ const config: ForgeConfig = {
           entry: "src/ipc/preload.ts",
           config: "vite.preload.config.ts",
           target: "preload",
-        },
-        {
-          entry: "src/workers/ws-worker.ts",
-          config: "vite.worker.config.ts",
         },
         {
           entry: "src/workers/wallet-worker.ts",

@@ -22,6 +22,7 @@ import type {
 const WALLET_ID = "demo-aztec-wallet";
 const WALLET_NAME = "Demo Aztec Wallet";
 const WALLET_VERSION = "1.0.0";
+const NATIVE_HOST_NAME = "com.aztec.keychain";
 
 /**
  * Secure connection state for a connected dApp.
@@ -52,7 +53,7 @@ const connections = new Map<string, SecureConnection>();
 
 /**
  * Tracks pending requests by messageId -> appId.
- * Used to route WebSocket responses back to the correct dApp.
+ * Used to route native messaging responses back to the correct dApp.
  */
 const pendingRequests = new Map<string, string>();
 
@@ -66,14 +67,18 @@ async function initializeKeyPair(): Promise<void> {
 }
 
 export default defineBackground(async () => {
-  let webSocket: WebSocket | null = null;
+  let nativePort: browser.runtime.Port | null = null;
+  // Track whether the native host is connected to the Electron app backend
+  // (not just whether the native port is open)
+  let backendConnected = false;
 
   /**
    * Gets the current wallet status for the popup.
    */
   function getStatus() {
     return {
-      wsConnected: webSocket?.readyState === WebSocket.OPEN,
+      // Only report connected when native host confirms backend connection
+      connected: backendConnected,
       connectedApps: connections.size,
       walletId: WALLET_ID,
       walletName: WALLET_NAME,
@@ -102,6 +107,14 @@ export default defineBackground(async () => {
   // Handle messages from content script and popup
   browser.runtime.onMessage.addListener((event: any, sender, sendResponse) => {
     const { origin, type, content, appId } = event;
+
+    // Handle popup messages
+    if (origin === "popup") {
+      if (type === "get-status") {
+        sendResponse(getStatus());
+      }
+      return;
+    }
 
     if (origin !== "content-script") {
       return;
@@ -223,11 +236,11 @@ export default defineBackground(async () => {
 
       console.log("Received RPC call:", message.type);
 
-      // Forward to WebSocket backend
-      if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+      // Forward to native host
+      if (nativePort) {
         // Track which appId this request came from
         pendingRequests.set(message.messageId, appId);
-        webSocket.send(JSON.stringify(message));
+        nativePort.postMessage(message);
       } else {
         // Send error response if not connected
         await sendSecureResponse(appId, {
@@ -268,76 +281,77 @@ export default defineBackground(async () => {
   }
 
   /**
-   * Connects to the wallet backend via WebSocket
+   * Connects to the wallet backend via Native Messaging.
+   * The native host binary bridges to the Electron app via IPC socket.
    */
   function connect() {
-    return new Promise((resolve, reject) => {
-      webSocket = new WebSocket("ws://localhost:8765");
+    try {
+      // Log extension ID for debugging native messaging configuration
+      console.log(`Extension ID: ${browser.runtime.id}`);
+      console.log(`Attempting to connect to native host: ${NATIVE_HOST_NAME}`);
 
-      webSocket.onopen = () => {
-        console.log("WebSocket connected to wallet backend");
-        broadcastStatus();
-        keepAlive();
-        resolve(true);
-      };
+      nativePort = browser.runtime.connectNative(NATIVE_HOST_NAME);
 
-      webSocket.onmessage = async (event) => {
-        console.log("Received from backend:", event.data);
+      nativePort.onMessage.addListener((response: any) => {
+        console.log("Received from native host:", response);
 
-        try {
-          const response = JSON.parse(event.data) as WalletResponse;
-
-          // Look up which appId this response is for
-          const appId = pendingRequests.get(response.messageId);
-          if (!appId) {
-            console.error(
-              `No pending request found for messageId ${response.messageId}`
-            );
-            return;
-          }
-          pendingRequests.delete(response.messageId);
-
-          // Ensure walletId is set
-          if (!response.walletId) {
-            response.walletId = WALLET_ID;
-          }
-
-          // Encrypt and send response to the correct dApp
-          await sendSecureResponse(appId, response);
-        } catch (err) {
-          console.error("Failed to parse backend response:", err);
+        // Handle status messages from native host
+        if (response.type === "status") {
+          backendConnected = response.status === "connected";
+          console.log(`Backend connection status: ${backendConnected}`);
+          broadcastStatus();
+          return;
         }
-      };
 
-      webSocket.onclose = (event) => {
-        console.log("WebSocket connection closed, reconnecting...");
-        webSocket = null;
-        broadcastStatus();
-        setTimeout(connect, 1000);
-      };
+        // Look up which appId this response is for
+        const appId = pendingRequests.get(response.messageId);
+        if (!appId) {
+          console.error(
+            `No pending request found for messageId ${response.messageId}`
+          );
+          return;
+        }
+        pendingRequests.delete(response.messageId);
 
-      webSocket.onerror = (err) => {
-        console.error("WebSocket error:", err);
-      };
-    });
-  }
+        // Ensure walletId is set
+        if (!response.walletId) {
+          response.walletId = WALLET_ID;
+        }
 
-  /**
-   * Keeps the service worker alive
-   */
-  function keepAlive() {
-    const keepAliveIntervalId = setInterval(
-      () => {
-        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-          webSocket.send("keepalive");
+        // Encrypt and send response to the correct dApp
+        sendSecureResponse(appId, response as WalletResponse);
+      });
+
+      nativePort.onDisconnect.addListener(() => {
+        const error = browser.runtime.lastError;
+        if (error) {
+          console.error(
+            `Native host disconnected with error: ${error.message}`
+          );
+          console.error(
+            `Extension ID was: ${browser.runtime.id}. Ensure manifest 'allowed_origins' includes: chrome-extension://${browser.runtime.id}/`
+          );
         } else {
-          clearInterval(keepAliveIntervalId);
+          console.log("Native host disconnected");
         }
-      },
-      20 * 1000 // 20 seconds
-    );
+        nativePort = null;
+        backendConnected = false;
+        broadcastStatus();
+
+        // Reconnect after a delay
+        setTimeout(connect, 1000);
+      });
+
+      console.log("Connected to native messaging host");
+      broadcastStatus();
+    } catch (err) {
+      console.error("Failed to connect to native host:", err);
+      nativePort = null;
+      // Retry connection
+      setTimeout(connect, 1000);
+    }
   }
 
-  // Start connection
+  // Start connection to native host
   connect();
 });

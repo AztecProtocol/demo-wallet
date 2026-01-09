@@ -303,7 +303,7 @@ async function main() {
 
       externalPort.on("message", async (event) => {
         const { origin, content } = event.data;
-        if (origin !== "websocket") {
+        if (origin !== "native-host") {
           return;
         }
         let messageContent;

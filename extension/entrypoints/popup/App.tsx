@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 
 interface WalletStatus {
-  wsConnected: boolean;
+  connected: boolean;
   connectedApps: number;
   walletId: string;
   walletName: string;
@@ -89,14 +89,14 @@ function App() {
                 <span className="status-label">Backend Connection</span>
                 <div className="status-value">
                   <span
-                    className={`status-indicator ${status.wsConnected ? "connected" : "disconnected"}`}
+                    className={`status-indicator ${status.connected ? "connected" : "disconnected"}`}
                   />
                   <span
                     className={
-                      status.wsConnected ? "text-connected" : "text-disconnected"
+                      status.connected ? "text-connected" : "text-disconnected"
                     }
                   >
-                    {status.wsConnected ? "Connected" : "Disconnected"}
+                    {status.connected ? "Connected" : "Disconnected"}
                   </span>
                 </div>
               </div>
@@ -109,7 +109,7 @@ function App() {
               </div>
             </div>
 
-            {!status.wsConnected && (
+            {!status.connected && (
               <div className="warning-card">
                 <svg
                   className="warning-icon"

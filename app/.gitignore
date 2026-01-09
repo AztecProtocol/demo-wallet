@@ -97,3 +97,5 @@ pxe-*
 bb/
 
 .bb-crs/
+
+dist

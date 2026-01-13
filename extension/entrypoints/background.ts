@@ -10,12 +10,13 @@ import {
   decrypt,
   hashSharedSecret,
 } from "@aztec/wallet-sdk/crypto";
-import type {
-  DiscoveryRequest,
-  DiscoveryResponse,
-  WalletInfo,
-  WalletMessage,
-  WalletResponse,
+import {
+  WalletMessageType,
+  type DiscoveryRequest,
+  type DiscoveryResponse,
+  type WalletInfo,
+  type WalletMessage,
+  type WalletResponse,
 } from "@aztec/wallet-sdk/types";
 
 // Wallet configuration
@@ -23,6 +24,11 @@ const WALLET_ID = "aztec-keychain";
 const WALLET_NAME = "Aztec Keychain";
 const WALLET_VERSION = "1.0.0";
 const NATIVE_HOST_NAME = "com.aztec.keychain";
+
+/**
+ * Session status for connection approval flow
+ */
+type SessionStatus = "pending" | "approved" | "rejected";
 
 /**
  * Active session with a connected dApp.
@@ -34,9 +40,20 @@ interface ActiveSession {
   requestId: string;
   tabId: number;
   origin: string;
-  /** Hash of the shared secret - the canonical verification value */
   verificationHash: string;
   connectedAt: number;
+  appId?: string;
+  /** Session approval status - defaults to "approved" for backward compatibility */
+  status: SessionStatus;
+}
+
+/**
+ * Pending message awaiting session approval
+ */
+interface PendingApprovalMessage {
+  requestId: string;
+  encrypted: EncryptedPayload;
+  messageId: string;
 }
 
 /**
@@ -61,6 +78,12 @@ const sessions = new Map<string, ActiveSession>();
  * Used to route native messaging responses back to the correct dApp.
  */
 const pendingRequests = new Map<string, string>();
+
+/**
+ * Messages waiting for session approval.
+ * When a session is pending and a message arrives, we queue it here.
+ */
+const pendingApprovalMessages: PendingApprovalMessage[] = [];
 
 /**
  * Generates a new ECDH key pair for the wallet.
@@ -131,26 +154,138 @@ export default defineBackground(async () => {
     }
   });
 
+  /**
+   * Handles messages from the popup UI.
+   * Returns true if the response will be sent asynchronously.
+   */
+  function handlePopupMessage(
+    type: string,
+    event: any,
+    sendResponse: (response: any) => void
+  ): boolean {
+    switch (type) {
+      case "get-status":
+        sendResponse(getStatus());
+        return false;
+
+      case "focus-app":
+        if (nativePort && backendConnected) {
+          nativePort.postMessage({ type: "focus-app" });
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false, error: "Backend not connected" });
+        }
+        return false;
+
+      case "get-sessions": {
+        const sessionList = Array.from(sessions.values()).map((s) => ({
+          requestId: s.requestId,
+          origin: s.origin,
+          verificationHash: s.verificationHash,
+          connectedAt: s.connectedAt,
+          appId: s.appId,
+          status: s.status,
+        }));
+        console.log(
+          `Popup requested sessions, returning ${sessionList.length} sessions`
+        );
+        sendResponse(sessionList);
+        return false;
+      }
+
+      case "approve-session":
+        (async () => {
+          if (!backendConnected) {
+            sendResponse({
+              success: false,
+              error: "Wallet app is not running. Please open the app first.",
+            });
+            return;
+          }
+
+          const session = sessions.get(event.requestId);
+          if (session && session.status === "pending") {
+            session.status = "approved";
+            console.log(`Session ${event.requestId} approved by user`);
+
+            // Process any queued messages for this session
+            const queuedMessages = pendingApprovalMessages.filter(
+              (m) => m.requestId === event.requestId
+            );
+            // Remove from queue
+            for (let i = pendingApprovalMessages.length - 1; i >= 0; i--) {
+              if (pendingApprovalMessages[i].requestId === event.requestId) {
+                pendingApprovalMessages.splice(i, 1);
+              }
+            }
+            // Process each queued message
+            for (const queuedMsg of queuedMessages) {
+              try {
+                const message = await decrypt<WalletMessage>(
+                  session.sharedKey,
+                  queuedMsg.encrypted
+                );
+                await processApprovedMessage(session, message);
+              } catch (err) {
+                console.error("Failed to process queued message:", err);
+              }
+            }
+            sendResponse({ success: true });
+          } else {
+            sendResponse({
+              success: false,
+              error: "Session not found or not pending",
+            });
+          }
+        })();
+        return true; // Keep channel open for async response
+
+      case "reject-session": {
+        const session = sessions.get(event.requestId);
+        if (session && session.status === "pending") {
+          session.status = "rejected";
+          console.log(`Session ${event.requestId} rejected by user`);
+
+          // Send error response for any queued messages
+          const queuedMessages = pendingApprovalMessages.filter(
+            (m) => m.requestId === event.requestId
+          );
+          // Remove from queue
+          for (let i = pendingApprovalMessages.length - 1; i >= 0; i--) {
+            if (pendingApprovalMessages[i].requestId === event.requestId) {
+              pendingApprovalMessages.splice(i, 1);
+            }
+          }
+          // Send rejection errors
+          for (const queuedMsg of queuedMessages) {
+            sendSecureResponse(event.requestId, {
+              messageId: queuedMsg.messageId,
+              walletId: WALLET_ID,
+              error: { message: "Connection rejected by user" },
+            });
+          }
+          sendResponse({ success: true });
+        } else {
+          sendResponse({
+            success: false,
+            error: "Session not found or not pending",
+          });
+        }
+        return false;
+      }
+
+      default:
+        return false;
+    }
+  }
+
   // Handle messages from content script and popup
   browser.runtime.onMessage.addListener((event: any, sender, sendResponse) => {
     const { origin, type, content, requestId } = event;
 
     // Handle popup messages
     if (origin === "popup") {
-      if (type === "get-status") {
-        sendResponse(getStatus());
-      } else if (type === "get-sessions") {
-        // Return verificationHash - popup computes emoji lazily for display
-        const sessionList = Array.from(sessions.values()).map((s) => ({
-          requestId: s.requestId,
-          origin: s.origin,
-          verificationHash: s.verificationHash,
-          connectedAt: s.connectedAt,
-        }));
-        console.log(`Popup requested sessions, returning ${sessionList.length} sessions`);
-        sendResponse(sessionList);
-      }
-      return;
+      return handlePopupMessage(type, event, sendResponse);
     }
 
     if (origin !== "content-script") {
@@ -167,7 +302,7 @@ export default defineBackground(async () => {
 
     // Route based on message type (matches SDK types where applicable)
     switch (type) {
-      case "aztec-wallet-discovery":
+      case WalletMessageType.DISCOVERY:
         // Use async IIFE for cleaner async/await handling
         (async () => {
           try {
@@ -214,7 +349,7 @@ export default defineBackground(async () => {
     // Emoji representation is computed lazily when displaying to the user
     const verificationHash = await hashSharedSecret(sharedKey);
 
-    // Store the session
+    // Store the session - starts as "pending" until user approves
     sessions.set(request.requestId, {
       sharedKey,
       requestId: request.requestId,
@@ -222,8 +357,15 @@ export default defineBackground(async () => {
       origin: tabOrigin,
       verificationHash,
       connectedAt: Date.now(),
+      status: "pending",
     });
-    console.log(`Session created: ${tabOrigin} (${request.requestId}), hash: ${verificationHash.slice(0, 8)}..., total sessions: ${sessions.size}`);
+    console.log(
+      `Session created (pending approval): ${tabOrigin} (${
+        request.requestId
+      }), hash: ${verificationHash.slice(0, 8)}..., total sessions: ${
+        sessions.size
+      }`
+    );
 
     const walletInfo: WalletInfo = {
       id: WALLET_ID,
@@ -233,7 +375,7 @@ export default defineBackground(async () => {
     };
 
     const response: DiscoveryResponse = {
-      type: "aztec-wallet-discovery-response",
+      type: WalletMessageType.DISCOVERY_RESPONSE,
       requestId: request.requestId,
       walletInfo,
     };
@@ -242,9 +384,36 @@ export default defineBackground(async () => {
     return { success: true, response };
   }
 
+  async function openApprovalPopup(requestId: string) {
+    await browser.action.openPopup();
+  }
+
+  /**
+   * Processes a message after session is approved
+   */
+  async function processApprovedMessage(
+    session: ActiveSession,
+    message: WalletMessage
+  ) {
+    console.log("Processing approved RPC call:", message.type);
+
+    // Forward to native host
+    if (nativePort) {
+      pendingRequests.set(message.messageId, session.requestId);
+      nativePort.postMessage(message);
+    } else {
+      await sendSecureResponse(session.requestId, {
+        messageId: message.messageId,
+        walletId: WALLET_ID,
+        error: { message: "Wallet backend not connected" },
+      });
+    }
+  }
+
   /**
    * Handles encrypted messages from dApp.
    * Decrypts in background, processes, encrypts response.
+   * If session is pending, queues the message and opens approval popup.
    */
   async function handleSecureMessage(
     requestId: string,
@@ -263,21 +432,59 @@ export default defineBackground(async () => {
         encrypted
       );
 
-      console.log("Received RPC call:", message.type);
+      if (!session.appId && message.appId) {
+        session.appId = message.appId;
+        console.log(`Session ${requestId} appId set to: ${message.appId}`);
+      }
 
-      // Forward to native host
-      if (nativePort) {
-        // Track which requestId this request came from
-        pendingRequests.set(message.messageId, requestId);
-        nativePort.postMessage(message);
-      } else {
-        // Send error response if not connected
+      console.log(
+        "Received RPC call:",
+        message.type,
+        "session status:",
+        session.status
+      );
+
+      // Handle disconnect request from dApp
+      if (message.type === WalletMessageType.DISCONNECT) {
+        console.log(`Session ${requestId} disconnected by dApp`);
+        sessions.delete(requestId);
+        for (let i = pendingApprovalMessages.length - 1; i >= 0; i--) {
+          if (pendingApprovalMessages[i].requestId === requestId) {
+            pendingApprovalMessages.splice(i, 1);
+          }
+        }
+        for (const [messageId, reqId] of pendingRequests.entries()) {
+          if (reqId === requestId) {
+            pendingRequests.delete(messageId);
+          }
+        }
+        return;
+      }
+
+      // Check session status
+      if (session.status === "rejected") {
         await sendSecureResponse(requestId, {
           messageId: message.messageId,
           walletId: WALLET_ID,
-          error: { message: "Wallet backend not connected" },
+          error: { message: "Connection rejected by user" },
         });
+        return;
       }
+
+      if (session.status === "pending") {
+        pendingApprovalMessages.push({
+          requestId,
+          encrypted,
+          messageId: message.messageId,
+        });
+        console.log(
+          `Message queued for approval, opening popup for session ${requestId}`
+        );
+        await openApprovalPopup(requestId);
+        return;
+      }
+
+      await processApprovedMessage(session, message);
     } catch (err) {
       console.error("Failed to decrypt message:", err);
     }
@@ -286,7 +493,10 @@ export default defineBackground(async () => {
   /**
    * Encrypts and sends response back to the dApp via content script.
    */
-  async function sendSecureResponse(requestId: string, response: WalletResponse) {
+  async function sendSecureResponse(
+    requestId: string,
+    response: WalletResponse
+  ) {
     const session = sessions.get(requestId);
     if (!session) {
       console.error(`No session found for requestId ${requestId}`);
@@ -363,6 +573,35 @@ export default defineBackground(async () => {
         }
         nativePort = null;
         backendConnected = false;
+
+        // Prune all active sessions when backend disconnects
+        // Sessions are tied to the shared key which is only valid for this connection
+        const sessionCount = sessions.size;
+        if (sessionCount > 0) {
+          console.log(
+            `Pruning ${sessionCount} sessions due to backend disconnect`
+          );
+
+          // Send encrypted disconnect notification to each session
+          // Using the secure channel ensures uniform message handling in SDK
+          for (const session of sessions.values()) {
+            sendSecureResponse(session.requestId, {
+              messageId: "disconnect",
+              walletId: WALLET_ID,
+              error: {
+                type: WalletMessageType.SESSION_DISCONNECTED,
+                message: "Wallet backend disconnected",
+              },
+            }).catch(() => {
+              // Tab might be closed, ignore errors
+            });
+          }
+
+          sessions.clear();
+          pendingApprovalMessages.length = 0;
+          pendingRequests.clear();
+        }
+
         broadcastStatus();
 
         // Reconnect after a delay
@@ -374,11 +613,9 @@ export default defineBackground(async () => {
     } catch (err) {
       console.error("Failed to connect to native host:", err);
       nativePort = null;
-      // Retry connection
       setTimeout(connect, 1000);
     }
   }
 
-  // Start connection to native host
   connect();
 });

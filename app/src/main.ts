@@ -117,6 +117,25 @@ if (started) {
   app.quit();
 }
 
+// Store main window reference at module level for focus/show operations
+let mainWindow: BrowserWindow | null = null;
+
+/**
+ * Shows and focuses the main window.
+ * Used to bring the app to the foreground when user interaction is needed.
+ */
+function focusMainWindow(): boolean {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    return true;
+  }
+  return false;
+}
+
 /**
  * Create IPC socket server for communication with native messaging host.
  * Uses Unix socket (macOS/Linux) or named pipe (Windows).
@@ -157,6 +176,23 @@ function createIpcServer(externalPort: MessagePortMain): Server {
     }
   });
 
+  /**
+   * Handle special messages that should be processed by the main process
+   * rather than forwarded to the wallet worker.
+   * Returns true if the message was handled, false otherwise.
+   */
+  function handleMainProcessMessage(message: any, socket: Socket): boolean {
+    if (message.type === "focus-app") {
+      console.log("Received focus-app request from extension");
+      const success = focusMainWindow();
+      // Send response back to extension
+      const response = JSON.stringify({ type: "focus-app-response", success });
+      socket.write(response + "\n");
+      return true;
+    }
+    return false;
+  }
+
   const server = createServer((socket: Socket) => {
     console.log("Native messaging host connected");
     activeSocket = socket;
@@ -174,6 +210,16 @@ function createIpcServer(externalPort: MessagePortMain): Server {
         buffer = buffer.slice(newlineIndex + 1);
 
         if (line.trim()) {
+          // Check if this is a message for the main process
+          try {
+            const message = JSON.parse(line);
+            if (handleMainProcessMessage(message, socket)) {
+              continue; // Message was handled by main process, don't forward
+            }
+          } catch {
+            // Not valid JSON or parsing failed, forward anyway
+          }
+
           // Forward JSON string directly to wallet-worker
           externalPort.postMessage({
             origin: "native-host",
@@ -207,14 +253,19 @@ function createIpcServer(externalPort: MessagePortMain): Server {
 }
 
 const createWindow = () => {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  // Create the browser window and store in module-level variable
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       sandbox: false,
     },
+  });
+
+  // Clean up reference when window is closed
+  mainWindow.on("closed", () => {
+    mainWindow = null;
   });
 
   // and load the index.html of the app.
@@ -243,7 +294,7 @@ app.on("ready", async () => {
   // Install native messaging manifests on startup
   installNativeMessagingManifests();
 
-  const mainWindow = createWindow();
+  createWindow();
   const { port1: externalPort1, port2: externalPort2 } =
     new MessageChannelMain();
   const { port1: internalPort1, port2: internalPort2 } =
@@ -300,13 +351,15 @@ app.on("ready", async () => {
 
   const walletProxy = WalletInternalProxy.create(internalPort2);
   walletProxy.onWalletUpdate((event) => {
-    mainWindow.webContents.send("wallet-update", event);
+    mainWindow?.webContents.send("wallet-update", event);
   });
   walletProxy.onAuthorizationRequest((event) => {
-    mainWindow.webContents.send("authorization-request", event);
+    mainWindow?.webContents.send("authorization-request", event);
+    // Focus the window when authorization is needed
+    focusMainWindow();
   });
   walletProxy.onProofDebugExportRequest((event) => {
-    mainWindow.webContents.send("proof-debug-export-request", event);
+    mainWindow?.webContents.send("proof-debug-export-request", event);
   });
   const internalMethods = [
     "getAccounts",
@@ -332,6 +385,9 @@ app.on("ready", async () => {
 
   // IPC handler for saving proof debug data
   ipcMain.handle("saveProofDebugData", async (_event, data: string) => {
+    if (!mainWindow) {
+      return { success: false, error: "No main window available" };
+    }
     const result = await dialog.showSaveDialog(mainWindow, {
       title: "Save Proof Debug Data",
       defaultPath: `ivc-inputs-${Date.now()}.msgpack`,

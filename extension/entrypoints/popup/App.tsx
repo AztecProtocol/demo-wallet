@@ -9,18 +9,104 @@ interface WalletStatus {
   walletVersion: string;
 }
 
+type SessionStatus = "pending" | "approved" | "rejected";
+
 interface ActiveSession {
   requestId: string;
   /** The canonical verification hash from the shared secret */
   verificationHash: string;
   origin: string;
   connectedAt: number;
+  /** Application ID provided by the dApp */
+  appId?: string;
+  /** Session approval status */
+  status: SessionStatus;
+}
+
+/**
+ * Checks if the appId roughly matches the origin domain.
+ * Returns true if they appear to match, false if there's a potential mismatch.
+ */
+function domainsMatch(origin: string, appId?: string): boolean {
+  if (!appId) return true; // No appId yet, can't check
+
+  try {
+    const hostname = new URL(origin).hostname;
+    const normalizedAppId = appId.toLowerCase().replace(/[^a-z0-9.-]/g, "");
+    const normalizedHostname = hostname.toLowerCase();
+
+    // Check if appId contains the hostname or vice versa
+    // e.g., "myapp.com" matches "app.myapp.com" or "myapp"
+    const hostParts = normalizedHostname.split(".");
+    const appParts = normalizedAppId.split(".");
+
+    // Check if any significant part matches
+    for (const hostPart of hostParts) {
+      if (hostPart.length > 2 && normalizedAppId.includes(hostPart)) {
+        return true;
+      }
+    }
+    for (const appPart of appParts) {
+      if (appPart.length > 2 && normalizedHostname.includes(appPart)) {
+        return true;
+      }
+    }
+
+    // Also check if appId is a substring of hostname or vice versa
+    if (
+      normalizedHostname.includes(normalizedAppId) ||
+      normalizedAppId.includes(normalizedHostname)
+    ) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return true; // If parsing fails, don't show warning
+  }
 }
 
 function App() {
   const [status, setStatus] = useState<WalletStatus | null>(null);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const refreshSessions = async () => {
+    const sessionsResponse = await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "get-sessions",
+    });
+    setSessions(sessionsResponse || []);
+  };
+
+  const handleApprove = async (requestId: string) => {
+    const result = await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "approve-session",
+      requestId,
+    });
+    if (!result?.success && result?.error) {
+      // Show error to user (backend not connected)
+      alert(result.error);
+    }
+    await refreshSessions();
+  };
+
+  const handleReject = async (requestId: string) => {
+    await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "reject-session",
+      requestId,
+    });
+    await refreshSessions();
+  };
+
+  const handleOpenApp = async () => {
+    await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "focus-app",
+    });
+  };
 
   useEffect(() => {
     // Get initial status and sessions
@@ -42,6 +128,8 @@ function App() {
     const handleMessage = (event: any) => {
       if (event.origin === "background" && event.type === "status-update") {
         setStatus(event.status);
+        // Refresh sessions when status changes (e.g., backend disconnect clears sessions)
+        refreshSessions();
       }
     };
 
@@ -101,7 +189,9 @@ function App() {
                 <span className="status-label">Backend Connection</span>
                 <div className="status-value">
                   <span
-                    className={`status-indicator ${status.connected ? "connected" : "disconnected"}`}
+                    className={`status-indicator ${
+                      status.connected ? "connected" : "disconnected"
+                    }`}
                   />
                   <span
                     className={
@@ -112,48 +202,123 @@ function App() {
                   </span>
                 </div>
               </div>
+              {status.connected && (
+                <div className="status-actions">
+                  <button className="btn btn-secondary" onClick={handleOpenApp}>
+                    Open App
+                  </button>
+                </div>
+              )}
             </div>
 
-            {sessions.length > 0 && (
-              <div className="session-section">
-                <h3 className="section-title">Open Sessions</h3>
+            {/* Pending Sessions - Connection Requests */}
+            {sessions.filter((s) => s.status === "pending").length > 0 && (
+              <div className="session-section pending">
+                <h3 className="section-title">Connection Requests</h3>
                 <div className="session-list">
-                  {sessions.map((s) => (
-                    <div key={s.requestId} className="session-item">
-                      <span className="session-app">
-                        {new URL(s.origin).hostname}
-                      </span>
-                      <span className="session-emoji">
-                        {/* Compute emoji lazily from verificationHash for display */}
-                        {hashToEmoji(s.verificationHash)}
-                      </span>
-                    </div>
-                  ))}
+                  {sessions
+                    .filter((s) => s.status === "pending")
+                    .map((s) => {
+                      const hostname = new URL(s.origin).hostname;
+                      const mismatch = !domainsMatch(s.origin, s.appId);
+                      return (
+                        <div key={s.requestId} className="session-item pending">
+                          <div className="session-info">
+                            <span className="session-app">
+                              {s.appId || hostname}
+                            </span>
+                            {s.appId && s.appId !== hostname && (
+                              <span className="session-origin">
+                                via {hostname}
+                              </span>
+                            )}
+                            {mismatch && (
+                              <span
+                                className="session-warning"
+                                title={`App ID "${s.appId}" doesn't match domain "${hostname}"`}
+                              >
+                                ⚠️
+                              </span>
+                            )}
+                          </div>
+                          <div className="session-verification">
+                            <span className="verification-label">
+                              Verify emoji:
+                            </span>
+                            <span className="session-emoji large">
+                              {hashToEmoji(s.verificationHash)}
+                            </span>
+                          </div>
+                          <div className="session-actions">
+                            <button
+                              className={`btn btn-approve ${
+                                !status.connected ? "disabled" : ""
+                              }`}
+                              onClick={() => handleApprove(s.requestId)}
+                              disabled={!status.connected}
+                              title={
+                                !status.connected
+                                  ? "Open the wallet app first"
+                                  : ""
+                              }
+                            >
+                              Allow
+                            </button>
+                            <button
+                              className="btn btn-reject"
+                              onClick={() => handleReject(s.requestId)}
+                            >
+                              Deny
+                            </button>
+                          </div>
+                          {!status.connected && (
+                            <div className="session-warning-banner">
+                              Open the wallet app to approve this connection
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}
 
-            {!status.connected && (
-              <div className="warning-card">
-                <svg
-                  className="warning-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <div className="warning-content">
-                  <span className="warning-title">Wallet backend offline</span>
-                  <span className="warning-text">
-                    Start the Aztec Keychain app to enable transactions
-                  </span>
+            {/* Approved Sessions */}
+            {sessions.filter((s) => s.status === "approved").length > 0 && (
+              <div className="session-section">
+                <h3 className="section-title">Connected Apps</h3>
+                <div className="session-list">
+                  {sessions
+                    .filter((s) => s.status === "approved")
+                    .map((s) => {
+                      const hostname = new URL(s.origin).hostname;
+                      const mismatch = !domainsMatch(s.origin, s.appId);
+                      return (
+                        <div key={s.requestId} className="session-item">
+                          <div className="session-info">
+                            <span className="session-app">
+                              {s.appId || hostname}
+                            </span>
+                            {s.appId && s.appId !== hostname && (
+                              <span className="session-origin">
+                                via {hostname}
+                              </span>
+                            )}
+                            {mismatch && (
+                              <span
+                                className="session-warning"
+                                title={`App ID "${s.appId}" doesn't match domain "${hostname}"`}
+                              >
+                                ⚠️
+                              </span>
+                            )}
+                          </div>
+                          <span className="session-emoji">
+                            {hashToEmoji(s.verificationHash)}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}

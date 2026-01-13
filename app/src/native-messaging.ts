@@ -90,12 +90,6 @@ export function checkSystemWideManifest(): void {
       "║                                                                              ║"
     );
     console.error(
-      "╠══════════════════════════════════════════════════════════════════════════════╣"
-    );
-    console.error(
-      "║                                                                              ║"
-    );
-    console.error(
       "║   When using WXT dev mode, Chrome runs with a custom --user-data-dir and    ║"
     );
     console.error(
@@ -112,48 +106,20 @@ export function checkSystemWideManifest(): void {
       "║                                                                              ║"
     );
     console.error(
-      "╠══════════════════════════════════════════════════════════════════════════════╣"
+      "║   Run the command below to install it.                                       ║"
     );
-    console.error(
-      "║                                                                              ║"
-    );
-    console.error(
-      "║   Run the following command to install the manifest:                         ║"
-    );
-    console.error(
-      "║                                                                              ║"
-    );
-    console.error(
-      `║   sudo mkdir -p ${systemPath.padEnd(54)}║`
-    );
-    console.error(
-      "║                                                                              ║"
-    );
-    console.error(
-      "║   Then create the manifest file with:                                        ║"
-    );
-    console.error(
-      "║                                                                              ║"
-    );
-    console.error(
-      `║   sudo tee ${manifestPath} << 'EOF'`.padEnd(79) + "║"
-    );
-    console.error(`║   ${manifest.split("\n")[0].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[1].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[2].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[3].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[4].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[5].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[6].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[7].padEnd(74)}║`);
-    console.error(`║   ${manifest.split("\n")[8].padEnd(74)}║`);
-    console.error("║   EOF".padEnd(79) + "║");
     console.error(
       "║                                                                              ║"
     );
     console.error(
       "╚══════════════════════════════════════════════════════════════════════════════╝"
     );
+    console.error("");
+    console.error("Copy and paste this command:");
+    console.error("");
+    console.error(`sudo mkdir -p ${systemPath} && sudo tee ${manifestPath} << 'EOF'`);
+    console.error(manifest);
+    console.error("EOF");
     console.error("");
 
     // Exit with error

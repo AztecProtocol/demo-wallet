@@ -1,7 +1,8 @@
 import type { EncryptedPayload } from "@aztec/wallet-sdk/crypto";
-import type {
-  DiscoveryRequest,
-  DiscoveryResponse,
+import {
+  WalletMessageType,
+  type DiscoveryRequest,
+  type DiscoveryResponse,
 } from "@aztec/wallet-sdk/types";
 
 /**
@@ -57,7 +58,7 @@ export default defineContentScript({
       }
 
       switch (data.type) {
-        case "aztec-wallet-discovery":
+        case WalletMessageType.DISCOVERY:
           await handleDiscoveryRequest(data as DiscoveryRequest);
           break;
       }
@@ -70,10 +71,8 @@ export default defineContentScript({
         return;
       }
 
-      switch (type) {
-        case "secure-response":
-          handleSecureResponse(requestId, content);
-          break;
+      if (type === "secure-response") {
+        handleSecureResponse(requestId, content);
       }
     });
 
@@ -86,7 +85,7 @@ export default defineContentScript({
         // Ask background script to handle discovery (derives shared key)
         const result = await browser.runtime.sendMessage({
           origin: "content-script",
-          type: "aztec-wallet-discovery",
+          type: WalletMessageType.DISCOVERY,
           content: request,
         });
 
@@ -128,6 +127,7 @@ export default defineContentScript({
     /**
      * Handles encrypted responses from background.
      * Relays to the page via the stored MessagePort.
+     * This includes all messages - regular responses and disconnect notifications.
      */
     function handleSecureResponse(
       requestId: string,

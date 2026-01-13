@@ -288,13 +288,146 @@ body {
   padding: 8px 12px;
 }
 
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
 .session-app {
   font-size: 0.8rem;
   color: var(--color-text-primary);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-origin {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+.session-warning {
+  display: inline-block;
+  margin-left: 6px;
+  cursor: help;
+  font-size: 0.9rem;
 }
 
 .session-emoji {
   font-size: 1.1rem;
   letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.session-emoji.large {
+  font-size: 1.4rem;
+  letter-spacing: 0.15em;
+}
+
+/* Pending session styles */
+.session-section.pending {
+  background: var(--color-warning-transparent);
+  border-color: rgba(255, 167, 38, 0.3);
+}
+
+.session-section.pending .section-title {
+  color: var(--color-warning);
+}
+
+.session-item.pending {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+}
+
+.session-verification {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-primary-border);
+}
+
+.verification-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.session-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-approve {
+  background: var(--color-primary);
+  color: var(--color-background);
+}
+
+.btn-approve:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.btn-approve:disabled,
+.btn-approve.disabled {
+  background: var(--color-text-secondary);
+  color: var(--color-background);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-reject {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-primary-border);
+}
+
+.btn-reject:hover {
+  background: var(--color-error-transparent);
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-border);
+}
+
+.btn-secondary:hover {
+  background: var(--color-primary-transparent);
+  border-color: var(--color-primary);
+}
+
+.status-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Warning banner for pending sessions when backend is disconnected */
+.session-warning-banner {
+  font-size: 0.75rem;
+  color: var(--color-warning);
+  text-align: center;
+  padding: 8px;
+  background: var(--color-warning-transparent);
+  border: 1px solid rgba(255, 167, 38, 0.3);
+  margin-top: 4px;
 }

@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "local-aztec:enable": "node scripts/toggle-local-aztec.js enable && cd app && yarn install && cd ../extension && yarn install",
-    "local-aztec:disable": "node scripts/toggle-local-aztec.js disable && cd app && yarn install && cd ../extension && yarn install",
+    "local-aztec:enable": "node scripts/toggle-local-aztec.js enable && cd app && corepack yarn install && cd ../extension && corepack yarn install",
+    "local-aztec:disable": "node scripts/toggle-local-aztec.js disable && cd app && corepack yarn install && cd ../extension && corepack yarn install",
     "local-aztec:status": "node scripts/toggle-local-aztec.js status"
   }
 }

@@ -9,7 +9,15 @@
  *   node scripts/toggle-local-aztec.js status
  */
 
-import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync, statSync, lstatSync } from "fs";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  readdirSync,
+  statSync,
+  lstatSync,
+} from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -143,7 +151,8 @@ function cleanupBrokenAztecSymlinks(dir) {
         } else if (stats.isDirectory()) {
           // Check if directory is essentially empty or only contains node_modules
           const contents = readdirSync(entryPath);
-          const hasOnlyNodeModules = contents.length === 0 ||
+          const hasOnlyNodeModules =
+            contents.length === 0 ||
             (contents.length === 1 && contents[0] === "node_modules");
           if (hasOnlyNodeModules) {
             console.log(`  Removing broken package dir: ${entryPath}`);
@@ -205,8 +214,7 @@ function cleanupBrokenAztecSymlinks(dir) {
   return cleaned;
 }
 
-function runYarnInstall() {
-  // First, clean up broken symlinks
+function cleanupSymlinks() {
   console.log("\nCleaning up stale @aztec symlinks...");
   let totalCleaned = 0;
   for (const dir of PACKAGE_DIRS) {
@@ -222,20 +230,7 @@ function runYarnInstall() {
   } else {
     console.log("  No broken symlinks found");
   }
-
-  console.log("\nRunning yarn install...");
-  for (const dir of PACKAGE_DIRS) {
-    const fullPath = resolve(ROOT, dir);
-    if (!existsSync(fullPath)) {
-      continue;
-    }
-    console.log(`  Installing dependencies in ${dir}...`);
-    try {
-      execSync("yarn install", { cwd: fullPath, stdio: "inherit" });
-    } catch (error) {
-      console.error(`  Failed to install in ${dir}:`, error.message);
-    }
-  }
+  console.log("\nRun 'yarn install' in app/ and extension/ to complete the setup.");
 }
 
 function enable(aztecPath) {
@@ -280,8 +275,8 @@ function enable(aztecPath) {
   console.log(`\nLocal aztec-packages resolutions enabled.`);
   console.log(`Path: ${resolvedPath}`);
 
-  // Run yarn install
-  runYarnInstall();
+  // Clean up stale symlinks (yarn install is done separately)
+  cleanupSymlinks();
 }
 
 function disable() {
@@ -303,8 +298,8 @@ function disable() {
 
   console.log(`\nLocal aztec-packages resolutions disabled.`);
 
-  // Run yarn install
-  runYarnInstall();
+  // Clean up stale symlinks (yarn install is done separately)
+  cleanupSymlinks();
 }
 
 function status() {

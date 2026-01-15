@@ -24,14 +24,27 @@ interface ActiveSession {
 }
 
 /**
+ * Safely extracts hostname from an origin URL.
+ * Returns the origin string itself if parsing fails.
+ */
+function getHostname(origin: string): string {
+  if (!origin) return "unknown";
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return origin;
+  }
+}
+
+/**
  * Checks if the appId roughly matches the origin domain.
  * Returns true if they appear to match, false if there's a potential mismatch.
  */
 function domainsMatch(origin: string, appId?: string): boolean {
-  if (!appId) return true; // No appId yet, can't check
+  if (!appId || !origin) return true; // No appId or origin yet, can't check
 
   try {
-    const hostname = new URL(origin).hostname;
+    const hostname = getHostname(origin);
     const normalizedAppId = appId.toLowerCase().replace(/[^a-z0-9.-]/g, "");
     const normalizedHostname = hostname.toLowerCase();
 
@@ -219,7 +232,7 @@ function App() {
                   {sessions
                     .filter((s) => s.status === "pending")
                     .map((s) => {
-                      const hostname = new URL(s.origin).hostname;
+                      const hostname = getHostname(s.origin);
                       const mismatch = !domainsMatch(s.origin, s.appId);
                       return (
                         <div key={s.requestId} className="session-item pending">
@@ -291,7 +304,7 @@ function App() {
                   {sessions
                     .filter((s) => s.status === "approved")
                     .map((s) => {
-                      const hostname = new URL(s.origin).hostname;
+                      const hostname = getHostname(s.origin);
                       const mismatch = !domainsMatch(s.origin, s.appId);
                       return (
                         <div key={s.requestId} className="session-item">

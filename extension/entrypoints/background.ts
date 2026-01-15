@@ -57,6 +57,111 @@ interface PendingApprovalMessage {
 }
 
 /**
+ * Chunk metadata for reassembling large messages from native host.
+ * Messages exceeding 1MB are automatically chunked by the native host.
+ */
+interface ChunkedMessage {
+  __chunked: true;
+  chunkId: string;
+  chunkIndex: number;
+  totalChunks: number;
+  data: string;
+}
+
+/**
+ * Tracks partial chunks being reassembled.
+ */
+interface PendingChunks {
+  chunks: (string | undefined)[];
+  receivedCount: number;
+  totalChunks: number;
+  createdAt: number;
+}
+
+/**
+ * Storage for chunks being reassembled, keyed by chunkId.
+ */
+const pendingChunks = new Map<string, PendingChunks>();
+
+// Clean up stale chunks after 30 seconds
+const CHUNK_TIMEOUT_MS = 30000;
+
+/**
+ * Check if a message is a chunk that needs reassembly.
+ */
+function isChunkedMessage(message: unknown): message is ChunkedMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "__chunked" in message &&
+    (message as ChunkedMessage).__chunked === true
+  );
+}
+
+/**
+ * Process a chunk and return the reassembled message if complete.
+ * Returns null if more chunks are needed.
+ */
+function processChunk(chunk: ChunkedMessage): unknown | null {
+  const { chunkId, chunkIndex, totalChunks, data } = chunk;
+
+  // Get or create pending chunks entry
+  let pending = pendingChunks.get(chunkId);
+  if (!pending) {
+    pending = {
+      chunks: new Array(totalChunks),
+      receivedCount: 0,
+      totalChunks,
+      createdAt: Date.now(),
+    };
+    pendingChunks.set(chunkId, pending);
+  }
+
+  // Store the chunk data
+  if (pending.chunks[chunkIndex] === undefined) {
+    pending.chunks[chunkIndex] = data;
+    pending.receivedCount++;
+  }
+
+  console.log(
+    `Received chunk ${chunkIndex + 1}/${totalChunks} for ${chunkId} (${pending.receivedCount}/${totalChunks} received)`
+  );
+
+  // Check if all chunks received
+  if (pending.receivedCount === totalChunks) {
+    // Reassemble the message
+    const fullJson = pending.chunks.join("");
+    pendingChunks.delete(chunkId);
+
+    console.log(`Reassembled chunked message: ${fullJson.length} bytes`);
+
+    try {
+      return JSON.parse(fullJson);
+    } catch (err) {
+      console.error("Failed to parse reassembled message:", err);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Clean up stale pending chunks.
+ */
+function cleanupStaleChunks(): void {
+  const now = Date.now();
+  for (const [chunkId, pending] of pendingChunks) {
+    if (now - pending.createdAt > CHUNK_TIMEOUT_MS) {
+      console.warn(
+        `Cleaning up stale chunks for ${chunkId} (${pending.receivedCount}/${pending.totalChunks} received)`
+      );
+      pendingChunks.delete(chunkId);
+    }
+  }
+}
+
+/**
  * Wallet's ECDH key pair for secure channel establishment.
  * The private key never leaves the background script.
  */
@@ -385,7 +490,19 @@ export default defineBackground(async () => {
   }
 
   async function openApprovalPopup(requestId: string) {
-    await browser.action.openPopup();
+    // browser.action.openPopup() is only available in Manifest V3 and may not work in Firefox
+    // It also requires a user gesture in most browsers, so we fall back gracefully
+    try {
+      if (browser.action?.openPopup) {
+        await browser.action.openPopup();
+      } else if ((browser as any).browserAction?.openPopup) {
+        // Firefox MV2 fallback
+        await (browser as any).browserAction.openPopup();
+      }
+    } catch (err) {
+      // openPopup() fails if not triggered by user gesture - this is expected
+      console.log("Could not open popup programmatically (expected in most cases):", err);
+    }
   }
 
   /**
@@ -531,7 +648,18 @@ export default defineBackground(async () => {
 
       nativePort = browser.runtime.connectNative(NATIVE_HOST_NAME);
 
-      nativePort.onMessage.addListener((response: any) => {
+      nativePort.onMessage.addListener((rawResponse: any) => {
+        // Handle chunked messages (for responses > 1MB)
+        let response = rawResponse;
+        if (isChunkedMessage(rawResponse)) {
+          const reassembled = processChunk(rawResponse);
+          if (reassembled === null) {
+            // Still waiting for more chunks
+            return;
+          }
+          response = reassembled;
+        }
+
         // Handle status messages from native host
         if (response.type === "status") {
           backendConnected = response.status === "connected";
@@ -610,6 +738,9 @@ export default defineBackground(async () => {
 
       console.log("Connected to native messaging host");
       broadcastStatus();
+
+      // Periodically clean up stale chunks
+      setInterval(cleanupStaleChunks, 10000);
     } catch (err) {
       console.error("Failed to connect to native host:", err);
       nativePort = null;

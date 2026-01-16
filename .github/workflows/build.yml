@@ -15,68 +15,11 @@ on:
         default: 7
 
 jobs:
-  build-electron:
-    name: Build Electron App
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Corepack enable
-        run: corepack enable
-
-      - name: Install dependencies
-        working-directory: ./app
-        run: yarn install --immutable
-
-      - name: Build Electron app (development)
-        if: ${{ !inputs.release-mode }}
-        working-directory: ./app
-        run: yarn run package
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CI: true
-
-      - name: Build Electron app (release)
-        if: ${{ inputs.release-mode }}
-        working-directory: ./app
-        run: yarn run make
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --max-old-space-size=4096
-          CI: true
-
-      - name: Upload build artifacts (development)
-        if: ${{ !inputs.release-mode }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-app-${{ matrix.os }}
-          path: app/out/
-          retention-days: ${{ inputs.retention-days }}
-
-      - name: Upload release artifacts
-        if: ${{ inputs.release-mode }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-release-${{ matrix.os }}
-          path: |
-            app/out/make/**/*
-          retention-days: ${{ inputs.retention-days }}
-
   build-extension:
     name: Build Browser Extension
     runs-on: ubuntu-latest
+    outputs:
+      chrome-extension-id: ${{ steps.get-chrome-id.outputs.extension-id }}
 
     steps:
       - name: Checkout code
@@ -114,6 +57,30 @@ jobs:
         working-directory: ./extension
         run: yarn run zip:firefox
 
+      - name: Get Chrome extension ID
+        id: get-chrome-id
+        working-directory: ./extension
+        run: |
+          # Read the extension key from manifest.json and compute the ID
+          # Chrome extension ID is derived from the "key" field in manifest.json
+          MANIFEST_PATH=".output/chrome-mv3/manifest.json"
+          if [ -f "$MANIFEST_PATH" ]; then
+            # Extract the key and compute the extension ID
+            KEY=$(jq -r '.key // empty' "$MANIFEST_PATH")
+            if [ -n "$KEY" ]; then
+              # Decode base64 key, hash with SHA256, take first 32 chars, map to a-p
+              EXTENSION_ID=$(echo -n "$KEY" | base64 -d | sha256sum | head -c 32 | tr '0-9a-f' 'a-p')
+              echo "extension-id=$EXTENSION_ID" >> $GITHUB_OUTPUT
+              echo "Chrome extension ID: $EXTENSION_ID"
+            else
+              echo "No key found in manifest, extension ID will be empty"
+              echo "extension-id=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Manifest not found at $MANIFEST_PATH"
+            echo "extension-id=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload Chrome build artifacts (development)
         if: ${{ !inputs.release-mode }}
         uses: actions/upload-artifact@v4
@@ -144,4 +111,66 @@ jobs:
         with:
           name: extension-firefox-release
           path: extension/.output/wxt-react-starter-0.0.0-firefox.zip
+          retention-days: ${{ inputs.retention-days }}
+
+  build-electron:
+    name: Build Electron App
+    runs-on: ${{ matrix.os }}
+    needs: build-extension
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Corepack enable
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: ./app
+        run: yarn install --immutable
+
+      - name: Build Electron app (development)
+        if: ${{ !inputs.release-mode }}
+        working-directory: ./app
+        run: yarn run package
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CI: true
+          CHROME_EXTENSION_ID: ${{ needs.build-extension.outputs.chrome-extension-id }}
+
+      - name: Build Electron app (release)
+        if: ${{ inputs.release-mode }}
+        working-directory: ./app
+        run: yarn run make
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
+          CI: true
+          CHROME_EXTENSION_ID: ${{ needs.build-extension.outputs.chrome-extension-id }}
+
+      - name: Upload build artifacts (development)
+        if: ${{ !inputs.release-mode }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-app-${{ matrix.os }}
+          path: app/out/
+          retention-days: ${{ inputs.retention-days }}
+
+      - name: Upload release artifacts
+        if: ${{ inputs.release-mode }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-release-${{ matrix.os }}
+          path: |
+            app/out/make/**/*
           retention-days: ${{ inputs.retention-days }}

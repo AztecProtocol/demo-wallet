@@ -16,13 +16,6 @@ import { join } from "node:path";
 export const NATIVE_HOST_NAME = "com.aztec.keychain";
 const FIREFOX_EXTENSION_ID = "aztec-keychain@aztec.network";
 
-/**
- * Get the path to the native host binary.
- * Path is set via NATIVE_HOST_PATH env var from vite.main.config.ts
- */
-export function getNativeHostBinaryPath(): string {
-  return process.env.NATIVE_HOST_PATH || "";
-}
 
 /**
  * Get the system-wide native messaging manifest path for Chrome.
@@ -47,7 +40,7 @@ function getSystemWideManifestPath(): string | null {
  *
  * Exits with error code 1 and detailed instructions if manifest is missing.
  */
-export function checkSystemWideManifest(): void {
+export function checkSystemWideManifest(nativeHostPath: string, chromeExtensionId: string): void {
   // Only check in dev mode
   if (app.isPackaged) {
     return;
@@ -61,8 +54,7 @@ export function checkSystemWideManifest(): void {
   const manifestPath = join(systemPath, `${NATIVE_HOST_NAME}.json`);
 
   if (!fs.existsSync(manifestPath)) {
-    const nativeHostPath = getNativeHostBinaryPath();
-    const extensionId = process.env.CHROME_EXTENSION_ID || "<EXTENSION_ID>";
+    const extensionId = chromeExtensionId || "<EXTENSION_ID>";
 
     const manifest = JSON.stringify(
       {
@@ -246,9 +238,7 @@ function installWindowsRegistryKeys(paths: {
  * Install native messaging manifests for all supported browsers.
  * Called on app startup to ensure the extension can communicate with the app.
  */
-export function installNativeMessagingManifests(): void {
-  const nativeHostPath = getNativeHostBinaryPath();
-
+export function installNativeMessagingManifests(nativeHostPath: string, chromeExtensionId: string): void {
   // Verify native host binary exists
   if (!fs.existsSync(nativeHostPath)) {
     console.error(`Native host binary not found: ${nativeHostPath}`);
@@ -280,10 +270,10 @@ export function installNativeMessagingManifests(): void {
   }
 
   // Install Chrome manifests (if extension ID is configured)
-  if (process.env.CHROME_EXTENSION_ID) {
+  if (chromeExtensionId) {
     const chromeManifest = createChromeManifest(
       nativeHostPath,
-      process.env.CHROME_EXTENSION_ID
+      chromeExtensionId
     );
     for (const dir of paths.chrome) {
       try {

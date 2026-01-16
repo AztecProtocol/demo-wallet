@@ -288,11 +288,14 @@ const createWindow = () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on("ready", async () => {
+  const nativeHostPath = process.env.NATIVE_HOST_PATH || "";
+  const chromeExtensionId = process.env.CHROME_EXTENSION_ID || "";
+
   // Check system-wide manifest exists in dev mode (WXT uses custom user-data-dir)
-  checkSystemWideManifest();
+  checkSystemWideManifest(nativeHostPath, chromeExtensionId);
 
   // Install native messaging manifests on startup
-  installNativeMessagingManifests();
+  installNativeMessagingManifests(nativeHostPath, chromeExtensionId);
 
   createWindow();
   const { port1: externalPort1, port2: externalPort2 } =

@@ -7,7 +7,12 @@ import { jsonStringify } from "@aztec/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import { ExternalWallet } from "../wallet/core/external-wallet.ts";
 import { InternalWalletInterfaceSchema } from "../ipc/wallet-internal-interface.ts";
-import { createPXE, getPXEConfig, type PXEConfig } from "@aztec/pxe/server";
+import {
+  createPXE,
+  getPXEConfig,
+  type PXEConfig,
+  type PXECreationOptions,
+} from "@aztec/pxe/server";
 import { schemas } from "@aztec/stdlib/schemas";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
@@ -25,6 +30,7 @@ import type {
 import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
+import { BackendType } from "@aztec/bb.js";
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -40,7 +46,10 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
-  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
+  wallets: Map<
+    string,
+    Promise<{ external: ExternalWallet; internal: InternalWallet }>
+  >;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -81,7 +90,8 @@ async function init(
         dataDirectory: resolve(keychainHomeDir, `./pxe-${rollupAddress}`),
         proverEnabled: true,
       };
-      const options = {
+
+      const options: PXECreationOptions = {
         loggers: {
           store: createProxyLogger("pxe:data:lmdb", logPort),
           pxe: createProxyLogger("pxe:service", logPort),
@@ -96,6 +106,10 @@ async function init(
           },
           createProxyLogger("pxe:data:lmdb", logPort)
         ),
+        proverOrOptions: {
+          backend: BackendType.NativeUnixSocket,
+          bbPath: process.env.BB_BINARY_PATH,
+        },
       };
 
       const walletDBLogger = createProxyLogger("wallet:data:lmdb", logPort);
@@ -197,6 +211,21 @@ async function init(
             });
           }
         );
+
+        wallet.addEventListener(
+          "proof-debug-export-request",
+          (event: CustomEvent) => {
+            internalPort.postMessage({
+              origin: "wallet",
+              type: "proof-debug-export-request",
+              content: event.detail,
+              chainInfo: {
+                chainId: chainInfo.chainId.toString(),
+                version: chainInfo.version.toString(),
+              },
+            });
+          }
+        );
       };
 
       setupWalletEvents(externalWallet);
@@ -271,9 +300,10 @@ async function main() {
     if (message.data.type === "ports" && message.ports?.length) {
       const [externalPort, internalPort, logPort] = message.ports;
       userLog = createProxyLogger("wallet:worker", logPort);
+
       externalPort.on("message", async (event) => {
         const { origin, content } = event.data;
-        if (origin !== "websocket") {
+        if (origin !== "native-host") {
           return;
         }
         let messageContent;

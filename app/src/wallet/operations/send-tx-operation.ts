@@ -22,11 +22,13 @@ import {
   hashExecutionPayload,
   generateSimulationTitle,
 } from "../utils/simulation-utils";
-import type { SendOptions, FeeOptions } from "@aztec/aztec.js/wallet";
+import type { SendOptions } from "@aztec/aztec.js/wallet";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import type { GasSettings } from "@aztec/stdlib/gas";
 import type { FieldsOf } from "@aztec/foundation/types";
+import { serializePrivateExecutionSteps } from "@aztec/stdlib/kernel";
+import type { FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 
 // Arguments tuple for the operation
 type SendTxArgs = [executionPayload: ExecutionPayload, opts: SendOptions];
@@ -227,7 +229,54 @@ export class SendTxOperation extends ExternalOperation<
     // Report proving stage
     await this.emitProgress("PROVING");
 
-    const provenTx = await this.pxe.proveTx(executionData.txRequest);
+    let provenTx;
+    try {
+      provenTx = await this.pxe.proveTx(executionData.txRequest);
+    } catch (provingError: unknown) {
+      // Proving failed - offer to export debug data
+      const errorMessage =
+        provingError instanceof Error
+          ? provingError.message
+          : String(provingError);
+
+      await this.emitProgress("PROVING FAILED", errorMessage);
+
+      // Generate profile data for debugging
+      try {
+        const profileResult = await this.pxe.profileTx(
+          executionData.txRequest,
+          "execution-steps",
+          true // skipProofGeneration - we just need the execution steps
+        );
+
+        // Serialize the execution steps to msgpack format
+        const serializedData = serializePrivateExecutionSteps(
+          profileResult.executionSteps
+        );
+
+        // Emit event for UI to show the debug export dialog
+        this.interactionManager.dispatchEvent(
+          new CustomEvent("proof-debug-export-request", {
+            detail: {
+              id: crypto.randomUUID(),
+              errorMessage,
+              interactionTitle: this.interaction?.title ?? "Transaction",
+              // Base64 encode the binary data for JSON transport
+              debugData: Buffer.from(serializedData).toString("base64"),
+            },
+          })
+        );
+      } catch (profileError) {
+        // If profiling also fails, just log and continue with original error
+        console.error(
+          "Failed to generate profile for debug export:",
+          profileError
+        );
+      }
+
+      // Re-throw the original proving error
+      throw provingError;
+    }
 
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();

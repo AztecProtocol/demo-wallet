@@ -1,5 +1,5 @@
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { sha256 } from "@aztec/foundation/crypto";
+import { sha256 } from "@aztec/foundation/crypto/sha256";
 import { serializeToBuffer } from "@aztec/foundation/serialize";
 import { FunctionCall, FunctionType } from "@aztec/stdlib/abi";
 import type { DecodingCache } from "../decoding/decoding-cache";

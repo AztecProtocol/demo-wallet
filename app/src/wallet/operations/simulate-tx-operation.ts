@@ -12,7 +12,7 @@ import {
   mergeExecutionPayloads,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/server";
-import { Fr } from "@aztec/foundation/fields";
+import { Fr } from "@aztec/foundation/curves/bn254";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -29,12 +29,12 @@ import {
   hashExecutionPayload,
   generateSimulationTitle,
 } from "../utils/simulation-utils";
-import type { FeeOptions, SimulateOptions } from "@aztec/aztec.js/wallet";
-import type { Logger } from "@aztec/aztec.js/log";
+import type { SimulateOptions } from "@aztec/aztec.js/wallet";
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { GasSettings } from "@aztec/stdlib/gas";
 import type { FieldsOf } from "@aztec/foundation/types";
+import type { FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 
 // Readable transaction information with decoded data
 interface ReadableTxInformation {
@@ -122,9 +122,7 @@ export class SimulateTxOperation extends ExternalOperation<
     private getFakeAccountDataFor: (
       address: AztecAddress
     ) => Promise<FakeAccountData>,
-    private cancellableTransactions: boolean,
-    private appId: string,
-    private log: Logger
+    private cancellableTransactions: boolean
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -159,8 +157,16 @@ export class SimulateTxOperation extends ExternalOperation<
 
     // Process fee options
     const feeOptions = opts.fee?.estimateGas
-      ? await this.completeFeeOptionsForEstimation(opts.from, executionPayload.feePayer, opts.fee?.gasSettings)
-      : await this.completeFeeOptions(opts.from, executionPayload.feePayer, opts.fee?.gasSettings);
+      ? await this.completeFeeOptionsForEstimation(
+          opts.from,
+          executionPayload.feePayer,
+          opts.fee?.gasSettings
+        )
+      : await this.completeFeeOptions(
+          opts.from,
+          executionPayload.feePayer,
+          opts.fee?.gasSettings
+        );
 
     const feeExecutionPayload =
       await feeOptions.walletFeePaymentMethod?.getExecutionPayload();

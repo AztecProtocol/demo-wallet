@@ -29,13 +29,20 @@ const externalDependencies = ["@aztec/kv-store", "@aztec/bb.js"];
 // Map to swap dependency names: key = dependency name to copy, value = source package name
 const dependencyMap: Record<string, string> = {
   // Example: "@some/package": "@some/other-package"
-  "@spalladino/viem": "viem",
+  "@aztec/viem": "viem",
 };
+
+// Get native host directory for current platform
+function getNativeHostDir(): string {
+  const platform = process.platform;
+  const arch = process.arch;
+  return `./dist/native-host/${platform}-${arch}`;
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    extraResource: ["./bb"],
+    extraResource: ["./bb", getNativeHostDir()],
   },
   hooks: {
     async packageAfterCopy(_forgeConfig, buildPath) {
@@ -76,6 +83,14 @@ const config: ForgeConfig = {
           );
           const destPath = path.join(destNodeModulesPath, packageName);
 
+          // Check if source exists (handles hoisted/symlinked deps that may not resolve)
+          try {
+            await fsp.access(sourcePath);
+          } catch {
+            console.warn(`⚠ Skipping ${packageName}: source path not found`);
+            return;
+          }
+
           await fsp.mkdir(path.dirname(destPath), { recursive: true });
           await fsp.cp(sourcePath, destPath, {
             recursive: true,
@@ -112,12 +127,8 @@ const config: ForgeConfig = {
           target: "preload",
         },
         {
-          entry: "src/workers/ws-worker.ts",
-          config: "vite.preload.config.ts",
-        },
-        {
           entry: "src/workers/wallet-worker.ts",
-          config: "vite.preload.config.ts",
+          config: "vite.worker.config.ts",
         },
       ],
       renderer: [

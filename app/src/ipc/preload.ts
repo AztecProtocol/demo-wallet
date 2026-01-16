@@ -63,4 +63,15 @@ contextBridge.exposeInMainWorld("walletAPI", {
   resolveAuthorization(stringifiedArgs: string) {
     return ipcRenderer.invoke("resolveAuthorization", stringifiedArgs);
   },
+  // Proof debug export
+  saveProofDebugData(
+    base64Data: string
+  ): Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke("saveProofDebugData", base64Data);
+  },
+  onProofDebugExportRequest(callback) {
+    return ipcRenderer.on("proof-debug-export-request", (_event, eventData) =>
+      callback(eventData)
+    );
+  },
 });

@@ -1,10 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const https = require("https");
-const { exec } = require("child_process");
-const { promisify } = require("util");
-
-const execPromise = promisify(exec);
+const { execSync } = require("child_process");
 
 // Read package.json to get bb.js version
 const packageJsonPath = path.join(__dirname, "../package.json");
@@ -28,9 +24,9 @@ function getPlatformArch() {
     case "darwin":
       // macOS: use format like "arm64-darwin" or "x86_64-darwin"
       if (arch === "arm64") {
-        return "arm64-darwin";
+        return "arm64-macos";
       } else if (arch === "x64") {
-        return "x86_64-darwin";
+        return "amd64-macos";
       }
       break;
     case "linux":
@@ -58,64 +54,22 @@ function getPlatformArch() {
   process.exit(1);
 }
 
-// Download file from URL
-function downloadFile(url, destPath) {
-  return new Promise((resolve, reject) => {
-    console.log(`Downloading from ${url}...`);
-    const file = fs.createWriteStream(destPath);
-
-    https
-      .get(url, (response) => {
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          // Handle redirects
-          file.close();
-          fs.unlinkSync(destPath);
-          downloadFile(response.headers.location, destPath)
-            .then(resolve)
-            .catch(reject);
-          return;
-        }
-
-        if (response.statusCode !== 200) {
-          file.close();
-          fs.unlinkSync(destPath);
-          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
-          return;
-        }
-
-        response.pipe(file);
-
-        file.on("finish", () => {
-          file.close();
-          resolve();
-        });
-      })
-      .on("error", (err) => {
-        file.close();
-        fs.unlinkSync(destPath);
-        reject(err);
-      });
-  });
-}
-
-// Extract tar.gz file
-async function extractTarGz(tarPath, extractDir) {
-  console.log(`Extracting ${tarPath}...`);
-  try {
-    await execPromise(`tar -xzf "${tarPath}" -C "${extractDir}"`);
-    console.log("✓ Extraction complete");
-  } catch (error) {
-    console.error(`✗ Failed to extract: ${error.message}`);
-    throw error;
-  }
-}
-
 // Main function
 async function main() {
   // Source paths
-  const BB_WASM_SOURCE = path.resolve(
-    __dirname,
-    "../node_modules/@aztec/bb.js/dest/node/barretenberg_wasm/barretenberg-threads.wasm.gz"
+  const BB_FOLDER = path.resolve(__dirname, "../node_modules/@aztec/bb.js");
+
+  const BB_WASM_SOURCE = path.join(
+    BB_FOLDER,
+    "dest/node/barretenberg_wasm/barretenberg-threads.wasm.gz"
+  );
+  const BB_NAPI_SOURCE = path.join(
+    BB_FOLDER,
+    `build/${getPlatformArch()}/nodejs_module.node`
+  );
+  const BB_BINARY_SOURCE = path.join(
+    BB_FOLDER,
+    `build/${getPlatformArch()}/bb`
   );
 
   // Destination directory - will be packaged with the app
@@ -142,49 +96,40 @@ async function main() {
     process.exit(1);
   }
 
-  // Download and extract BB binary
-  const platformArch = getPlatformArch();
-  const tarballName = `barretenberg-${platformArch}.tar.gz`;
-  const downloadUrl = `https://github.com/AztecProtocol/aztec-packages/releases/download/${bbJsVersion}/${tarballName}`;
-  const tarballPath = path.join(TEMP_DIR, tarballName);
+  // Copy N-API module
+  const napiDest = path.join(BB_DIR, "nodejs_module.node");
+  console.log(`Copying N-API module from ${BB_NAPI_SOURCE} to ${napiDest}`);
+  if (fs.existsSync(BB_NAPI_SOURCE)) {
+    fs.copyFileSync(BB_NAPI_SOURCE, napiDest);
+    console.log("✓ N-API module copied successfully");
+  } else {
+    console.error(`✗ N-API module not found at ${BB_NAPI_SOURCE}`);
+    process.exit(1);
+  }
 
-  try {
-    // Download the tarball
-    await downloadFile(downloadUrl, tarballPath);
-    console.log("✓ Download complete");
+  // Copy BB binary
+  const binaryDest = path.join(BB_DIR, "bb");
+  console.log(`Copying BB binary from ${BB_BINARY_SOURCE} to ${binaryDest}`);
+  if (fs.existsSync(BB_BINARY_SOURCE)) {
+    fs.copyFileSync(BB_BINARY_SOURCE, binaryDest);
+    // Make binary executable
+    fs.chmodSync(binaryDest, 0o755);
 
-    // Extract the tarball directly to the BB directory
-    // Note: We extract directly instead of copying from temp to avoid issues with
-    // fs.copyFileSync() which can corrupt the binary on macOS by not preserving
-    // all necessary file attributes
-    await extractTarGz(tarballPath, BB_DIR);
-
-    // Verify the bb binary exists
-    const binaryName = process.platform === "win32" ? "bb.exe" : "bb";
-    const binaryDest = path.join(BB_DIR, binaryName);
-
-    if (fs.existsSync(binaryDest)) {
-      // Make sure the binary is executable (Unix-like systems)
-      if (process.platform !== "win32") {
-        fs.chmodSync(binaryDest, 0o755);
+    // Remove macOS quarantine attribute (prevents Gatekeeper from killing the binary)
+    if (process.platform === "darwin") {
+      try {
+        execSync(`xattr -d com.apple.quarantine "${binaryDest}"`, {
+          stdio: "ignore",
+        });
+        console.log("✓ Removed quarantine attribute from BB binary");
+      } catch {
+        // Attribute may not exist, that's fine
       }
-      console.log("✓ BB binary installed successfully");
-    } else {
-      console.error(`✗ BB binary not found after extraction at ${binaryDest}`);
-      process.exit(1);
     }
 
-    // Clean up temp directory
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-    console.log("✓ Temporary files cleaned up");
-
-    console.log("\n✓ All files copied successfully to ./bb/");
-  } catch (error) {
-    console.error(`✗ Error: ${error.message}`);
-    // Clean up on error
-    if (fs.existsSync(TEMP_DIR)) {
-      fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-    }
+    console.log("✓ BB binary installed successfully");
+  } else {
+    console.error(`✗ BB binary not found after extraction at ${binaryDest}`);
     process.exit(1);
   }
 }

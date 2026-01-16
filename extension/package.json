@@ -1,6 +1,6 @@
 {
-  "name": "wxt-react-starter",
-  "description": "manifest.json description",
+  "name": "demo-aztec-wallet",
+  "description": "Demo Aztec wallet browser extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,6 +15,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@aztec/wallet-sdk": "v3.0.0-devnet.6-patch.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
@@ -25,5 +26,5 @@
     "typescript": "^5.9.2",
     "wxt": "^0.20.6"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@4.5.2"
 }

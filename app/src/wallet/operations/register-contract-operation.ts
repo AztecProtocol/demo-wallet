@@ -14,7 +14,7 @@ import {
   getContractClassFromArtifact,
 } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
-import type { Fr } from "@aztec/foundation/fields";
+import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { PXE } from "@aztec/pxe/server";
 import {
   WalletInteraction,

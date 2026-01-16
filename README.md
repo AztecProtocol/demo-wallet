@@ -50,6 +50,8 @@ Follow these steps to run the wallet in development mode:
    yarn start
    ```
 
+   Note: In dev mode, the app checks if the system-wide native messaging manifest is installed for Chrome. See [WXT dev mode can't connect (Chrome)](#wxt-dev-mode-cant-connect-chrome) for setup instructions.
+
 4. **Install and run the browser extension**
 
    The browser extension must be running for the app to work properly.
@@ -64,7 +66,7 @@ Follow these steps to run the wallet in development mode:
 
    This will launch a browser with the extension preloaded.
 
-### Loading the Extension Manually
+### Loading the Extension Manually (not required if running wxt on the terminal)
 
 **For Chromium-based browsers (Chrome, Brave, Edge):**
 
@@ -104,7 +106,8 @@ The native messaging system requires three components:
 
 ---
 
-## macOS
+<details>
+<summary><strong>macOS</strong></summary>
 
 ### Native Host Binary
 
@@ -162,9 +165,10 @@ Replace:
 - `/absolute/path/to/demo-wallet` with your actual repo path
 - `<EXTENSION_ID>` with your extension's ID (shown in `chrome://extensions`)
 
----
+</details>
 
-## Linux
+<details>
+<summary><strong>Linux</strong></summary>
 
 ### Native Host Binary
 
@@ -215,9 +219,10 @@ sudo tee /etc/opt/chrome/native-messaging-hosts/com.aztec.keychain.json << 'EOF'
 EOF
 ```
 
----
+</details>
 
-## Windows
+<details>
+<summary><strong>Windows</strong></summary>
 
 ### Native Host Binary
 
@@ -259,6 +264,8 @@ The app automatically creates these registry keys pointing to the manifest file:
 | ------------ | ------------------------------------------------- |
 | Electron App | `%USERPROFILE%\keychain\aztec-keychain-debug.log` |
 | Native Host  | `%USERPROFILE%\keychain\native-host.log`          |
+
+</details>
 
 ---
 

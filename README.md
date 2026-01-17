@@ -50,7 +50,7 @@ Follow these steps to run the wallet in development mode:
    yarn start
    ```
 
-   Note: In dev mode, the app checks if the system-wide native messaging manifest is installed for Chrome. See [WXT dev mode can't connect (Chrome)](#wxt-dev-mode-cant-connect-chrome) for setup instructions.
+   Note: In dev mode, the app checks if the system-wide native messaging manifest is installed for Chrome, and prompts the user to do so with a command if not found. See [WXT dev mode can't connect (Chrome)](#wxt-dev-mode-cant-connect-chrome) for more details
 
 4. **Install and run the browser extension**
 

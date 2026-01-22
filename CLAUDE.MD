@@ -584,20 +584,13 @@ After registering a contract:
 
 ## Known Limitations
 
-1. **WebSocket Communication**: Should use Native Messaging API instead
-2. **Port Management**: Port 8765 must be available
-3. **Single Network**: Currently only supports one rollup version at a time
-4. **Authorization Persistence**: Limited to `appId:method:item` format
+1. **Authorization Persistence**: Limited to `appId:method:item` format
 
 ## Future Improvements
 
-1. **Native Messaging**: Replace WebSocket with browser's native extension-to-app communication
-2. **Multi-Network**: Support multiple networks simultaneously
-3. **Account Derivation**: BIP-44 HD wallet support
-4. **Hardware Wallets**: Ledger/Trezor integration
-5. **Fee Estimation**: Better gas estimation and fee payment methods
-6. **Transaction History**: Enhanced filtering and search
-7. **Contact Book**: Address aliases and management
+1. **Account Derivation**: BIP-44 HD wallet support
+2. **Hardware Wallets**: Ledger/Trezor integration
+3. **Advanced Fee Estimation**: Better gas estimation and fee payment methods
 
 ## File Reference
 

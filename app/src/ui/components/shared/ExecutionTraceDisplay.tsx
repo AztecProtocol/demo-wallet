@@ -41,7 +41,13 @@ interface SimulationStats {
     unaccounted: number;
     total: number;
   };
-  nodeRPCCalls: Record<string, { times: number[] }>;
+  nodeRPCCalls: {
+    perMethod: Partial<Record<string, { times: number[] }>>;
+    roundTrips: {
+      roundTripDurations: number[];
+      roundTripMethods: string[][];
+    };
+  };
 }
 
 interface ExecutionTraceDisplayProps {
@@ -231,7 +237,7 @@ function SimulationStatsDisplay({ stats, trace }: SimulationStatsDisplayProps) {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {Object.entries(stats.nodeRPCCalls)
+                  {Object.entries(stats.nodeRPCCalls.perMethod)
                     .sort(([, a], [, b]) => {
                       const totalA = a.times.reduce((sum, t) => sum + t, 0);
                       const totalB = b.times.reduce((sum, t) => sum + t, 0);
@@ -260,6 +266,53 @@ function SimulationStatsDisplay({ stats, trace }: SimulationStatsDisplayProps) {
                         </TableRow>
                       );
                     })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {/* Round Trips Table */}
+        {stats && stats.nodeRPCCalls.roundTrips.roundTripDurations.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{ mb: 1, fontWeight: 600, color: "text.secondary" }}
+            >
+              RPC Round Trips ({stats.nodeRPCCalls.roundTrips.roundTripDurations.length})
+            </Typography>
+            <TableContainer
+              component={Paper}
+              variant="outlined"
+              sx={{ maxHeight: 300 }}
+            >
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Round Trip #</TableCell>
+                    <TableCell>Methods Called</TableCell>
+                    <TableCell align="right">Duration</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {stats.nodeRPCCalls.roundTrips.roundTripDurations.map(
+                    (duration, index) => {
+                      const methods = stats.nodeRPCCalls.roundTrips.roundTripMethods[index] || [];
+                      return (
+                        <TableRow key={index}>
+                          <TableCell sx={{ fontFamily: "monospace" }}>
+                            #{index + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                            {methods.join(", ")}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatTime(duration)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>

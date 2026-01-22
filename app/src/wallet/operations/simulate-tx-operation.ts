@@ -35,6 +35,7 @@ import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { GasSettings } from "@aztec/stdlib/gas";
 import type { FieldsOf } from "@aztec/foundation/types";
 import type { FeeOptions } from "@aztec/wallet-sdk/base-wallet";
+import type { ChainInfo } from "@aztec/entrypoints/interfaces";
 
 // Readable transaction information with decoded data
 interface ReadableTxInformation {
@@ -48,6 +49,7 @@ interface FakeAccountData {
     createTxExecutionRequest: (
       payload: ExecutionPayload,
       gasSettings: unknown,
+      chainInfo: ChainInfo,
       options: DefaultAccountEntrypointOptions
     ) => Promise<TxExecutionRequest>;
   };
@@ -122,6 +124,7 @@ export class SimulateTxOperation extends ExternalOperation<
     private getFakeAccountDataFor: (
       address: AztecAddress
     ) => Promise<FakeAccountData>,
+    private getChainInfo: () => Promise<ChainInfo>,
     private cancellableTransactions: boolean
   ) {
     super();
@@ -187,9 +190,11 @@ export class SimulateTxOperation extends ExternalOperation<
       artifact,
     } = await this.getFakeAccountDataFor(opts.from);
 
+    const chainInfo = await this.getChainInfo();
     const txRequest = await fromAccount.createTxExecutionRequest(
       finalExecutionPayload,
       feeOptions.gasSettings,
+      chainInfo,
       executionOptions
     );
 

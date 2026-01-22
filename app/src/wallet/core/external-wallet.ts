@@ -6,7 +6,29 @@ import {
   type BatchedMethod,
   type BatchableMethods,
   type BatchResults,
+  type PrivateEvent,
+  type PrivateEventFilter,
 } from "@aztec/aztec.js/wallet";
+import {
+  type IntentInnerHash,
+  type CallIntent,
+} from "@aztec/aztec.js/authorization";
+import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
+
+// Types not yet re-exported through public API
+type ContractMetadata = {
+  instance: ContractInstanceWithAddress;
+  isContractInitialized: boolean;
+  isContractPublished: boolean;
+  isContractClassPubliclyRegistered: boolean;
+  isContractUpdated: boolean;
+  updatedContractClassId: Fr;
+};
+
+type ContractClassMetadata = {
+  isArtifactRegistered: boolean;
+  isContractClassPubliclyRegistered: boolean;
+};
 import { type AztecNode } from "@aztec/aztec.js/node";
 import { type Logger } from "@aztec/aztec.js/log";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
@@ -37,6 +59,12 @@ import { RegisterSenderOperation } from "../operations/register-sender-operation
 import { SimulateUtilityOperation } from "../operations/simulate-utility-operation";
 import { SimulateTxOperation } from "../operations/simulate-tx-operation";
 import { SendTxOperation } from "../operations/send-tx-operation";
+import { GetAccountsOperation } from "../operations/get-accounts-operation";
+import { GetAddressBookOperation } from "../operations/get-address-book-operation";
+import { CreateAuthWitOperation } from "../operations/create-authwit-operation";
+import { GetPrivateEventsOperation } from "../operations/get-private-events-operation";
+import { GetContractMetadataOperation } from "../operations/get-contract-metadata-operation";
+import { GetContractClassMetadataOperation } from "../operations/get-contract-class-metadata-operation";
 
 export class ExternalWallet extends BaseNativeWallet {
   constructor(
@@ -52,7 +80,7 @@ export class ExternalWallet extends BaseNativeWallet {
     >,
     appId: string,
     chainInfo: ChainInfo,
-    log: Logger
+    log: Logger,
   ) {
     super(pxe, node, db, pendingAuthorizations, appId, chainInfo, log);
   }
@@ -65,7 +93,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.pxe,
       this.decodingCache,
       this.interactionManager,
-      this.authorizationManager
+      this.authorizationManager,
     );
   }
 
@@ -77,7 +105,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.pxe,
       this.db,
       this.interactionManager,
-      this.authorizationManager
+      this.authorizationManager,
     );
   }
 
@@ -90,7 +118,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.db,
       this.decodingCache,
       this.interactionManager,
-      this.authorizationManager
+      this.authorizationManager,
     );
   }
 
@@ -107,9 +135,8 @@ export class ExternalWallet extends BaseNativeWallet {
       this.completeFeeOptionsForEstimation.bind(this),
       this.completeFeeOptions.bind(this),
       this.getFakeAccountDataFor.bind(this),
+      this.getChainInfo.bind(this),
       this.cancellableTransactions,
-      this.appId,
-      this.log
     );
   }
 
@@ -118,7 +145,7 @@ export class ExternalWallet extends BaseNativeWallet {
    * @param simulateTxOp - The SimulateTxOperation instance to use (may be fresh or shared)
    */
   private createSendTxOperation(
-    simulateTxOp: SimulateTxOperation
+    simulateTxOp: SimulateTxOperation,
   ): SendTxOperation {
     return new SendTxOperation(
       this.pxe,
@@ -127,10 +154,107 @@ export class ExternalWallet extends BaseNativeWallet {
       this.interactionManager,
       this.authorizationManager,
       simulateTxOp,
-      this.createAuthWit.bind(this),
+      this.createAuthWitForSendTx.bind(this),
       this.createTxExecutionRequestFromPayloadAndFee.bind(this),
       this.completeFeeOptions.bind(this),
-      this.contextualizeError.bind(this)
+      this.contextualizeError.bind(this),
+    );
+  }
+
+  /**
+   * Factory method to create a fresh GetAccountsOperation instance.
+   */
+  private createGetAccountsOperation(): GetAccountsOperation {
+    return new GetAccountsOperation(
+      this.db,
+      this.interactionManager,
+      this.authorizationManager,
+    );
+  }
+
+  /**
+   * Factory method to create a fresh GetAddressBookOperation instance.
+   */
+  private createGetAddressBookOperation(): GetAddressBookOperation {
+    return new GetAddressBookOperation(
+      this.db,
+      this.interactionManager,
+      this.authorizationManager,
+    );
+  }
+
+  /**
+   * Internal helper to create authwit without authorization.
+   * Used by CreateAuthWitOperation after user has approved.
+   */
+  private async createAuthWitInternal(
+    from: AztecAddress,
+    messageHashOrIntent: IntentInnerHash | CallIntent,
+    chainInfo: ChainInfo,
+  ): Promise<AuthWitness> {
+    const account = await this.getAccountFromAddress(from);
+    return account.createAuthWit(messageHashOrIntent, chainInfo);
+  }
+
+  /**
+   * Internal helper for SendTxOperation to create auth witnesses without external authorization.
+   * This is used when sendTx internally needs to create auth witnesses for call authorizations.
+   * These are implicit authorizations that don't require user approval since the user already
+   * approved the transaction itself.
+   */
+  private async createAuthWitForSendTx(
+    from: AztecAddress,
+    auth: CallIntent,
+  ): Promise<AuthWitness> {
+    const account = await this.getAccountFromAddress(from);
+    return account.createAuthWit(auth, this.chainInfo);
+  }
+
+  /**
+   * Factory method to create a fresh CreateAuthWitOperation instance.
+   */
+  private createCreateAuthWitOperation(): CreateAuthWitOperation {
+    return new CreateAuthWitOperation(
+      this.decodingCache,
+      this.interactionManager,
+      this.authorizationManager,
+      this.createAuthWitInternal.bind(this),
+      this.chainInfo,
+    );
+  }
+
+  /**
+   * Factory method to create a fresh GetPrivateEventsOperation instance.
+   */
+  private createGetPrivateEventsOperation<T>(): GetPrivateEventsOperation<T> {
+    return new GetPrivateEventsOperation<T>(
+      this.pxe,
+      this.decodingCache,
+      this.interactionManager,
+      this.authorizationManager,
+    );
+  }
+
+  /**
+   * Factory method to create a fresh GetContractMetadataOperation instance.
+   */
+  private createGetContractMetadataOperation(): GetContractMetadataOperation {
+    return new GetContractMetadataOperation(
+      this.pxe,
+      this.decodingCache,
+      this.interactionManager,
+      this.authorizationManager,
+    );
+  }
+
+  /**
+   * Factory method to create a fresh GetContractClassMetadataOperation instance.
+   */
+  private createGetContractClassMetadataOperation(): GetContractClassMetadataOperation {
+    return new GetContractClassMetadataOperation(
+      this.pxe,
+      this.interactionManager,
+      this.authorizationManager,
     );
   }
 
@@ -146,30 +270,30 @@ export class ExternalWallet extends BaseNativeWallet {
    * @throws Error if app doesn't have authorization for this account
    */
   protected async getAccountFromAddress(
-    address: AztecAddress
+    address: AztecAddress,
   ): Promise<Account> {
     if (!address.equals(AztecAddress.ZERO)) {
       // Check if there's a persistent getAccounts authorization
       const authData = await this.db.retrievePersistentAuthorization(
         this.appId,
-        "getAccounts"
+        "getAccounts",
       );
 
       if (!authData || !authData.accounts) {
         throw new Error(
-          `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`
+          `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`,
         );
       }
 
       // Check if the specific account is in the authorized list
       const authorizedAddresses = authData.accounts.map((acc: any) =>
-        acc.item.toString()
+        acc.item.toString(),
       );
       const requestedAddress = address.toString();
 
       if (!authorizedAddresses.includes(requestedAddress)) {
         throw new Error(
-          `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`
+          `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`,
         );
       }
     }
@@ -181,34 +305,8 @@ export class ExternalWallet extends BaseNativeWallet {
   // External API methods - all require authorization
 
   override async getAccounts(): Promise<Aliased<AztecAddress>[]> {
-    const itemId = crypto.randomUUID();
-    const response = await this.authorizationManager.requestAuthorization([
-      {
-        id: itemId,
-        appId: this.appId,
-        method: "getAccounts",
-        params: {},
-        timestamp: Date.now(),
-        persistence: {
-          storageKey: "getAccounts",
-          persistData: null, // Will be filled from response.data
-        },
-      },
-    ]);
-
-    // Extract the single item response
-    const itemResponse = response.itemResponses[itemId];
-    const authData = itemResponse?.data as GetAccountsAuthData;
-
-    if (!authData || !authData.accounts) {
-      throw new Error("Authorization response missing account data");
-    }
-
-    const { accounts } = authData;
-    return accounts.map((acc: any) => ({
-      alias: acc.alias,
-      item: AztecAddress.fromString(acc.item),
-    }));
+    const op = this.createGetAccountsOperation();
+    return await op.executeStandalone();
   }
 
   /**
@@ -218,7 +316,7 @@ export class ExternalWallet extends BaseNativeWallet {
   override async registerContract(
     instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
-    secretKey?: Fr
+    secretKey?: Fr,
   ): Promise<ContractInstanceWithAddress> {
     const op = this.createRegisterContractOperation();
     return await op.executeStandalone(instance, artifact, secretKey);
@@ -226,55 +324,59 @@ export class ExternalWallet extends BaseNativeWallet {
 
   override async registerSender(
     address: AztecAddress,
-    alias: string
+    alias: string,
   ): Promise<AztecAddress> {
     const op = this.createRegisterSenderOperation();
     return await op.executeStandalone(address, alias);
   }
 
   override async getAddressBook(): Promise<Aliased<AztecAddress>[]> {
-    const itemId = crypto.randomUUID();
-    const response = await this.authorizationManager.requestAuthorization([
-      {
-        id: itemId,
-        appId: this.appId,
-        method: "getAddressBook",
-        params: {},
-        timestamp: Date.now(),
-        persistence: {
-          storageKey: "getAddressBook",
-          persistData: null, // Will be filled from response.data
-        },
-      },
-    ]);
+    const op = this.createGetAddressBookOperation();
+    return await op.executeStandalone();
+  }
 
-    // Extract the single item response
-    const itemResponse = response.itemResponses[itemId];
-    const authData = itemResponse?.data as GetAddressBookAuthData;
+  override async createAuthWit(
+    from: AztecAddress,
+    messageHashOrIntent: IntentInnerHash | CallIntent,
+  ): Promise<AuthWitness> {
+    const op = this.createCreateAuthWitOperation();
+    return await op.executeStandalone(from, messageHashOrIntent);
+  }
 
-    if (!authData || !authData.contacts) {
-      throw new Error("Authorization response missing contact data");
-    }
+  override async getPrivateEvents<T>(
+    eventMetadata: EventMetadataDefinition,
+    eventFilter: PrivateEventFilter,
+  ): Promise<PrivateEvent<T>[]> {
+    const op = this.createGetPrivateEventsOperation<T>();
+    return await op.executeStandalone(eventMetadata, eventFilter);
+  }
 
-    const { contacts } = authData;
-    return contacts.map((contact: any) => ({
-      alias: contact.alias,
-      item: AztecAddress.fromString(contact.item),
-    }));
+  override async getContractMetadata(
+    address: AztecAddress,
+  ): Promise<ContractMetadata> {
+    const op = this.createGetContractMetadataOperation();
+    return await op.executeStandalone(address);
+  }
+
+  override async getContractClassMetadata(
+    id: Fr,
+  ): Promise<ContractClassMetadata> {
+    const op = this.createGetContractClassMetadataOperation();
+    return await op.executeStandalone(id);
   }
 
   override async sendTx(
     exec: ExecutionPayload,
-    opts: SendOptions
+    opts: SendOptions,
   ): Promise<TxHash> {
     const simulateTxOp = this.createSimulateTxOperation();
     const op = this.createSendTxOperation(simulateTxOp);
     return await op.executeStandalone(exec, opts);
   }
 
-  override async batch<
-    const T extends readonly BatchedMethod<keyof BatchableMethods>[],
-  >(methods: T): Promise<BatchResults<T>> {
+  override async batch<const T extends readonly BatchedMethod[]>(
+    methods: T,
+  ): Promise<BatchResults<T>> {
     type BatchMethodResult =
       | ContractInstanceWithAddress
       | TxHash
@@ -321,6 +423,24 @@ export class ExternalWallet extends BaseNativeWallet {
           // Only create simulateTxOp when needed for sendTx operations
           const simulateTxOp = this.createSimulateTxOperation();
           operation = this.createSendTxOperation(simulateTxOp);
+          break;
+        case "getAccounts":
+          operation = this.createGetAccountsOperation();
+          break;
+        case "getAddressBook":
+          operation = this.createGetAddressBookOperation();
+          break;
+        case "createAuthWit":
+          operation = this.createCreateAuthWitOperation();
+          break;
+        case "getPrivateEvents":
+          operation = this.createGetPrivateEventsOperation();
+          break;
+        case "getContractMetadata":
+          operation = this.createGetContractMetadataOperation();
+          break;
+        case "getContractClassMetadata":
+          operation = this.createGetContractClassMetadataOperation();
           break;
         default:
           items.push({
@@ -372,7 +492,7 @@ export class ExternalWallet extends BaseNativeWallet {
 
       try {
         const interaction = await (item.operation as any).createInteraction(
-          ...item.args
+          ...item.args,
         );
         item.operation.setCurrentInteraction(interaction);
       } catch (error) {
@@ -460,7 +580,7 @@ export class ExternalWallet extends BaseNativeWallet {
             await item.operation.emitProgress(
               "ERROR",
               "Authorization denied",
-              true
+              true,
             );
           }
         }
@@ -499,7 +619,7 @@ export class ExternalWallet extends BaseNativeWallet {
             await item.operation.emitProgress(
               "ERROR",
               "Authorization denied",
-              true
+              true,
             );
             throw new Error(`Authorization denied for ${item.originalName}`);
           }
@@ -527,7 +647,7 @@ export class ExternalWallet extends BaseNativeWallet {
 
   override async simulateTx(
     executionPayload: ExecutionPayload,
-    opts: SimulateOptions
+    opts: SimulateOptions,
   ): Promise<TxSimulationResult> {
     const op = this.createSimulateTxOperation();
     return await op.executeStandalone(executionPayload, opts);
@@ -540,7 +660,7 @@ export class ExternalWallet extends BaseNativeWallet {
   override async simulateUtility(
     call: FunctionCall,
     authwits?: AuthWitness[],
-    scopes?: AztecAddress[]
+    scopes?: AztecAddress[],
   ): Promise<UtilitySimulationResult> {
     const op = this.createSimulateUtilityOperation();
     return await op.executeStandalone(call, authwits, scopes);

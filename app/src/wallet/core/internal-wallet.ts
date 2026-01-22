@@ -126,11 +126,7 @@ export class InternalWallet extends BaseNativeWallet {
         });
         return this.sendTx(exec, await toSendOptions(opts), interaction);
       });
-      await this.interactionManager.storeAndEmit(
-        interaction.update({
-          status: "MINING",
-        })
-      );
+      // Status will be updated to PROVING inside sendTx, then MINING after proving completes
       await sentTx.wait();
       await this.interactionManager.storeAndEmit(
         interaction.update({ status: "DEPLOYED", complete: true })

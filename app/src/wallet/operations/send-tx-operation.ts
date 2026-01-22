@@ -25,6 +25,7 @@ import {
 import type { SendOptions } from "@aztec/aztec.js/wallet";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
+import type { CallIntent } from "@aztec/aztec.js/authorization";
 import type { GasSettings } from "@aztec/stdlib/gas";
 import type { FieldsOf } from "@aztec/foundation/types";
 import { serializePrivateExecutionSteps } from "@aztec/stdlib/kernel";
@@ -80,7 +81,7 @@ export class SendTxOperation extends ExternalOperation<
     private simulateTxOp: SimulateTxOperation,
     private createAuthWit: (
       from: AztecAddress,
-      auth: { caller: AztecAddress; call: unknown }
+      auth: CallIntent
     ) => Promise<AuthWitness>,
     private createTxExecutionRequestFromPayloadAndFee: (
       exec: ExecutionPayload,

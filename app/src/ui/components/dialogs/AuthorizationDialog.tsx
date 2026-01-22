@@ -25,6 +25,10 @@ import { AuthorizeContractContent } from "../authorization/AuthorizeContractCont
 import { AuthorizeSenderContent } from "../authorization/AuthorizeSenderContent";
 import { AuthorizeAccountsContent } from "../authorization/AuthorizeAccountsContent";
 import { AuthorizeAddressBookContent } from "../authorization/AuthorizeAddressBookContent";
+import { AuthorizeCreateAuthWitContent } from "../authorization/AuthorizeCreateAuthWitContent";
+import { AuthorizePrivateEventsContent } from "../authorization/AuthorizePrivateEventsContent";
+import { AuthorizeContractMetadataContent } from "../authorization/AuthorizeContractMetadataContent";
+import { AuthorizeContractClassMetadataContent } from "../authorization/AuthorizeContractClassMetadataContent";
 import { WalletContext } from "../../renderer";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
@@ -57,6 +61,14 @@ function formatMethodName(method: string): string {
       return "Get Accounts";
     case "getAddressBook":
       return "Get Address Book";
+    case "createAuthWit":
+      return "Create Authorization Witness";
+    case "getPrivateEvents":
+      return "Get Private Events";
+    case "getContractMetadata":
+      return "Get Contract Metadata";
+    case "getContractClassMetadata":
+      return "Get Contract Class Metadata";
     default:
       return method;
   }
@@ -76,6 +88,31 @@ function getMethodSubtitle(item: AuthorizationItem): string | null {
       return item.params.alias || item.params.address?.substring(0, 16) + "...";
     case "getAccounts":
       return "Access your wallet addresses";
+    case "getAddressBook":
+      return "Access your address book contacts";
+    case "createAuthWit": {
+      const params = item.params as any;
+      if (params.type === "hash") {
+        return "Sign message hash";
+      } else if (params.call) {
+        return `${params.call.contractName || "Contract"}::${params.call.function || "function"}`;
+      }
+      return "Create authorization witness";
+    }
+    case "getPrivateEvents": {
+      const params = item.params as any;
+      const eventName = params.eventName || "events";
+      const count = params.eventCount || 0;
+      return `Query ${count} ${eventName}`;
+    }
+    case "getContractMetadata": {
+      const params = item.params as any;
+      return params.contractName || params.address?.substring(0, 16) + "...";
+    }
+    case "getContractClassMetadata": {
+      const params = item.params as any;
+      return params.artifactName || params.contractClassId?.substring(0, 16) + "...";
+    }
     case "sendTx": {
       // Show the transaction title if available
       const title = item.params.title;
@@ -149,7 +186,11 @@ export function AuthorizationDialog({
             item.method === "getAccounts" ||
             item.method === "getAddressBook" ||
             item.method === "simulateTx" ||
-            item.method === "simulateUtility",
+            item.method === "simulateUtility" ||
+            item.method === "getPrivateEvents" ||
+            item.method === "getContractMetadata" ||
+            item.method === "getContractClassMetadata",
+          // Note: createAuthWit is intentionally NOT persistent
         },
       ])
     )
@@ -167,7 +208,11 @@ export function AuthorizationDialog({
               item.method === "getAccounts" ||
               item.method === "getAddressBook" ||
               item.method === "simulateTx" ||
-              item.method === "simulateUtility",
+              item.method === "simulateUtility" ||
+              item.method === "getPrivateEvents" ||
+              item.method === "getContractMetadata" ||
+              item.method === "getContractClassMetadata",
+            // Note: createAuthWit is intentionally NOT persistent
           },
         ])
       )
@@ -456,6 +501,34 @@ export function AuthorizationDialog({
                         onContactsChange={(contacts) => {
                           handleItemDataChange(item.id, { contacts });
                         }}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "createAuthWit" && (
+                      <AuthorizeCreateAuthWitContent
+                        request={item}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "getPrivateEvents" && (
+                      <AuthorizePrivateEventsContent
+                        request={item}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "getContractMetadata" && (
+                      <AuthorizeContractMetadataContent
+                        request={item}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "getContractClassMetadata" && (
+                      <AuthorizeContractClassMetadataContent
+                        request={item}
                         showAppId={false}
                       />
                     )}

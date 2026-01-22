@@ -70,11 +70,11 @@ export class CallAuthorizationFormatter {
       callAuthorizationRequest = await CallAuthorizationRequest.fromFields(
         effect.data
       );
-      const instance = await this.cache.getContractMetadata(
+      const instance = await this.cache.getContractInstance(
         effect.contractAddress
       );
       const artifact = await this.cache.getContractArtifact(
-        instance.contractInstance!.currentContractClassId
+        instance.currentContractClassId
       );
       const functionAbi = await getFunctionArtifact(
         artifact,

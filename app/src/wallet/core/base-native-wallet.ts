@@ -71,7 +71,7 @@ export abstract class BaseNativeWallet
     >,
     protected appId: string,
     protected chainInfo: ChainInfo,
-    protected override log: Logger
+    protected override log: Logger,
   ) {
     super(pxe, node);
     // Create a single decoding cache instance shared across all wallet operations
@@ -84,7 +84,7 @@ export abstract class BaseNativeWallet
       appId,
       db,
       pendingAuthorizations,
-      this.interactionManager // Use interactionManager as the event emitter
+      this.interactionManager, // Use interactionManager as the event emitter
     );
   }
 
@@ -106,7 +106,7 @@ export abstract class BaseNativeWallet
     type: AccountType,
     secret: Fr,
     salt: Fr,
-    signingKey: Buffer
+    signingKey: Buffer,
   ): Promise<AccountManager> {
     let contract;
     switch (type) {
@@ -131,7 +131,7 @@ export abstract class BaseNativeWallet
       this,
       secret,
       contract,
-      salt
+      salt,
     );
 
     const instance = await accountManager.getInstance();
@@ -142,7 +142,7 @@ export abstract class BaseNativeWallet
     await this.registerContract(
       instance,
       artifact,
-      accountManager.getSecretKey()
+      accountManager.getSecretKey(),
     );
 
     return accountManager;
@@ -161,12 +161,12 @@ export abstract class BaseNativeWallet
    * @returns Account instance for the given address
    */
   protected async getAccountFromAddressInternal(
-    address: AztecAddress
+    address: AztecAddress,
   ): Promise<Account> {
     let account: Account | undefined;
     if (address.equals(AztecAddress.ZERO)) {
       const chainInfo = await this.getChainInfo();
-      account = new SignerlessAccount(chainInfo);
+      account = new SignerlessAccount();
     } else {
       const { secretKey, salt, signingKey, type } =
         await this.db.retrieveAccount(address);
@@ -174,7 +174,7 @@ export abstract class BaseNativeWallet
         type,
         secretKey,
         salt,
-        signingKey
+        signingKey,
       );
       account = await accountManager.getAccount();
     }
@@ -197,24 +197,23 @@ export abstract class BaseNativeWallet
    * @returns Stub account, instance, and artifact for simulation
    */
   protected async getFakeAccountDataFor(address: AztecAddress) {
-    const chainInfo = await this.getChainInfo();
     if (!address.equals(AztecAddress.ZERO)) {
       const originalAccount = await this.getAccountFromAddress(address);
       const originalAddress = originalAccount.getCompleteAddress();
-      const { contractInstance } = await this.pxe.getContractMetadata(
-        originalAddress.address
+      const contractInstance = await this.pxe.getContractInstance(
+        originalAddress.address,
       );
       if (!contractInstance) {
         throw new Error(
-          `No contract instance found for address: ${originalAddress.address}`
+          `No contract instance found for address: ${originalAddress.address}`,
         );
       }
-      const account = createStubAccount(originalAddress, chainInfo);
+      const account = createStubAccount(originalAddress);
       const instance = await getContractInstanceFromInstantiationParams(
         StubAccountContractArtifact,
         {
           salt: Fr.random(),
-        }
+        },
       );
       return {
         account,
@@ -223,7 +222,7 @@ export abstract class BaseNativeWallet
       };
     } else {
       const contract = await getCanonicalMultiCallEntrypoint();
-      const account = new SignerlessAccount(chainInfo);
+      const account = new SignerlessAccount();
       return {
         instance: contract.instance,
         account,
@@ -235,11 +234,11 @@ export abstract class BaseNativeWallet
   override async completeFeeOptions(
     from: AztecAddress,
     feePayer?: AztecAddress,
-    gasSettings?: Partial<FieldsOf<GasSettings>>
+    gasSettings?: Partial<FieldsOf<GasSettings>>,
   ): Promise<FeeOptions> {
     const maxFeesPerGas =
       gasSettings?.maxFeesPerGas ??
-      (await this.aztecNode.getCurrentBaseFees()).mul(1 + this.baseFeePadding);
+      (await this.aztecNode.getCurrentMinFees()).mul(1 + this.minFeePadding);
     let walletFeePaymentMethod;
     let accountFeePaymentMethodOptions;
     // The transaction does not include a fee payment method, so we set a default
@@ -304,7 +303,7 @@ export abstract class BaseNativeWallet
   addEventListener(
     type: string,
     callback: EventListenerOrEventListenerObject,
-    options?: boolean | AddEventListenerOptions
+    options?: boolean | AddEventListenerOptions,
   ): void {
     return this.interactionManager.addEventListener(type, callback, options);
   }
@@ -312,7 +311,7 @@ export abstract class BaseNativeWallet
   removeEventListener(
     type: string,
     callback: EventListenerOrEventListenerObject,
-    options?: boolean | EventListenerOptions
+    options?: boolean | EventListenerOptions,
   ): void {
     return this.interactionManager.removeEventListener(type, callback, options);
   }

@@ -72,6 +72,12 @@ const getInteractionTypeLabel = (type: WalletInteractionType) => {
     sendTx: "Send Transaction",
     profileTx: "Profile Transaction",
     registerSender: "Register Sender",
+    getAccounts: "Get Accounts",
+    getAddressBook: "Get Address Book",
+    createAuthWit: "Create Auth Witness",
+    getPrivateEvents: "Get Private Events",
+    getContractMetadata: "Get Contract Metadata",
+    getContractClassMetadata: "Get Contract Class Metadata",
   };
   return labels[type] || type;
 };
@@ -84,7 +90,13 @@ const getInteractionTypeColor = (type: WalletInteractionType) => {
     simulateUtility: "#ff9800", // orange (same as simulateTx)
     sendTx: "#7c4dff", // purple/violet (proving action)
     profileTx: "#00bcd4", // cyan
-    registerSender: "#444444",
+    registerSender: "#444444", // dark gray
+    getAccounts: "#4caf50", // green (data access)
+    getAddressBook: "#4caf50", // green (data access)
+    createAuthWit: "#f44336", // red (security critical)
+    getPrivateEvents: "#ff9800", // orange (privacy sensitive)
+    getContractMetadata: "#03a9f4", // light blue (metadata query)
+    getContractClassMetadata: "#03a9f4", // light blue (metadata query)
   };
   return colors[type];
 };
@@ -96,6 +108,13 @@ const allInteractionTypes: WalletInteractionType[] = [
   "simulateUtility",
   "sendTx",
   "profileTx",
+  "registerSender",
+  "getAccounts",
+  "getAddressBook",
+  "createAuthWit",
+  "getPrivateEvents",
+  "getContractMetadata",
+  "getContractClassMetadata",
 ];
 
 export function InteractionsList({

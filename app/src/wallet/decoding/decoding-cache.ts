@@ -15,28 +15,33 @@ interface ContractMetadata {
  * Shared across CallAuthorizationFormatter and TxCallStackDecoder.
  */
 export class DecodingCache {
-  private instanceCache = new Map<string, ContractMetadata>();
+  private instanceCache = new Map<string, ContractInstanceWithAddress>();
   private artifactCache = new Map<string, ContractArtifact>();
   private addressAliasCache = new Map<string, string>();
 
   constructor(
     private pxe: PXE,
-    private db: WalletDB
+    private db: WalletDB,
   ) {}
 
   /**
    * Get contract metadata (instance) for an address, with caching.
    */
-  async getContractMetadata(address: AztecAddress): Promise<ContractMetadata> {
+  async getContractInstance(
+    address: AztecAddress,
+  ): Promise<ContractInstanceWithAddress> {
     const key = address.toString();
 
     if (this.instanceCache.has(key)) {
       return this.instanceCache.get(key)!;
     }
 
-    const metadata = await this.pxe.getContractMetadata(address);
-    this.instanceCache.set(key, metadata);
-    return metadata;
+    const instance = await this.pxe.getContractInstance(address);
+    if (!instance) {
+      throw new Error(`Contract instance not found for address ${address.toString()}`);
+    }
+    this.instanceCache.set(key, instance);
+    return instance;
   }
 
   /**
@@ -49,12 +54,19 @@ export class DecodingCache {
       return this.artifactCache.get(key)!;
     }
 
-    const { artifact } = await this.pxe.getContractClassMetadata(
-      contractClassId,
-      true
-    );
+    const artifact = await this.pxe.getContractArtifact(contractClassId);
     this.artifactCache.set(key, artifact);
     return artifact;
+  }
+
+  /**
+   * Manually cache an artifact for batch operations.
+   * This allows artifacts from earlier operations in a batch to be available
+   * for decoding in later operations, without persisting to PXE.
+   */
+  cacheArtifactForBatch(contractClassId: any, artifact: ContractArtifact): void {
+    const key = contractClassId.toString();
+    this.artifactCache.set(key, artifact);
   }
 
   /**
@@ -87,9 +99,9 @@ export class DecodingCache {
 
     // Try to get contract metadata for more info
     try {
-      const metadata = await this.getContractMetadata(address);
+      const instance = await this.getContractInstance(address);
       const artifact = await this.getContractArtifact(
-        metadata.contractInstance!.currentContractClassId
+        instance.currentContractClassId,
       );
       if (artifact) {
         this.addressAliasCache.set(key, artifact.name);
@@ -100,8 +112,9 @@ export class DecodingCache {
     }
 
     // Return shortened address if no alias found
+    // NOTE: We do NOT cache the shortened address fallback because the contract
+    // might be registered later, and we want to be able to resolve its name then
     const shortAddress = `${address.toString().slice(0, 10)}...${address.toString().slice(-8)}`;
-    this.addressAliasCache.set(key, shortAddress);
     return shortAddress;
   }
 
@@ -112,7 +125,7 @@ export class DecodingCache {
   async resolveContractName(
     instance: ContractInstanceWithAddress,
     artifact: ContractArtifact | undefined,
-    address: AztecAddress
+    address: AztecAddress,
   ): Promise<string> {
     // Try to get name from artifact parameter
     let contractName = artifact?.name;
@@ -126,7 +139,21 @@ export class DecodingCache {
       contractName = (instance as any).artifact?.name;
     }
 
-    // If we still don't have a name, try to fetch using cached methods
+    // If we still don't have a name, try the artifact cache using the instance's contract class ID
+    if (!contractName && instance?.currentContractClassId) {
+      try {
+        const cachedArtifact = await this.getContractArtifact(
+          instance.currentContractClassId,
+        );
+        if (cachedArtifact) {
+          contractName = cachedArtifact.name;
+        }
+      } catch (error) {
+        // Artifact not in cache or PXE, continue to next method
+      }
+    }
+
+    // If still no name, try to get alias from other sources (accounts, senders)
     if (!contractName) {
       try {
         const alias = await this.getAddressAlias(address);

@@ -28,12 +28,18 @@ enum PopupMessageType {
 }
 
 /**
- * A remembered app entry - stores appId + origin pairs that auto-approve discovery.
+ * A remembered app entry - stores appId + origin + network info for auto-approval.
+ * Network info ensures apps are only auto-approved for the same network they were
+ * originally approved on.
  */
 interface RememberedApp {
   appId: string;
   origin: string;
   rememberedAt: number;
+  /** Chain ID as hex string */
+  chainId: string;
+  /** Network version as hex string */
+  version: string;
 }
 
 /**
@@ -54,22 +60,45 @@ export default defineBackground(async () => {
       return [];
     }
     const result = await browser.storage.local.get(REMEMBERED_APPS_KEY);
-    return (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
+    const apps = (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
+    // Filter out old format entries that don't have chainId/version
+    return apps.filter((app) => app.chainId && app.version);
   }
 
   async function isAppRemembered(
     appId: string,
     origin: string,
+    chainId: string,
+    version: string,
   ): Promise<boolean> {
     const apps = await getRememberedApps();
-    return apps.some((app) => app.appId === appId && app.origin === origin);
+    return apps.some(
+      (app) =>
+        app.appId === appId &&
+        app.origin === origin &&
+        app.chainId === chainId &&
+        app.version === version,
+    );
   }
 
-  async function rememberApp(appId: string, origin: string): Promise<void> {
+  async function rememberApp(
+    appId: string,
+    origin: string,
+    chainId: string,
+    version: string,
+  ): Promise<void> {
     if (!browser?.storage?.local) return;
     const apps = await getRememberedApps();
-    if (!apps.some((app) => app.appId === appId && app.origin === origin)) {
-      apps.push({ appId, origin, rememberedAt: Date.now() });
+    if (
+      !apps.some(
+        (app) =>
+          app.appId === appId &&
+          app.origin === origin &&
+          app.chainId === chainId &&
+          app.version === version,
+      )
+    ) {
+      apps.push({ appId, origin, rememberedAt: Date.now(), chainId, version });
       await browser.storage.local.set({ [REMEMBERED_APPS_KEY]: apps });
     }
   }
@@ -77,6 +106,7 @@ export default defineBackground(async () => {
   async function forgetApp(appId: string, origin: string): Promise<void> {
     if (!browser?.storage?.local) return;
     const apps = await getRememberedApps();
+    // Forget all entries for this appId+origin (across all networks)
     const filtered = apps.filter(
       (app) => !(app.appId === appId && app.origin === origin),
     );
@@ -101,8 +131,12 @@ export default defineBackground(async () => {
           `Discovery request stored (pending approval): ${discovery.origin} (${discovery.requestId}), appId: ${discovery.appId}`,
         );
 
-        // Check if app is remembered - if so, auto-approve without opening popup
-        isAppRemembered(discovery.appId, discovery.origin).then(
+        // Extract chainInfo as strings for storage lookup
+        const chainId = discovery.chainInfo.chainId.toString();
+        const version = discovery.chainInfo.version.toString();
+
+        // Check if app is remembered for this specific network - if so, auto-approve
+        isAppRemembered(discovery.appId, discovery.origin, chainId, version).then(
           (remembered) => {
             if (remembered) {
               const success = sessionHandler.approveDiscovery(
@@ -110,12 +144,12 @@ export default defineBackground(async () => {
               );
               if (success) {
                 console.log(
-                  `Auto-approved discovery for remembered app: ${discovery.appId} @ ${discovery.origin}`,
+                  `Auto-approved discovery for remembered app: ${discovery.appId} @ ${discovery.origin} (chain: ${chainId})`,
                 );
                 updateBadge();
               }
             } else {
-              // Not a trusted app - update badge and open popup for user approval
+              // Not a trusted app for this network - update badge and open popup for user approval
               updateBadge();
               browser.action.openPopup().catch(() => {
                 // openPopup() may fail if popup is already open or browser doesn't support it
@@ -128,8 +162,10 @@ export default defineBackground(async () => {
         console.log(
           `Session established: ${session.origin} (${session.requestId}), hash: ${session.verificationHash.slice(0, 8)}...`,
         );
-        // Remember the app when session is established
-        rememberApp(session.appId, session.origin);
+        // Remember the app for this specific network when session is established
+        const chainId = session.chainInfo.chainId.toString();
+        const version = session.chainInfo.version.toString();
+        rememberApp(session.appId, session.origin, chainId, version);
 
         // Open popup so user can see the verification emojis
         browser.action.openPopup().catch(() => {
@@ -232,6 +268,8 @@ export default defineBackground(async () => {
             origin: d.origin,
             timestamp: d.timestamp,
             status: d.status,
+            chainId: d.chainInfo.chainId.toString(),
+            version: d.chainInfo.version.toString(),
           }));
         sendResponse(discoveries);
         return false;
@@ -244,6 +282,8 @@ export default defineBackground(async () => {
           verificationHash: s.verificationHash,
           connectedAt: s.connectedAt,
           appId: s.appId,
+          chainId: s.chainInfo.chainId.toString(),
+          version: s.chainInfo.version.toString(),
         }));
         sendResponse(sessions);
         return false;

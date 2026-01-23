@@ -21,6 +21,10 @@ interface PendingDiscovery {
   appName?: string;
   origin: string;
   timestamp: number;
+  /** Chain ID as hex string */
+  chainId: string;
+  /** Network version as hex string */
+  version: string;
 }
 
 /**
@@ -32,6 +36,10 @@ interface ActiveSession {
   origin: string;
   connectedAt: number;
   appId?: string;
+  /** Chain ID as hex string */
+  chainId: string;
+  /** Network version as hex string */
+  version: string;
 }
 
 /**
@@ -41,6 +49,10 @@ interface RememberedApp {
   appId: string;
   origin: string;
   rememberedAt: number;
+  /** Chain ID as hex string */
+  chainId: string;
+  /** Network version as hex string */
+  version: string;
 }
 
 /**
@@ -53,6 +65,46 @@ function getHostname(origin: string): string {
     return new URL(origin).hostname;
   } catch {
     return origin;
+  }
+}
+
+/**
+ * Renders a 3x3 emoji grid for verification display.
+ * Takes a string of 9 emojis and splits them into 3 rows.
+ */
+function EmojiGrid({ emojis }: { emojis: string }): JSX.Element {
+  // Split emojis into array (handles multi-byte emoji correctly)
+  const emojiArray = [...emojis];
+  const rows = [
+    emojiArray.slice(0, 3),
+    emojiArray.slice(3, 6),
+    emojiArray.slice(6, 9),
+  ];
+
+  return (
+    <div className="emoji-grid">
+      {rows.map((row, i) => (
+        <div key={i} className="emoji-row">
+          {row.map((emoji, j) => (
+            <span key={j} className="emoji-cell">{emoji}</span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Converts a hex string (with or without 0x prefix) to decimal string.
+ */
+function hexToDecimal(hex: string): string {
+  try {
+    // Remove 0x prefix if present
+    const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex;
+    // Use BigInt for large numbers
+    return BigInt("0x" + cleanHex).toString(10);
+  } catch {
+    return hex; // Return original if conversion fails
   }
 }
 
@@ -106,6 +158,7 @@ function App() {
   const [rememberedApps, setRememberedApps] = useState<RememberedApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("activity");
+  const [currentTabOrigin, setCurrentTabOrigin] = useState<string | null>(null);
 
   const refreshData = async () => {
     const [discoveriesResponse, sessionsResponse, rememberedResponse] = await Promise.all([
@@ -172,6 +225,18 @@ function App() {
   };
 
   useEffect(() => {
+    // Get the current active tab's origin
+    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+      if (tabs[0]?.url) {
+        try {
+          const origin = new URL(tabs[0].url).origin;
+          setCurrentTabOrigin(origin);
+        } catch {
+          // Ignore invalid URLs (e.g., chrome:// pages)
+        }
+      }
+    });
+
     // Get initial status, pending discoveries, active sessions, and remembered apps
     Promise.all([
       browser.runtime.sendMessage({ origin: "popup", type: "get-status" }),
@@ -310,6 +375,14 @@ function App() {
                               {d.appId && d.appId !== hostname && (
                                 <span className="item-origin">via {hostname}</span>
                               )}
+                              <span className="item-chain-info">
+                                <span className="item-chain" title={`Chain ID (hex): ${d.chainId}`}>
+                                  Chain: {hexToDecimal(d.chainId)}
+                                </span>
+                                <span className="item-chain" title={`Version (hex): ${d.version}`}>
+                                  Version: {hexToDecimal(d.version)}
+                                </span>
+                              </span>
                             </div>
                             <div className="item-actions">
                               <button
@@ -340,9 +413,10 @@ function App() {
                       {sessions.map((s) => {
                         const hostname = getHostname(s.origin);
                         const mismatch = !domainsMatch(s.origin, s.appId);
+                        const isCurrentTab = currentTabOrigin === s.origin;
                         return (
-                          <div key={s.requestId} className="item session">
-                            <div className="item-info">
+                          <div key={s.requestId} className={`item session session-card ${isCurrentTab ? 'current-tab' : ''}`}>
+                            <div className="session-header">
                               <span className="item-name">
                                 {s.appId || hostname}
                                 {mismatch && (
@@ -354,14 +428,6 @@ function App() {
                                   </span>
                                 )}
                               </span>
-                              {s.appId && s.appId !== hostname && (
-                                <span className="item-origin">via {hostname}</span>
-                              )}
-                            </div>
-                            <div className="item-right">
-                              <span className="item-emoji" title="Verification emoji">
-                                {hashToEmoji(s.verificationHash)}
-                              </span>
                               <button
                                 className="btn-icon btn-disconnect"
                                 onClick={() => handleDisconnect(s.requestId)}
@@ -369,6 +435,24 @@ function App() {
                               >
                                 ✕
                               </button>
+                            </div>
+                            <div className="session-content">
+                              <div className="session-info">
+                                {s.appId && s.appId !== hostname && (
+                                  <span className="item-origin">via {hostname}</span>
+                                )}
+                                <span className="item-chain-info">
+                                  <span className="item-chain" title={`Chain ID (hex): ${s.chainId}`}>
+                                    Chain: {hexToDecimal(s.chainId)}
+                                  </span>
+                                  <span className="item-chain" title={`Version (hex): ${s.version}`}>
+                                    Version: {hexToDecimal(s.version)}
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="session-emoji" title="Verification emoji grid">
+                                <EmojiGrid emojis={hashToEmoji(s.verificationHash)} />
+                              </div>
                             </div>
                           </div>
                         );
@@ -402,7 +486,7 @@ function App() {
                           (s) => s.appId === app.appId && s.origin === app.origin
                         );
                         return (
-                          <div key={`${app.appId}-${app.origin}`} className="item trusted-app">
+                          <div key={`${app.appId}-${app.origin}-${app.chainId}`} className="item trusted-app">
                             <div className="item-info">
                               <span className="item-name">
                                 {app.appId}
@@ -411,6 +495,14 @@ function App() {
                                 )}
                               </span>
                               <span className="item-origin">via {hostname}</span>
+                              <span className="item-chain-info">
+                                <span className="item-chain" title={`Chain ID (hex): ${app.chainId}`}>
+                                  Chain: {hexToDecimal(app.chainId)}
+                                </span>
+                                <span className="item-chain" title={`Version (hex): ${app.version}`}>
+                                  Version: {hexToDecimal(app.version)}
+                                </span>
+                              </span>
                             </div>
                             <button
                               className="btn btn-small btn-forget"

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { hashToEmoji } from "@aztec/wallet-sdk/crypto";
 import "./App.css";
 
+type Tab = "activity" | "settings";
+
 interface WalletStatus {
   connected: boolean;
   walletId: string;
@@ -9,18 +11,36 @@ interface WalletStatus {
   walletVersion: string;
 }
 
-type SessionStatus = "pending" | "approved" | "rejected";
+/**
+ * Pending discovery request - before user approval.
+ * No verification emoji at this stage (no keys exchanged yet).
+ */
+interface PendingDiscovery {
+  requestId: string;
+  appId: string;
+  appName?: string;
+  origin: string;
+  timestamp: number;
+}
 
+/**
+ * Active session - established after key exchange.
+ */
 interface ActiveSession {
   requestId: string;
-  /** The canonical verification hash from the shared secret */
   verificationHash: string;
   origin: string;
   connectedAt: number;
-  /** Application ID provided by the dApp */
   appId?: string;
-  /** Session approval status */
-  status: SessionStatus;
+}
+
+/**
+ * Remembered app - auto-approves discovery requests.
+ */
+interface RememberedApp {
+  appId: string;
+  origin: string;
+  rememberedAt: number;
 }
 
 /**
@@ -81,37 +101,67 @@ function domainsMatch(origin: string, appId?: string): boolean {
 
 function App() {
   const [status, setStatus] = useState<WalletStatus | null>(null);
+  const [pendingDiscoveries, setPendingDiscoveries] = useState<PendingDiscovery[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [rememberedApps, setRememberedApps] = useState<RememberedApp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("activity");
 
-  const refreshSessions = async () => {
-    const sessionsResponse = await browser.runtime.sendMessage({
-      origin: "popup",
-      type: "get-sessions",
-    });
+  const refreshData = async () => {
+    const [discoveriesResponse, sessionsResponse, rememberedResponse] = await Promise.all([
+      browser.runtime.sendMessage({
+        origin: "popup",
+        type: "get-pending-discoveries",
+      }),
+      browser.runtime.sendMessage({
+        origin: "popup",
+        type: "get-sessions",
+      }),
+      browser.runtime.sendMessage({
+        origin: "popup",
+        type: "get-remembered-apps",
+      }),
+    ]);
+    setPendingDiscoveries(discoveriesResponse || []);
     setSessions(sessionsResponse || []);
+    setRememberedApps(rememberedResponse || []);
   };
 
   const handleApprove = async (requestId: string) => {
-    const result = await browser.runtime.sendMessage({
+    await browser.runtime.sendMessage({
       origin: "popup",
-      type: "approve-session",
+      type: "approve-discovery",
       requestId,
     });
-    if (!result?.success && result?.error) {
-      // Show error to user (backend not connected)
-      alert(result.error);
-    }
-    await refreshSessions();
+    await refreshData();
   };
 
   const handleReject = async (requestId: string) => {
     await browser.runtime.sendMessage({
       origin: "popup",
-      type: "reject-session",
+      type: "reject-discovery",
       requestId,
     });
-    await refreshSessions();
+    await refreshData();
+  };
+
+  const handleDisconnect = async (requestId: string) => {
+    await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "disconnect-session",
+      requestId,
+    });
+    await refreshData();
+  };
+
+  const handleForgetApp = async (appId: string, appOrigin: string) => {
+    await browser.runtime.sendMessage({
+      origin: "popup",
+      type: "forget-app",
+      appId,
+      appOrigin,
+    });
+    await refreshData();
   };
 
   const handleOpenApp = async () => {
@@ -122,14 +172,18 @@ function App() {
   };
 
   useEffect(() => {
-    // Get initial status and sessions
+    // Get initial status, pending discoveries, active sessions, and remembered apps
     Promise.all([
       browser.runtime.sendMessage({ origin: "popup", type: "get-status" }),
+      browser.runtime.sendMessage({ origin: "popup", type: "get-pending-discoveries" }),
       browser.runtime.sendMessage({ origin: "popup", type: "get-sessions" }),
+      browser.runtime.sendMessage({ origin: "popup", type: "get-remembered-apps" }),
     ])
-      .then(([statusResponse, sessionsResponse]) => {
+      .then(([statusResponse, discoveriesResponse, sessionsResponse, rememberedResponse]) => {
         setStatus(statusResponse);
+        setPendingDiscoveries(discoveriesResponse || []);
         setSessions(sessionsResponse || []);
+        setRememberedApps(rememberedResponse || []);
         setLoading(false);
       })
       .catch((err) => {
@@ -141,8 +195,8 @@ function App() {
     const handleMessage = (event: any) => {
       if (event.origin === "background" && event.type === "status-update") {
         setStatus(event.status);
-        // Refresh sessions when status changes (e.g., backend disconnect clears sessions)
-        refreshSessions();
+        // Refresh data when status changes (e.g., backend disconnect clears sessions)
+        refreshData();
       }
     };
 
@@ -150,10 +204,13 @@ function App() {
     return () => browser.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
+  // Count of activity items requiring attention (only pending discoveries now)
+  const activityCount = pendingDiscoveries.length;
+
   return (
     <div className="popup-container">
       <header className="popup-header">
-        <div className="logo-container">
+        <div className="header-left">
           <svg
             className="logo"
             viewBox="0 0 24 24"
@@ -182,175 +239,216 @@ function App() {
               strokeLinejoin="round"
             />
           </svg>
-          <h1 className="title">Aztec Keychain</h1>
+          <span className="title">Keychain</span>
         </div>
-        {status && <span className="version">v{status.walletVersion}</span>}
+        <div className="header-right">
+          {status && (
+            <>
+              <span
+                className={`status-dot ${status.connected ? "connected" : "disconnected"}`}
+                title={status.connected ? "Backend connected" : "Backend disconnected"}
+              />
+              {status.connected && (
+                <button className="btn-open-app" onClick={handleOpenApp} title="Open App">
+                  ↗
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </header>
+
+      {/* Tab Navigation */}
+      <nav className="tab-nav">
+        <button
+          className={`tab-btn ${activeTab === "activity" ? "active" : ""}`}
+          onClick={() => setActiveTab("activity")}
+        >
+          Activity
+          {activityCount > 0 && <span className="tab-badge">{activityCount}</span>}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "settings" ? "active" : ""}`}
+          onClick={() => setActiveTab("settings")}
+        >
+          Settings
+        </button>
+      </nav>
 
       <main className="popup-main">
         {loading ? (
-          <div className="status-card">
-            <div className="loading-indicator">
-              <div className="spinner" />
-              <span>Loading...</span>
-            </div>
+          <div className="loading-container">
+            <div className="spinner" />
+            <span>Loading...</span>
           </div>
         ) : status ? (
           <>
-            <div className="status-card">
-              <div className="status-row">
-                <span className="status-label">Backend Connection</span>
-                <div className="status-value">
-                  <span
-                    className={`status-indicator ${
-                      status.connected ? "connected" : "disconnected"
-                    }`}
-                  />
-                  <span
-                    className={
-                      status.connected ? "text-connected" : "text-disconnected"
-                    }
-                  >
-                    {status.connected ? "Connected" : "Disconnected"}
-                  </span>
-                </div>
-              </div>
-              {status.connected && (
-                <div className="status-actions">
-                  <button className="btn btn-secondary" onClick={handleOpenApp}>
-                    Open App
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Pending Sessions - Connection Requests */}
-            {sessions.filter((s) => s.status === "pending").length > 0 && (
-              <div className="session-section pending">
-                <h3 className="section-title">Connection Requests</h3>
-                <div className="session-list">
-                  {sessions
-                    .filter((s) => s.status === "pending")
-                    .map((s) => {
-                      const hostname = getHostname(s.origin);
-                      const mismatch = !domainsMatch(s.origin, s.appId);
-                      return (
-                        <div key={s.requestId} className="session-item pending">
-                          <div className="session-info">
-                            <span className="session-app">
-                              {s.appId || hostname}
-                            </span>
-                            {s.appId && s.appId !== hostname && (
-                              <span className="session-origin">
-                                via {hostname}
+            {activeTab === "activity" && (
+              <>
+                {/* Pending Discovery Requests - No verification emoji yet */}
+                {pendingDiscoveries.length > 0 && (
+                  <div className="section pending">
+                    <h3 className="section-title">Connection Requests</h3>
+                    <div className="item-list">
+                      {pendingDiscoveries.map((d) => {
+                        const hostname = getHostname(d.origin);
+                        const mismatch = !domainsMatch(d.origin, d.appId);
+                        return (
+                          <div key={d.requestId} className="item pending-discovery">
+                            <div className="item-info">
+                              <span className="item-name">
+                                {d.appName || d.appId || hostname}
+                                {mismatch && (
+                                  <span
+                                    className="item-warning"
+                                    title={`App ID "${d.appId}" doesn't match domain "${hostname}"`}
+                                  >
+                                    ⚠️
+                                  </span>
+                                )}
                               </span>
-                            )}
-                            {mismatch && (
-                              <span
-                                className="session-warning"
-                                title={`App ID "${s.appId}" doesn't match domain "${hostname}"`}
-                              >
-                                ⚠️
-                              </span>
-                            )}
-                          </div>
-                          <div className="session-verification">
-                            <span className="verification-label">
-                              Verify emoji:
-                            </span>
-                            <span className="session-emoji large">
-                              {hashToEmoji(s.verificationHash)}
-                            </span>
-                          </div>
-                          <div className="session-actions">
-                            <button
-                              className={`btn btn-approve ${
-                                !status.connected ? "disabled" : ""
-                              }`}
-                              onClick={() => handleApprove(s.requestId)}
-                              disabled={!status.connected}
-                              title={
-                                !status.connected
-                                  ? "Open the wallet app first"
-                                  : ""
-                              }
-                            >
-                              Allow
-                            </button>
-                            <button
-                              className="btn btn-reject"
-                              onClick={() => handleReject(s.requestId)}
-                            >
-                              Deny
-                            </button>
-                          </div>
-                          {!status.connected && (
-                            <div className="session-warning-banner">
-                              Open the wallet app to approve this connection
+                              {d.appId && d.appId !== hostname && (
+                                <span className="item-origin">via {hostname}</span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+                            <div className="item-actions">
+                              <button
+                                className="btn btn-approve"
+                                onClick={() => handleApprove(d.requestId)}
+                              >
+                                Allow
+                              </button>
+                              <button
+                                className="btn btn-reject"
+                                onClick={() => handleReject(d.requestId)}
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Sessions */}
+                {sessions.length > 0 && (
+                  <div className="section active">
+                    <h3 className="section-title">Connected</h3>
+                    <div className="item-list">
+                      {sessions.map((s) => {
+                        const hostname = getHostname(s.origin);
+                        const mismatch = !domainsMatch(s.origin, s.appId);
+                        return (
+                          <div key={s.requestId} className="item session">
+                            <div className="item-info">
+                              <span className="item-name">
+                                {s.appId || hostname}
+                                {mismatch && (
+                                  <span
+                                    className="item-warning"
+                                    title={`App ID "${s.appId}" doesn't match domain "${hostname}"`}
+                                  >
+                                    ⚠️
+                                  </span>
+                                )}
+                              </span>
+                              {s.appId && s.appId !== hostname && (
+                                <span className="item-origin">via {hostname}</span>
+                              )}
+                            </div>
+                            <div className="item-right">
+                              <span className="item-emoji" title="Verification emoji">
+                                {hashToEmoji(s.verificationHash)}
+                              </span>
+                              <button
+                                className="btn-icon btn-disconnect"
+                                onClick={() => handleDisconnect(s.requestId)}
+                                title="Disconnect"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {pendingDiscoveries.length === 0 && sessions.length === 0 && (
+                  <div className="empty-state">
+                    <span className="empty-icon">🔗</span>
+                    <span className="empty-text">No active sessions</span>
+                    <span className="empty-hint">Visit a dApp to connect</span>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Approved Sessions */}
-            {sessions.filter((s) => s.status === "approved").length > 0 && (
-              <div className="session-section">
-                <h3 className="section-title">Connected Apps</h3>
-                <div className="session-list">
-                  {sessions
-                    .filter((s) => s.status === "approved")
-                    .map((s) => {
-                      const hostname = getHostname(s.origin);
-                      const mismatch = !domainsMatch(s.origin, s.appId);
-                      return (
-                        <div key={s.requestId} className="session-item">
-                          <div className="session-info">
-                            <span className="session-app">
-                              {s.appId || hostname}
-                            </span>
-                            {s.appId && s.appId !== hostname && (
-                              <span className="session-origin">
-                                via {hostname}
+            {activeTab === "settings" && (
+              <>
+                {/* Trusted Apps */}
+                {rememberedApps.length > 0 ? (
+                  <div className="section trusted">
+                    <h3 className="section-title">Trusted Apps</h3>
+                    <p className="section-hint">Auto-approve connection requests</p>
+                    <div className="item-list">
+                      {rememberedApps.map((app) => {
+                        const hostname = getHostname(app.origin);
+                        const hasActiveSession = sessions.some(
+                          (s) => s.appId === app.appId && s.origin === app.origin
+                        );
+                        return (
+                          <div key={`${app.appId}-${app.origin}`} className="item trusted-app">
+                            <div className="item-info">
+                              <span className="item-name">
+                                {app.appId}
+                                {hasActiveSession && (
+                                  <span className="active-indicator" title="Currently connected">●</span>
+                                )}
                               </span>
-                            )}
-                            {mismatch && (
-                              <span
-                                className="session-warning"
-                                title={`App ID "${s.appId}" doesn't match domain "${hostname}"`}
-                              >
-                                ⚠️
-                              </span>
-                            )}
+                              <span className="item-origin">via {hostname}</span>
+                            </div>
+                            <button
+                              className="btn btn-small btn-forget"
+                              onClick={() => handleForgetApp(app.appId, app.origin)}
+                              title="Remove from trusted apps"
+                            >
+                              Forget
+                            </button>
                           </div>
-                          <span className="session-emoji">
-                            {hashToEmoji(s.verificationHash)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <span className="empty-icon">🛡️</span>
+                    <span className="empty-text">No trusted apps</span>
+                    <span className="empty-hint">Apps are trusted after first connection</span>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (
-          <div className="status-card error">
+          <div className="error-state">
             <span>Failed to load status</span>
           </div>
         )}
       </main>
 
       <footer className="popup-footer">
-        <span>Built on</span>
         <img
           src="/aztec_symbol_circle.png"
           alt="Aztec Network"
           className="aztec-logo"
         />
         <span className="aztec-text">Aztec Network</span>
+        {status && <span className="version">v{status.walletVersion}</span>}
       </footer>
     </div>
   );

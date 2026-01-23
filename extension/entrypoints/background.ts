@@ -43,8 +43,8 @@ interface RememberedApp {
 }
 
 /**
- * Tracks pending requests by messageId -> requestId.
- * Used to route native messaging responses back to the correct dApp.
+ * Tracks pending requests by messageId -> sessionId.
+ * Used to route native messaging responses back to the correct session.
  */
 const pendingRequests = new Map<string, string>();
 const chunkReassembler = new ChunkReassembler();
@@ -60,7 +60,8 @@ export default defineBackground(async () => {
       return [];
     }
     const result = await browser.storage.local.get(REMEMBERED_APPS_KEY);
-    const apps = (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
+    const apps =
+      (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
     // Filter out old format entries that don't have chainId/version
     return apps.filter((app) => app.chainId && app.version);
   }
@@ -103,12 +104,23 @@ export default defineBackground(async () => {
     }
   }
 
-  async function forgetApp(appId: string, origin: string): Promise<void> {
+  async function forgetApp(
+    appId: string,
+    origin: string,
+    chainId: string,
+    version: string,
+  ): Promise<void> {
     if (!browser?.storage?.local) return;
     const apps = await getRememberedApps();
-    // Forget all entries for this appId+origin (across all networks)
+    // Forget only the specific network entry for this appId+origin
     const filtered = apps.filter(
-      (app) => !(app.appId === appId && app.origin === origin),
+      (app) =>
+        !(
+          app.appId === appId &&
+          app.origin === origin &&
+          app.chainId === chainId &&
+          app.version === version
+        ),
     );
     await browser.storage.local.set({ [REMEMBERED_APPS_KEY]: filtered });
   }
@@ -136,46 +148,45 @@ export default defineBackground(async () => {
         const version = discovery.chainInfo.version.toString();
 
         // Check if app is remembered for this specific network - if so, auto-approve
-        isAppRemembered(discovery.appId, discovery.origin, chainId, version).then(
-          (remembered) => {
-            if (remembered) {
-              const success = sessionHandler.approveDiscovery(
-                discovery.requestId,
+        isAppRemembered(
+          discovery.appId,
+          discovery.origin,
+          chainId,
+          version,
+        ).then((remembered) => {
+          if (remembered) {
+            const success = sessionHandler.approveDiscovery(
+              discovery.requestId,
+            );
+            if (success) {
+              console.log(
+                `Auto-approved discovery for remembered app: ${discovery.appId} @ ${discovery.origin} (chain: ${chainId})`,
               );
-              if (success) {
-                console.log(
-                  `Auto-approved discovery for remembered app: ${discovery.appId} @ ${discovery.origin} (chain: ${chainId})`,
-                );
-                updateBadge();
-              }
-            } else {
-              // Not a trusted app for this network - update badge and open popup for user approval
               updateBadge();
-              browser.action.openPopup().catch(() => {
-                // openPopup() may fail if popup is already open or browser doesn't support it
-              });
             }
-          },
-        );
+          } else {
+            // Not a trusted app for this network - update badge and open popup for user approval
+            updateBadge();
+            browser.action.openPopup().catch(() => {
+              // openPopup() may fail if popup is already open or browser doesn't support it
+            });
+          }
+        });
       },
       onSessionEstablished: (session) => {
         console.log(
-          `Session established: ${session.origin} (${session.requestId}), hash: ${session.verificationHash.slice(0, 8)}...`,
+          `Session established: ${session.origin} (${session.sessionId}), hash: ${session.verificationHash.slice(0, 8)}...`,
         );
-        // Remember the app for this specific network when session is established
-        const chainId = session.chainInfo.chainId.toString();
-        const version = session.chainInfo.version.toString();
-        rememberApp(session.appId, session.origin, chainId, version);
 
         // Open popup so user can see the verification emojis
         browser.action.openPopup().catch(() => {
           // openPopup() may fail if popup is already open or browser doesn't support it
         });
       },
-      onSessionTerminated: (requestId) => {
-        console.log(`Session terminated: ${requestId}`);
-        for (const [messageId, reqId] of pendingRequests.entries()) {
-          if (reqId === requestId) {
+      onSessionTerminated: (sessionId) => {
+        console.log(`Session terminated: ${sessionId}`);
+        for (const [messageId, sessId] of pendingRequests.entries()) {
+          if (sessId === sessionId) {
             pendingRequests.delete(messageId);
           }
         }
@@ -184,10 +195,10 @@ export default defineBackground(async () => {
         console.log("Processing RPC call:", message.type);
 
         if (nativePort) {
-          pendingRequests.set(message.messageId, session.requestId);
+          pendingRequests.set(message.messageId, session.sessionId);
           nativePort.postMessage(message);
         } else {
-          sessionHandler.sendResponse(session.requestId, {
+          sessionHandler.sendResponse(session.sessionId, {
             messageId: message.messageId,
             walletId: WALLET_ID,
             error: { message: "Wallet backend not connected" },
@@ -259,25 +270,23 @@ export default defineBackground(async () => {
         return false;
 
       case PopupMessageType.GET_PENDING_DISCOVERIES: {
-        const discoveries = sessionHandler
-          .getPendingDiscoveries()
-          .map((d) => ({
-            requestId: d.requestId,
-            appId: d.appId,
-            appName: d.appName,
-            origin: d.origin,
-            timestamp: d.timestamp,
-            status: d.status,
-            chainId: d.chainInfo.chainId.toString(),
-            version: d.chainInfo.version.toString(),
-          }));
+        const discoveries = sessionHandler.getPendingDiscoveries().map((d) => ({
+          requestId: d.requestId,
+          appId: d.appId,
+          appName: d.appName,
+          origin: d.origin,
+          timestamp: d.timestamp,
+          status: d.status,
+          chainId: d.chainInfo.chainId.toString(),
+          version: d.chainInfo.version.toString(),
+        }));
         sendResponse(discoveries);
         return false;
       }
 
       case PopupMessageType.GET_SESSIONS: {
         const sessions = sessionHandler.getActiveSessions().map((s) => ({
-          requestId: s.requestId,
+          sessionId: s.sessionId,
           origin: s.origin,
           verificationHash: s.verificationHash,
           connectedAt: s.connectedAt,
@@ -290,8 +299,18 @@ export default defineBackground(async () => {
       }
 
       case PopupMessageType.APPROVE_DISCOVERY: {
+        // Get the discovery before approving so we can remember it
+        const discovery = sessionHandler
+          .getPendingDiscoveries()
+          .find((d) => d.requestId === event.requestId);
+
         const success = sessionHandler.approveDiscovery(event.requestId);
-        if (success) {
+        if (success && discovery) {
+          // Remember the app when user explicitly approves (not on session established)
+          const chainId = discovery.chainInfo.chainId.toString();
+          const version = discovery.chainInfo.version.toString();
+          rememberApp(discovery.appId, discovery.origin, chainId, version);
+
           console.log(`Discovery ${event.requestId} approved by user`);
           updateBadge();
           sendResponse({ success: true });
@@ -320,9 +339,9 @@ export default defineBackground(async () => {
       }
 
       case PopupMessageType.DISCONNECT_SESSION: {
-        const session = sessionHandler.getSession(event.requestId);
+        const session = sessionHandler.getSession(event.sessionId);
         if (session) {
-          sessionHandler.sendResponse(session.requestId, {
+          sessionHandler.sendResponse(session.sessionId, {
             messageId: "disconnect",
             walletId: WALLET_ID,
             error: {
@@ -330,8 +349,8 @@ export default defineBackground(async () => {
               message: "Disconnected by user",
             },
           });
-          sessionHandler.terminateSession(event.requestId);
-          console.log(`Session ${event.requestId} disconnected by user`);
+          sessionHandler.terminateSession(event.sessionId);
+          console.log(`Session ${event.sessionId} disconnected by user`);
           sendResponse({ success: true });
         } else {
           sendResponse({
@@ -348,8 +367,8 @@ export default defineBackground(async () => {
       }
 
       case PopupMessageType.FORGET_APP: {
-        forgetApp(event.appId, event.appOrigin).then(() => {
-          console.log(`Forgot app: ${event.appId} @ ${event.appOrigin}`);
+        forgetApp(event.appId, event.appOrigin, event.chainId, event.version).then(() => {
+          console.log(`Forgot app: ${event.appId} @ ${event.appOrigin} (chain: ${event.chainId})`);
           sendResponse({ success: true });
         });
         return true; // Keep channel open for async response
@@ -391,8 +410,8 @@ export default defineBackground(async () => {
           return;
         }
 
-        const requestId = pendingRequests.get(response.messageId);
-        if (!requestId) {
+        const sessionId = pendingRequests.get(response.messageId);
+        if (!sessionId) {
           console.error(
             `No pending request found for messageId ${response.messageId}`,
           );
@@ -404,7 +423,7 @@ export default defineBackground(async () => {
           response.walletId = WALLET_ID;
         }
 
-        sessionHandler.sendResponse(requestId, response as WalletResponse);
+        sessionHandler.sendResponse(sessionId, response as WalletResponse);
       });
 
       nativePort.onDisconnect.addListener(() => {
@@ -428,7 +447,7 @@ export default defineBackground(async () => {
 
           // Send disconnect notification to all sessions
           for (const session of sessionHandler.getActiveSessions()) {
-            sessionHandler.sendResponse(session.requestId, {
+            sessionHandler.sendResponse(session.sessionId, {
               messageId: "disconnect",
               walletId: WALLET_ID,
               error: {

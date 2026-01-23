@@ -107,19 +107,6 @@ export function AuthorizeContractMetadataContent({
                     published on-chain
                   </Typography>
                 </Box>
-
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  {displayData.isClassPubliclyRegistered ? (
-                    <CheckCircleIcon fontSize="small" color="success" />
-                  ) : (
-                    <CancelIcon fontSize="small" color="error" />
-                  )}
-                  <Typography variant="body2">
-                    Contract class{" "}
-                    {displayData.isClassPubliclyRegistered ? "is" : "is not"}{" "}
-                    publicly registered
-                  </Typography>
-                </Box>
               </>
             )}
           </Box>

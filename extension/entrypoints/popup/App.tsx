@@ -31,7 +31,7 @@ interface PendingDiscovery {
  * Active session - established after key exchange.
  */
 interface ActiveSession {
-  requestId: string;
+  sessionId: string;
   verificationHash: string;
   origin: string;
   connectedAt: number;
@@ -198,21 +198,23 @@ function App() {
     await refreshData();
   };
 
-  const handleDisconnect = async (requestId: string) => {
+  const handleDisconnect = async (sessionId: string) => {
     await browser.runtime.sendMessage({
       origin: "popup",
       type: "disconnect-session",
-      requestId,
+      sessionId,
     });
     await refreshData();
   };
 
-  const handleForgetApp = async (appId: string, appOrigin: string) => {
+  const handleForgetApp = async (appId: string, appOrigin: string, chainId: string, version: string) => {
     await browser.runtime.sendMessage({
       origin: "popup",
       type: "forget-app",
       appId,
       appOrigin,
+      chainId,
+      version,
     });
     await refreshData();
   };
@@ -415,7 +417,7 @@ function App() {
                         const mismatch = !domainsMatch(s.origin, s.appId);
                         const isCurrentTab = currentTabOrigin === s.origin;
                         return (
-                          <div key={s.requestId} className={`item session session-card ${isCurrentTab ? 'current-tab' : ''}`}>
+                          <div key={s.sessionId} className={`item session session-card ${isCurrentTab ? 'current-tab' : ''}`}>
                             <div className="session-header">
                               <span className="item-name">
                                 {s.appId || hostname}
@@ -430,7 +432,7 @@ function App() {
                               </span>
                               <button
                                 className="btn-icon btn-disconnect"
-                                onClick={() => handleDisconnect(s.requestId)}
+                                onClick={() => handleDisconnect(s.sessionId)}
                                 title="Disconnect"
                               >
                                 ✕
@@ -506,8 +508,8 @@ function App() {
                             </div>
                             <button
                               className="btn btn-small btn-forget"
-                              onClick={() => handleForgetApp(app.appId, app.origin)}
-                              title="Remove from trusted apps"
+                              onClick={() => handleForgetApp(app.appId, app.origin, app.chainId, app.version)}
+                              title="Remove from trusted apps for this network"
                             >
                               Forget
                             </button>

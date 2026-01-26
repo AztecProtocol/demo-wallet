@@ -5,7 +5,6 @@ import {
 } from "./base-operation";
 import type { ContractClassMetadata } from "@aztec/aztec.js/wallet";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import type { PXE } from "@aztec/pxe/server";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -54,7 +53,7 @@ export class GetContractClassMetadataOperation extends ExternalOperation<
   protected interactionManager: InteractionManager;
 
   constructor(
-    private pxe: PXE,
+    private getContractClassMetadata: (id: Fr) => Promise<ContractClassMetadata>,
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
   ) {
@@ -95,7 +94,7 @@ export class GetContractClassMetadataOperation extends ExternalOperation<
     >
   > {
     // Query metadata
-    const metadata = await this.pxe.getContractClassMetadata(id);
+    const metadata = await this.getContractClassMetadata(id);
 
     // Try to get artifact name
     // Note: The artifact field is not included in ContractClassMetadata type,

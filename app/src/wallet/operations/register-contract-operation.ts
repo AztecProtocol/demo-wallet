@@ -19,6 +19,7 @@ import {
 import type { DecodingCache } from "../decoding/decoding-cache";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
+import type { WalletDB } from "../database/wallet-db";
 
 // Arguments tuple for the operation
 type RegisterContractArgs = [
@@ -64,6 +65,7 @@ export class RegisterContractOperation extends ExternalOperation<
     private decodingCache: DecodingCache,
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
+    private db: WalletDB,
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -215,6 +217,20 @@ export class RegisterContractOperation extends ExternalOperation<
         await computePartialAddress(instance),
       );
     }
+
+    // Automatically grant persistent authorizations for metadata queries
+    // This allows apps that register a contract to query its metadata without additional prompts
+    const appId = this.authorizationManager.appId;
+    await this.db.storePersistentAuthorization(
+      appId,
+      `getContractMetadata:${instance.address.toString()}`,
+      null,
+    );
+    await this.db.storePersistentAuthorization(
+      appId,
+      `getContractClassMetadata:${instance.currentContractClassId.toString()}`,
+      null,
+    );
 
     await this.emitProgress("SUCCESS", undefined, true);
     return instance;

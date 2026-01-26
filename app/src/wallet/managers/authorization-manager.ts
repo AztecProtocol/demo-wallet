@@ -55,7 +55,7 @@ export class AuthorizationManager {
           item.persistence.storageKey
         );
 
-        if (existingAuth) {
+        if (existingAuth !== undefined) {
           // Auto-approve this item
           autoApprovedItems[item.id] = {
             id: item.id,

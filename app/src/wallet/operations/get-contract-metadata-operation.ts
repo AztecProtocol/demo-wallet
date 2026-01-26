@@ -5,7 +5,6 @@ import {
 } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { ContractMetadata } from "@aztec/aztec.js/wallet";
-import type { PXE } from "@aztec/pxe/server";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -56,7 +55,7 @@ export class GetContractMetadataOperation extends ExternalOperation<
   protected interactionManager: InteractionManager;
 
   constructor(
-    private pxe: PXE,
+    private getContractMetadata: (address: AztecAddress) => Promise<ContractMetadata>,
     private decodingCache: DecodingCache,
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
@@ -98,7 +97,7 @@ export class GetContractMetadataOperation extends ExternalOperation<
     >
   > {
     // Query metadata
-    const metadata = await this.pxe.getContractMetadata(address);
+    const metadata = await this.getContractMetadata(address);
 
     // Try to get contract name
     const contractName = await this.decodingCache.getAddressAlias(address);

@@ -15,20 +15,11 @@ import {
 } from "@aztec/aztec.js/authorization";
 import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
 
-// Types not yet re-exported through public API
-type ContractMetadata = {
-  instance: ContractInstanceWithAddress;
-  isContractInitialized: boolean;
-  isContractPublished: boolean;
-  isContractClassPubliclyRegistered: boolean;
-  isContractUpdated: boolean;
-  updatedContractClassId: Fr;
-};
-
-type ContractClassMetadata = {
-  isArtifactRegistered: boolean;
-  isContractClassPubliclyRegistered: boolean;
-};
+// Import types from SDK - these match what BaseWallet returns
+import type {
+  ContractMetadata,
+  ContractClassMetadata,
+} from "@aztec/aztec.js/wallet";
 import { type AztecNode } from "@aztec/aztec.js/node";
 import { type Logger } from "@aztec/aztec.js/log";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
@@ -94,6 +85,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.decodingCache,
       this.interactionManager,
       this.authorizationManager,
+      this.db,
     );
   }
 
@@ -240,7 +232,7 @@ export class ExternalWallet extends BaseNativeWallet {
    */
   private createGetContractMetadataOperation(): GetContractMetadataOperation {
     return new GetContractMetadataOperation(
-      this.pxe,
+      (address) => super.getContractMetadata(address),
       this.decodingCache,
       this.interactionManager,
       this.authorizationManager,
@@ -252,7 +244,7 @@ export class ExternalWallet extends BaseNativeWallet {
    */
   private createGetContractClassMetadataOperation(): GetContractClassMetadataOperation {
     return new GetContractClassMetadataOperation(
-      this.pxe,
+      (id) => super.getContractClassMetadata(id),
       this.interactionManager,
       this.authorizationManager,
     );

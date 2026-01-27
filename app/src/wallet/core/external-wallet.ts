@@ -15,7 +15,6 @@ import {
 } from "@aztec/aztec.js/authorization";
 import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
 
-// Import types from SDK - these match what BaseWallet returns
 import type {
   ContractMetadata,
   ContractClassMetadata,
@@ -32,6 +31,7 @@ import {
   type UtilitySimulationResult,
   ExecutionPayload,
   TxHash,
+  type TxReceipt,
 } from "@aztec/stdlib/tx";
 import { type PXE } from "@aztec/pxe/server";
 import { WalletDB } from "../database/wallet-db";
@@ -40,8 +40,6 @@ import {
   type AuthorizationRequest,
   type AuthorizationResponse,
   type AuthorizationItem,
-  type GetAccountsAuthData,
-  type GetAddressBookAuthData,
 } from "../types/authorization";
 import { BaseNativeWallet } from "./base-native-wallet";
 import { ExternalOperation } from "../operations/base-operation";
@@ -56,6 +54,10 @@ import { CreateAuthWitOperation } from "../operations/create-authwit-operation";
 import { GetPrivateEventsOperation } from "../operations/get-private-events-operation";
 import { GetContractMetadataOperation } from "../operations/get-contract-metadata-operation";
 import { GetContractClassMetadataOperation } from "../operations/get-contract-class-metadata-operation";
+import type {
+  InteractionWaitOptions,
+  SendReturn,
+} from "@aztec/aztec.js/contracts";
 
 export class ExternalWallet extends BaseNativeWallet {
   constructor(
@@ -136,10 +138,10 @@ export class ExternalWallet extends BaseNativeWallet {
    * Factory method to create a fresh SendTxOperation instance.
    * @param simulateTxOp - The SimulateTxOperation instance to use (may be fresh or shared)
    */
-  private createSendTxOperation(
+  private createSendTxOperation<W extends InteractionWaitOptions = undefined>(
     simulateTxOp: SimulateTxOperation,
-  ): SendTxOperation {
-    return new SendTxOperation(
+  ): SendTxOperation<W> {
+    return new SendTxOperation<W>(
       this.pxe,
       this.aztecNode,
       this.decodingCache,
@@ -357,13 +359,13 @@ export class ExternalWallet extends BaseNativeWallet {
     return await op.executeStandalone(id);
   }
 
-  override async sendTx(
-    exec: ExecutionPayload,
-    opts: SendOptions,
-  ): Promise<TxHash> {
+  override async sendTx<W extends InteractionWaitOptions = undefined>(
+    executionPayload: ExecutionPayload,
+    opts: SendOptions<W>,
+  ): Promise<SendReturn<W>> {
     const simulateTxOp = this.createSimulateTxOperation();
-    const op = this.createSendTxOperation(simulateTxOp);
-    return await op.executeStandalone(exec, opts);
+    const op = this.createSendTxOperation<W>(simulateTxOp);
+    return await op.executeStandalone(executionPayload, opts);
   }
 
   override async batch<const T extends readonly BatchedMethod[]>(
@@ -372,6 +374,7 @@ export class ExternalWallet extends BaseNativeWallet {
     type BatchMethodResult =
       | ContractInstanceWithAddress
       | TxHash
+      | TxReceipt
       | AztecAddress
       | UtilitySimulationResult
       | TxSimulationResult;

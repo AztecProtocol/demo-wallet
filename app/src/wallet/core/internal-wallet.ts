@@ -22,7 +22,13 @@ import { TxDecodingService } from "../decoding/tx-decoding-service";
 
 import { inspect } from "node:util";
 import { BaseNativeWallet } from "./base-native-wallet.ts";
-import { SentTx, toSendOptions } from "@aztec/aztec.js/contracts";
+import {
+  NO_WAIT,
+  toSendOptions,
+  type InteractionWaitOptions,
+  type SendReturn,
+} from "@aztec/aztec.js/contracts";
+import { waitForTx } from "@aztec/aztec.js/node";
 
 // Enriched account type for internal use
 export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
@@ -35,7 +41,7 @@ export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
 export class InternalWallet extends BaseNativeWallet {
   // Override getAccountFromAddress to skip authorization check
   protected override async getAccountFromAddress(
-    address: AztecAddress
+    address: AztecAddress,
   ): Promise<Account> {
     // Internal wallet is trusted, skip authorization and use base implementation
     return this.getAccountFromAddressInternal(address);
@@ -51,13 +57,13 @@ export class InternalWallet extends BaseNativeWallet {
       accounts.map(async (acc) => ({
         ...acc,
         type: (await this.db.retrieveAccount(acc.item)).type,
-      }))
+      })),
     );
   }
 
   override async registerSender(
     address: AztecAddress,
-    alias: string
+    alias: string,
   ): Promise<AztecAddress> {
     // Store sender in database
     await this.db.storeSender(address, alias);
@@ -74,7 +80,7 @@ export class InternalWallet extends BaseNativeWallet {
     type: AccountType,
     secret: Fr,
     salt: Fr,
-    signingKey: Buffer
+    signingKey: Buffer,
   ): Promise<void> {
     const interaction = WalletInteraction.from({
       type: "createAccount",
@@ -89,7 +95,7 @@ export class InternalWallet extends BaseNativeWallet {
         type,
         secret,
         salt,
-        signingKey
+        signingKey,
       );
       await this.db.storeAccount(accountManager.address, {
         type,
@@ -102,13 +108,12 @@ export class InternalWallet extends BaseNativeWallet {
         interaction.update({
           status: "PREPARING ACCOUNT",
           description: `Address ${accountManager.address.toString()}`,
-        })
+        }),
       );
 
       const deployMethod = await accountManager.getDeployMethod();
-      const { prepareForFeePayment } = await import(
-        "../utils/sponsored-fpc.ts"
-      );
+      const { prepareForFeePayment } =
+        await import("../utils/sponsored-fpc.ts");
       const paymentMethod = await prepareForFeePayment(this);
       const opts: DeployAccountOptions = {
         from: AztecAddress.ZERO,
@@ -119,17 +124,14 @@ export class InternalWallet extends BaseNativeWallet {
         skipInstancePublication: true,
       };
 
-      const sentTx = new SentTx(this, async () => {
-        const exec = await deployMethod.request({
-          ...opts,
-          deployer: AztecAddress.ZERO,
-        });
-        return this.sendTx(exec, await toSendOptions(opts), interaction);
+      const exec = await deployMethod.request({
+        ...opts,
+        deployer: AztecAddress.ZERO,
       });
-      // Status will be updated to PROVING inside sendTx, then MINING after proving completes
-      await sentTx.wait();
+      await this.sendTx(exec, await toSendOptions(opts), interaction);
+
       await this.interactionManager.storeAndEmit(
-        interaction.update({ status: "DEPLOYED", complete: true })
+        interaction.update({ status: "DEPLOYED", complete: true }),
       );
     } catch (error: any) {
       // Update interaction with error status
@@ -138,52 +140,60 @@ export class InternalWallet extends BaseNativeWallet {
           status: "ERROR",
           complete: true,
           description: `Failed: ${error.message || String(error)}`,
-        })
+        }),
       );
       // Re-throw so the UI can also handle it
       throw error;
     }
   }
 
-  override async sendTx(
+  override async sendTx<W extends InteractionWaitOptions = undefined>(
     executionPayload: ExecutionPayload,
-    opts: SendOptions,
-    interaction?: WalletInteraction<WalletInteractionType>
-  ): Promise<TxHash> {
+    opts: SendOptions<W>,
+    interaction?: WalletInteraction<WalletInteractionType>,
+  ): Promise<SendReturn<W>> {
     const fee = await this.completeFeeOptions(
       opts.from,
       executionPayload.feePayer,
-      opts.fee?.gasSettings
+      opts.fee?.gasSettings,
     );
     const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
       executionPayload,
       opts.from,
-      fee
+      fee,
     );
     await this.interactionManager.storeAndEmit(
       interaction.update({
         status: "PROVING",
-      })
+      }),
     );
     const provenTx = await this.pxe.proveTx(txRequest);
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
     if (await this.aztecNode.getTxEffect(txHash)) {
       throw new Error(
-        `A settled tx with equal hash ${txHash.toString()} exists.`
+        `A settled tx with equal hash ${txHash.toString()} exists.`,
       );
     }
     await this.interactionManager.storeAndEmit(
       interaction.update({
         status: "SENDING",
-      })
+      }),
     );
     this.log.debug(`Sending transaction ${txHash}`);
     await this.aztecNode.sendTx(tx).catch((err) => {
       throw this.contextualizeError(err, inspect(tx));
     });
     this.log.info(`Sent transaction ${txHash}`);
-    return txHash;
+
+    // If wait is NO_WAIT, return txHash immediately
+    if (opts.wait === NO_WAIT) {
+      return txHash as SendReturn<W>;
+    }
+
+    // Otherwise, wait for the full receipt (default behavior on wait: undefined)
+    const waitOpts = typeof opts.wait === "object" ? opts.wait : undefined;
+    return (await waitForTx(this.aztecNode, txHash, waitOpts)) as SendReturn<W>;
   }
 
   // Internal-only method: Delete account
@@ -223,11 +233,11 @@ export class InternalWallet extends BaseNativeWallet {
     // Use the shared decoding cache from BaseNativeWallet
     const decodingService = new TxDecodingService(this.decodingCache);
     const parsedSimulationResult = TxSimulationResult.schema.parse(
-      data.simulationResult
+      data.simulationResult,
     );
 
     const { executionTrace } = await decodingService.decodeTransaction(
-      parsedSimulationResult
+      parsedSimulationResult,
     );
     return {
       trace: executionTrace,
@@ -259,14 +269,14 @@ export class InternalWallet extends BaseNativeWallet {
 
   async updateAccountAuthorization(
     appId: string,
-    accounts: Aliased<AztecAddress>[]
+    accounts: Aliased<AztecAddress>[],
   ): Promise<void> {
     await this.db.updateAccountAuthorization(appId, accounts);
   }
 
   async updateAddressBookAuthorization(
     appId: string,
-    contacts: Aliased<AztecAddress>[]
+    contacts: Aliased<AztecAddress>[],
   ): Promise<void> {
     await this.db.updateAddressBookAuthorization(appId, contacts);
   }

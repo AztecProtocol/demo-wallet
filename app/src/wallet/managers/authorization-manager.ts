@@ -31,7 +31,7 @@ export class AuthorizationManager {
         request: AuthorizationRequest;
       }
     >,
-    private eventEmitter: EventTarget
+    private eventEmitter: EventTarget,
   ) {}
 
   /**
@@ -42,7 +42,7 @@ export class AuthorizationManager {
    * @returns Authorization response with approved items
    */
   async requestAuthorization(
-    items: AuthorizationItem[]
+    items: AuthorizationItem[],
   ): Promise<AuthorizationResponse> {
     // Check for existing persistent authorizations
     const itemsNeedingAuth: AuthorizationItem[] = [];
@@ -50,12 +50,40 @@ export class AuthorizationManager {
 
     for (const item of items) {
       if (item.persistence) {
-        const existingAuth = await this.db.retrievePersistentAuthorization(
-          this.appId,
-          item.persistence.storageKey
-        );
+        // Handle single key or multiple keys (for batch operations like simulateTx)
+        const keys = Array.isArray(item.persistence.storageKey)
+          ? item.persistence.storageKey
+          : [item.persistence.storageKey];
 
-        if (existingAuth !== undefined) {
+        // Check if ALL keys have existing authorization (for multi-key operations)
+        let allAuthorized = true;
+        let existingAuth: any | undefined = undefined;
+
+        for (const key of keys) {
+          // Try exact match first
+          let auth = await this.db.retrievePersistentAuthorization(
+            this.appId,
+            key,
+          );
+
+          // If no exact match, try wildcard patterns
+          if (auth === undefined) {
+            auth = await this.checkWildcardAuthorization(key);
+          }
+
+          // If any key is not authorized, need user approval
+          if (auth === undefined) {
+            allAuthorized = false;
+            break;
+          }
+
+          // Store first authorization data found (they should all be the same type)
+          if (existingAuth === undefined) {
+            existingAuth = auth;
+          }
+        }
+
+        if (allAuthorized && existingAuth !== undefined) {
           // Auto-approve this item
           autoApprovedItems[item.id] = {
             id: item.id,
@@ -81,7 +109,25 @@ export class AuthorizationManager {
       };
     }
 
-    // Request authorization for remaining items
+    // Check if app is in strict mode
+    const behavior = await this.db.getAppAuthorizationBehavior(this.appId);
+    if (behavior?.mode === "strict") {
+      // In strict mode, reject any requests that don't have explicit authorization
+      // EXCEPT for meta-operations that should always be allowed
+      const ALWAYS_ALLOWED_METHODS = new Set(["requestCapabilities"]);
+
+      const unauthorizedItems = itemsNeedingAuth.filter(
+        (item) => !ALWAYS_ALLOWED_METHODS.has(item.method),
+      );
+
+      if (unauthorizedItems.length > 0) {
+        throw new Error(
+          "Authorization denied: app is in strict mode and this operation is not authorized",
+        );
+      }
+    }
+
+    // Request authorization for remaining items (permissive mode)
     const authRequest: AuthorizationRequest = {
       id: crypto.randomUUID(),
       appId: this.appId,
@@ -111,16 +157,23 @@ export class AuthorizationManager {
       if (itemResponse?.approved && item.persistence) {
         // Use persistData from config if provided, otherwise use response data
         const dataToStore =
-          item.persistence.persistData !== null &&
           item.persistence.persistData !== undefined
             ? item.persistence.persistData
             : itemResponse.data;
 
-        await this.db.storePersistentAuthorization(
-          this.appId,
-          item.persistence.storageKey,
-          dataToStore
-        );
+        // Handle single key or multiple keys (for batch operations like simulateTx)
+        const keys = Array.isArray(item.persistence.storageKey)
+          ? item.persistence.storageKey
+          : [item.persistence.storageKey];
+
+        // Store authorization for each key
+        for (const key of keys) {
+          await this.db.storePersistentAuthorization(
+            this.appId,
+            key,
+            dataToStore,
+          );
+        }
       }
     }
 
@@ -148,5 +201,53 @@ export class AuthorizationManager {
       pending.promise.resolve(response);
       this.pendingAuthorizations.delete(response.id);
     }
+  }
+
+  /**
+   * Check for wildcard authorization patterns that match the requested storage key.
+   *
+   * Tries progressively broader patterns:
+   * - "registerContract:0x123..." → check "registerContract:*"
+   * - "simulateTx:0x123...:swap" → check "simulateTx:0x123...:*" → check "simulateTx:*"
+   * - "sendTx:0x123...:swap" → check "sendTx:0x123...:*" → check "sendTx:*"
+   *
+   * @param storageKey - Storage key to check for wildcard matches
+   * @returns Existing authorization data if wildcard match found, undefined otherwise
+   */
+  private async checkWildcardAuthorization(
+    storageKey: string,
+  ): Promise<any | undefined> {
+    const parts = storageKey.split(":");
+    if (parts.length === 1) {
+      // No pattern to match (simple method like "getAccounts")
+      return undefined;
+    }
+
+    const method = parts[0];
+    const remaining = parts.slice(1);
+
+    // Try progressively broader wildcards
+    // For "method:contract:function", try:
+    // 1. "method:contract:*"
+    // 2. "method:*"
+
+    if (remaining.length === 2) {
+      // Try contract-specific wildcard: "method:contract:*"
+      const contractWildcard = `${method}:${remaining[0]}:*`;
+      const auth = await this.db.retrievePersistentAuthorization(
+        this.appId,
+        contractWildcard,
+      );
+      if (auth !== undefined) {
+        return auth;
+      }
+    }
+
+    // Try full wildcard: "method:*"
+    const fullWildcard = `${method}:*`;
+    return await this.db.retrievePersistentAuthorization(
+      this.appId,
+      fullWildcard,
+    );
   }
 }

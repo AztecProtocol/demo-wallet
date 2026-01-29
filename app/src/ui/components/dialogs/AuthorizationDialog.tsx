@@ -29,6 +29,7 @@ import { AuthorizeCreateAuthWitContent } from "../authorization/AuthorizeCreateA
 import { AuthorizePrivateEventsContent } from "../authorization/AuthorizePrivateEventsContent";
 import { AuthorizeContractMetadataContent } from "../authorization/AuthorizeContractMetadataContent";
 import { AuthorizeContractClassMetadataContent } from "../authorization/AuthorizeContractClassMetadataContent";
+import { AuthorizeCapabilitiesContent } from "../authorization/AuthorizeCapabilitiesContent";
 import { WalletContext } from "../../renderer";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
@@ -69,6 +70,8 @@ function formatMethodName(method: string): string {
       return "Get Contract Metadata";
     case "getContractClassMetadata":
       return "Get Contract Class Metadata";
+    case "requestCapabilities":
+      return "Request Capabilities";
     default:
       return method;
   }
@@ -145,6 +148,11 @@ function getMethodSubtitle(item: AuthorizationItem): string | null {
         return `${contractName}::${functionName}`;
       }
       return "Simulate utility function";
+    }
+    case "requestCapabilities": {
+      const manifest = item.params.manifest as any;
+      const numCapabilities = manifest?.capabilities?.length || 0;
+      return `Grant ${numCapabilities} capability type${numCapabilities !== 1 ? "s" : ""}`;
     }
     default:
       return null;
@@ -529,6 +537,16 @@ export function AuthorizationDialog({
                     {item.method === "getContractClassMetadata" && (
                       <AuthorizeContractClassMetadataContent
                         request={item}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "requestCapabilities" && (
+                      <AuthorizeCapabilitiesContent
+                        request={item}
+                        onCapabilitiesChange={(data) => {
+                          handleItemDataChange(item.id, data);
+                        }}
                         showAppId={false}
                       />
                     )}

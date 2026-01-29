@@ -9,7 +9,7 @@ import type { AuthorizationManager } from "../managers/authorization-manager";
  * Persistence configuration for authorization caching.
  */
 export interface PersistenceConfig {
-  storageKey: string;
+  storageKey: string | string[]; // Single key or multiple keys for batch operations
   persistData: any;
 }
 

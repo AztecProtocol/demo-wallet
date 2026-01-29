@@ -1,5 +1,5 @@
 import { Fr } from "@aztec/aztec.js/fields";
-import { type Wallet, WalletSchema } from "@aztec/aztec.js/wallet";
+import { type Wallet, WalletSchema, type GrantedCapability } from "@aztec/aztec.js/wallet";
 import { optional, schemas } from "@aztec/stdlib/schemas";
 import { z } from "zod";
 import { type ApiSchemaFor } from "@aztec/stdlib/schemas";
@@ -113,17 +113,12 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   ) => void;
   // App authorization management
   listAuthorizedApps(): Promise<string[]>;
-  getAppAuthorizations(appId: string): Promise<{
-    accounts: { alias: string; item: string }[];
-    contacts: { alias: string; item: string }[];
-    simulations: Array<{
-      type: "simulateTx" | "simulateUtility";
-      payloadHash: string;
-      title?: string;
-      key: string;
-    }>;
-    otherMethods: string[];
-  }>;
+  getAppCapabilities(appId: string): Promise<GrantedCapability[]>;
+  storeCapabilityGrants(
+    appId: string,
+    manifest: any,
+    granted: GrantedCapability[]
+  ): Promise<void>;
   updateAccountAuthorization(
     appId: string,
     accounts: { alias: string; item: string }[]
@@ -192,24 +187,15 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
     // App authorization management
     listAuthorizedApps: z.function().args().returns(z.array(z.string())),
     // @ts-ignore
-    getAppAuthorizations: z
+    getAppCapabilities: z
       .function()
       .args(z.string())
-      .returns(
-        z.object({
-          accounts: z.array(z.object({ alias: z.string(), item: z.string() })),
-          contacts: z.array(z.object({ alias: z.string(), item: z.string() })),
-          simulations: z.array(
-            z.object({
-              type: z.enum(["simulateTx", "simulateUtility"]),
-              payloadHash: z.string(),
-              title: z.string().optional(),
-              key: z.string(),
-            })
-          ),
-          otherMethods: z.array(z.string()),
-        })
-      ),
+      .returns(z.array(z.any())),
+    // @ts-ignore
+    storeCapabilityGrants: z
+      .function()
+      .args(z.string(), z.any(), z.array(z.any()))
+      .returns(z.void()),
     // @ts-ignore
     updateAccountAuthorization: z
       .function()

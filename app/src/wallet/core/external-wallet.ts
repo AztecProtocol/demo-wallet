@@ -54,6 +54,7 @@ import { CreateAuthWitOperation } from "../operations/create-authwit-operation";
 import { GetPrivateEventsOperation } from "../operations/get-private-events-operation";
 import { GetContractMetadataOperation } from "../operations/get-contract-metadata-operation";
 import { GetContractClassMetadataOperation } from "../operations/get-contract-class-metadata-operation";
+import { RequestCapabilitiesOperation } from "../operations/request-capabilities-operation";
 import type {
   InteractionWaitOptions,
   SendReturn,
@@ -253,6 +254,19 @@ export class ExternalWallet extends BaseNativeWallet {
   }
 
   /**
+   * Factory method to create a fresh RequestCapabilitiesOperation instance.
+   */
+  private createRequestCapabilitiesOperation(): RequestCapabilitiesOperation {
+    return new RequestCapabilitiesOperation(
+      this.pxe,
+      this.db,
+      this.interactionManager,
+      this.authorizationManager,
+      this.decodingCache,
+    );
+  }
+
+  /**
    * Retrieves an account by address, with authorization check.
    *
    * This method ensures the app has permission to access the requested account
@@ -359,6 +373,13 @@ export class ExternalWallet extends BaseNativeWallet {
     return await op.executeStandalone(id);
   }
 
+  override async requestCapabilities(
+    manifest: import("@aztec/aztec.js/wallet").AppCapabilities,
+  ): Promise<import("@aztec/aztec.js/wallet").WalletCapabilities> {
+    const op = this.createRequestCapabilitiesOperation();
+    return await op.executeStandalone(manifest);
+  }
+
   override async sendTx<W extends InteractionWaitOptions = undefined>(
     executionPayload: ExecutionPayload,
     opts: SendOptions<W>,
@@ -436,6 +457,9 @@ export class ExternalWallet extends BaseNativeWallet {
           break;
         case "getContractClassMetadata":
           operation = this.createGetContractClassMetadataOperation();
+          break;
+        case "requestCapabilities":
+          operation = this.createRequestCapabilitiesOperation();
           break;
         default:
           items.push({

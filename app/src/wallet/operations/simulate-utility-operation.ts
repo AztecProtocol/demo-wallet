@@ -183,6 +183,9 @@ export class SimulateUtilityOperation extends ExternalOperation<
       simulationResult.stats
     );
 
+    // Generate storage key for capability matching based on contract:function pattern
+    const storageKey = `simulateUtility:${call.to.toString()}:${call.name}`;
+
     return {
       displayData: {
         payloadHash,
@@ -193,7 +196,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
       },
       executionData: { simulationResult, executionTrace, payloadHash },
       persistence: {
-        storageKey: `simulateUtility:${payloadHash}`,
+        storageKey,
         persistData: { title },
       },
     };

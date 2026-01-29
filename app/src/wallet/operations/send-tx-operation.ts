@@ -23,7 +23,11 @@ import {
   generateSimulationTitle,
 } from "../utils/simulation-utils";
 import type { SendOptions } from "@aztec/aztec.js/wallet";
-import { NO_WAIT, type InteractionWaitOptions, type SendReturn } from "@aztec/aztec.js/contracts";
+import {
+  NO_WAIT,
+  type InteractionWaitOptions,
+  type SendReturn,
+} from "@aztec/aztec.js/contracts";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import type { CallIntent } from "@aztec/aztec.js/authorization";
@@ -35,7 +39,7 @@ import type { FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 // Arguments tuple for the operation (with generic for wait type)
 type SendTxArgs<W extends InteractionWaitOptions = undefined> = [
   executionPayload: ExecutionPayload,
-  opts: SendOptions<W>
+  opts: SendOptions<W>,
 ];
 
 // Result type for the operation (conditional based on wait)
@@ -70,7 +74,9 @@ type SendTxDisplayData = {
  * - Error handling with descriptive status messages
  * - Support for wait options (NO_WAIT for immediate TxHash, or wait for TxReceipt)
  */
-export class SendTxOperation<W extends InteractionWaitOptions = undefined> extends ExternalOperation<
+export class SendTxOperation<
+  W extends InteractionWaitOptions = undefined,
+> extends ExternalOperation<
   SendTxArgs<W>,
   SendTxResult<W>,
   SendTxExecutionData<W>,
@@ -156,7 +162,10 @@ export class SendTxOperation<W extends InteractionWaitOptions = undefined> exten
     // Use simulateTx operation's prepare method (will throw if simulation fails)
     // Note: Strip the 'wait' property since SimulateOptions doesn't have it
     const { wait: _wait, ...simulateOpts } = opts;
-    const prepared = await this.simulateTxOp.prepare(executionPayload, simulateOpts);
+    const prepared = await this.simulateTxOp.prepare(
+      executionPayload,
+      simulateOpts,
+    );
 
     // Decode simulation results
     const { callAuthorizations, executionTrace } =
@@ -233,7 +242,9 @@ export class SendTxOperation<W extends InteractionWaitOptions = undefined> exten
     ]);
   }
 
-  async execute(executionData: SendTxExecutionData<W>): Promise<SendTxResult<W>> {
+  async execute(
+    executionData: SendTxExecutionData<W>,
+  ): Promise<SendTxResult<W>> {
     // Report proving stage
     await this.emitProgress("PROVING");
 
@@ -309,7 +320,8 @@ export class SendTxOperation<W extends InteractionWaitOptions = undefined> exten
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
-    const waitOpts = typeof executionData.wait === 'object' ? executionData.wait : undefined;
+    const waitOpts =
+      typeof executionData.wait === "object" ? executionData.wait : undefined;
     const receipt = await waitForTx(this.aztecNode, txHash, waitOpts);
     await this.emitProgress("SENT", undefined, true);
     return receipt as SendTxResult<W>;

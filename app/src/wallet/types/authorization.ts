@@ -10,7 +10,7 @@ export type AuthorizationItem = {
   params: any;
   timestamp: number;
   persistence?: {
-    storageKey: string;
+    storageKey: string | string[]; // Single key or multiple keys for batch operations
     persistData: any;
   };
 };

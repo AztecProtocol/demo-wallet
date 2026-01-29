@@ -50,7 +50,7 @@ interface FakeAccountData {
       payload: ExecutionPayload,
       gasSettings: unknown,
       chainInfo: ChainInfo,
-      options: DefaultAccountEntrypointOptions
+      options: DefaultAccountEntrypointOptions,
     ) => Promise<TxExecutionRequest>;
   };
   instance: ContractInstanceWithAddress;
@@ -114,18 +114,18 @@ export class SimulateTxOperation extends ExternalOperation<
     private completeFeeOptionsForEstimation: (
       from: AztecAddress,
       feePayer: AztecAddress | undefined,
-      gasSettings?: Partial<FieldsOf<GasSettings>>
+      gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
     private completeFeeOptions: (
       from: AztecAddress,
       feePayer: AztecAddress | undefined,
-      gasSettings?: Partial<FieldsOf<GasSettings>>
+      gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
     private getFakeAccountDataFor: (
-      address: AztecAddress
+      address: AztecAddress,
     ) => Promise<FakeAccountData>,
     private getChainInfo: () => Promise<ChainInfo>,
-    private cancellableTransactions: boolean
+    private cancellableTransactions: boolean,
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -133,7 +133,7 @@ export class SimulateTxOperation extends ExternalOperation<
 
   async check(
     _executionPayload: ExecutionPayload,
-    _opts: SimulateOptions
+    _opts: SimulateOptions,
   ): Promise<SimulateTxResult | undefined> {
     // No early return checks for this operation
     return undefined;
@@ -141,7 +141,7 @@ export class SimulateTxOperation extends ExternalOperation<
 
   async prepare(
     executionPayload: ExecutionPayload,
-    opts: SimulateOptions
+    opts: SimulateOptions,
   ): Promise<
     PrepareResult<
       SimulateTxResult,
@@ -155,7 +155,7 @@ export class SimulateTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      executionPayload.feePayer
+      executionPayload.feePayer,
     );
 
     // Process fee options
@@ -163,12 +163,12 @@ export class SimulateTxOperation extends ExternalOperation<
       ? await this.completeFeeOptionsForEstimation(
           opts.from,
           executionPayload.feePayer,
-          opts.fee?.gasSettings
+          opts.fee?.gasSettings,
         )
       : await this.completeFeeOptions(
           opts.from,
           executionPayload.feePayer,
-          opts.fee?.gasSettings
+          opts.fee?.gasSettings,
         );
 
     const feeExecutionPayload =
@@ -195,7 +195,7 @@ export class SimulateTxOperation extends ExternalOperation<
       finalExecutionPayload,
       feeOptions.gasSettings,
       chainInfo,
-      executionOptions
+      executionOptions,
     );
 
     const contractOverrides = {
@@ -208,7 +208,7 @@ export class SimulateTxOperation extends ExternalOperation<
       true /* simulatePublic */,
       true,
       true,
-      { contracts: contractOverrides }
+      { contracts: contractOverrides },
     );
 
     await this.db.storeTxSimulation(payloadHash, simulationResult, txRequest, {
@@ -218,6 +218,13 @@ export class SimulateTxOperation extends ExternalOperation<
 
     const decodingService = new TxDecodingService(this.decodingCache);
     const decoded = await decodingService.decodeTransaction(simulationResult);
+
+    // Create one storage key per function call for 1:1 mapping with capabilities
+    // Pattern: simulateTx:${contractAddress}:${functionName}
+    const storageKeys =
+      executionPayload.calls?.map(
+        (call) => `simulateTx:${call.to.toString()}:${call.name}`,
+      ) || [];
 
     return {
       displayData: {
@@ -235,15 +242,15 @@ export class SimulateTxOperation extends ExternalOperation<
         decoded,
       },
       persistence: {
-        storageKey: `simulateTx:${payloadHash}`,
-        persistData: { title },
+        storageKey: storageKeys,
+        persistData: null,
       },
     };
   }
 
   async createInteraction(
     executionPayload: ExecutionPayload,
-    opts: SimulateOptions
+    opts: SimulateOptions,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const payloadHash = hashExecutionPayload(executionPayload);
@@ -251,7 +258,7 @@ export class SimulateTxOperation extends ExternalOperation<
       executionPayload,
       this.decodingCache,
       opts.from,
-      executionPayload.feePayer
+      executionPayload.feePayer,
     );
     const interaction = WalletInteraction.from({
       id: payloadHash,
@@ -270,7 +277,7 @@ export class SimulateTxOperation extends ExternalOperation<
 
   async requestAuthorization(
     displayData: SimulateTxDisplayData,
-    persistence?: PersistenceConfig
+    persistence?: PersistenceConfig,
   ): Promise<void> {
     // Update interaction with detailed title and status
     await this.emitProgress("REQUESTING AUTHORIZATION", undefined, false, {
@@ -300,7 +307,7 @@ export class SimulateTxOperation extends ExternalOperation<
   }
 
   async execute(
-    executionData: SimulateTxExecutionData
+    executionData: SimulateTxExecutionData,
   ): Promise<SimulateTxResult> {
     await this.emitProgress("SUCCESS", undefined, true);
     return executionData.simulationResult;

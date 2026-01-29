@@ -66,6 +66,7 @@ export function App() {
     "getPrivateEvents",
     "getContractMetadata",
     "getContractClassMetadata",
+    "requestCapabilities",
   ]);
 
   const [authQueue, setAuthQueue] = useState<AuthorizationRequest[]>([]);

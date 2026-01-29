@@ -84,7 +84,7 @@ export abstract class BaseNativeWallet
       appId,
       db,
       pendingAuthorizations,
-      this.interactionManager, // Use interactionManager as the event emitter
+      this.interactionManager // Use interactionManager as the event emitter
     );
   }
 

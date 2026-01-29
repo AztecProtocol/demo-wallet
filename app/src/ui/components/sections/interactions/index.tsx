@@ -78,6 +78,7 @@ const getInteractionTypeLabel = (type: WalletInteractionType) => {
     getPrivateEvents: "Get Private Events",
     getContractMetadata: "Get Contract Metadata",
     getContractClassMetadata: "Get Contract Class Metadata",
+    requestCapabilities: "Request Capabilities",
   };
   return labels[type] || type;
 };
@@ -97,6 +98,7 @@ const getInteractionTypeColor = (type: WalletInteractionType) => {
     getPrivateEvents: "#ff9800", // orange (privacy sensitive)
     getContractMetadata: "#03a9f4", // light blue (metadata query)
     getContractClassMetadata: "#03a9f4", // light blue (metadata query)
+    requestCapabilities: "#2196f3", // blue (authorization/permissions)
   };
   return colors[type];
 };
@@ -115,6 +117,7 @@ const allInteractionTypes: WalletInteractionType[] = [
   "getPrivateEvents",
   "getContractMetadata",
   "getContractClassMetadata",
+  "requestCapabilities",
 ];
 
 export function InteractionsList({

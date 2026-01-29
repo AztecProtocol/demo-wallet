@@ -20,7 +20,8 @@ export type WalletInteractionType =
   | "createAuthWit"
   | "getPrivateEvents"
   | "getContractMetadata"
-  | "getContractClassMetadata";
+  | "getContractClassMetadata"
+  | "requestCapabilities";
 
 export const WalletInteractionSchema = z
   .object({
@@ -39,6 +40,7 @@ export const WalletInteractionSchema = z
       "getPrivateEvents",
       "getContractMetadata",
       "getContractClassMetadata",
+      "requestCapabilities",
     ]),
     status: z.string(),
     complete: z.boolean(),

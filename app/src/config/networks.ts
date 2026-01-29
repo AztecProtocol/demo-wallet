@@ -17,7 +17,7 @@ export const NETWORKS: NetworkConfig[] = [
     chainId: 31337,
     version: 0, // Auto-detect version
     description: "Local development network",
-    color: "#4caf50", // Green
+    color: "#4caf50",
     nodeUrl: "http://localhost:8080",
   },
   {
@@ -26,8 +26,17 @@ export const NETWORKS: NetworkConfig[] = [
     chainId: 11155111,
     version: 1647720761,
     description: "Aztec Labs Devnet",
-    color: "#2196f3", // Blue
+    color: "#2196f3",
     nodeUrl: "https://next.devnet.aztec-labs.com/",
+  },
+  {
+    id: "nextnet",
+    name: "Nextnet",
+    chainId: 11155111,
+    version: 4197971291,
+    description: "Aztec Labs Nextnet",
+    color: "#f321c9",
+    nodeUrl: "https://nextnet.aztec-labs.com/",
   },
 ];
 
@@ -39,7 +48,7 @@ export function getNetworkById(id: string): NetworkConfig | undefined {
 
 export function getNetworkByChainId(
   chainId: number,
-  version?: number
+  version?: number,
 ): NetworkConfig | undefined {
   return NETWORKS.find((network) => {
     if (network.version !== 0) {

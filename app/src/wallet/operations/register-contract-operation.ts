@@ -73,7 +73,7 @@ export class RegisterContractOperation extends ExternalOperation<
 
   async check(
     instance: ContractInstanceWithAddress,
-    artifact?: ContractArtifact,
+    _artifact?: ContractArtifact,
     _secretKey?: Fr,
   ): Promise<RegisterContractResult | undefined> {
     // Resolve contract address
@@ -149,6 +149,10 @@ export class RegisterContractOperation extends ExternalOperation<
     return {
       displayData: { contractAddress, contractName },
       executionData: { instance, artifact, secretKey },
+      persistence: {
+        storageKey: `registerContract:${contractAddress.toString()}`,
+        persistData: null,
+      },
     };
   }
 
@@ -169,6 +173,11 @@ export class RegisterContractOperation extends ExternalOperation<
           contractName: displayData.contractName,
         },
         timestamp: Date.now(),
+        // Persistence config for capability checking
+        persistence: {
+          storageKey: `registerContract:${displayData.contractAddress.toString()}`,
+          persistData: null,
+        },
       },
     ]);
   }
@@ -226,11 +235,17 @@ export class RegisterContractOperation extends ExternalOperation<
       `getContractMetadata:${instance.address.toString()}`,
       null,
     );
-    await this.db.storePersistentAuthorization(
-      appId,
-      `getContractClassMetadata:${instance.currentContractClassId.toString()}`,
-      null,
-    );
+
+    // Store getContractClassMetadata permission by contract CLASS ID (not address)
+    // This matches the ContractClassesCapability specification
+    if (artifact) {
+      const contractClass = await getContractClassFromArtifact(artifact);
+      await this.db.storePersistentAuthorization(
+        appId,
+        `getContractClassMetadata:${contractClass.id.toString()}`,
+        null,
+      );
+    }
 
     await this.emitProgress("SUCCESS", undefined, true);
     return instance;

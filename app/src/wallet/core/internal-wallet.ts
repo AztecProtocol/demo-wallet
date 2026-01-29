@@ -4,6 +4,8 @@ import {
   type Aliased,
   type DeployAccountOptions,
   type SendOptions,
+  type GrantedCapability,
+  type AppCapabilities,
 } from "@aztec/aztec.js/wallet";
 import { type Fr } from "@aztec/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
@@ -253,18 +255,16 @@ export class InternalWallet extends BaseNativeWallet {
     return await this.db.listAuthorizedApps();
   }
 
-  async getAppAuthorizations(appId: string): Promise<{
-    accounts: { alias: string; item: string }[];
-    contacts: { alias: string; item: string }[];
-    simulations: Array<{
-      type: "simulateTx" | "simulateUtility";
-      payloadHash: string;
-      title?: string;
-      key: string;
-    }>;
-    otherMethods: string[];
-  }> {
-    return await this.db.getAppAuthorizations(appId);
+  async getAppCapabilities(appId: string): Promise<GrantedCapability[]> {
+    return await this.db.reconstructCapabilitiesFromKeys(appId);
+  }
+
+  async storeCapabilityGrants(
+    appId: string,
+    manifest: AppCapabilities,
+    granted: GrantedCapability[]
+  ): Promise<void> {
+    await this.db.storeCapabilityGrants(appId, granted);
   }
 
   async updateAccountAuthorization(

@@ -762,7 +762,7 @@ export function AuthorizeCapabilitiesContent({
         const keys = new Set<string>();
 
         // Handle transaction simulations
-        if (cap.transactions?.scope !== "*") {
+        if (cap.transactions && cap.transactions.scope !== "*") {
           const patterns = cap.transactions.scope as ContractFunctionPattern[];
           patterns.forEach((pattern) => {
             const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
@@ -777,7 +777,7 @@ export function AuthorizeCapabilitiesContent({
         }
 
         // Handle utility simulations
-        if (cap.utilities?.scope !== "*") {
+        if (cap.utilities && cap.utilities.scope !== "*") {
           const patterns = cap.utilities.scope as ContractFunctionPattern[];
           patterns.forEach((pattern) => {
             const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();

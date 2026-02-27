@@ -8,6 +8,8 @@ export interface NetworkConfig {
   description: string;
   color: string;
   nodeUrl?: string;
+  aztecscanApiUrl?: string;
+  aztecscanApiKey?: string;
 }
 
 export const NETWORKS: NetworkConfig[] = [
@@ -28,6 +30,8 @@ export const NETWORKS: NetworkConfig[] = [
     description: "Aztec Labs Devnet",
     color: "#2196f3",
     nodeUrl: "https://v4-devnet-2.aztec-labs.com/",
+    aztecscanApiUrl: "https://api.devnet.aztecscan.xyz",
+    aztecscanApiKey: "temporary-api-key",
   },
   {
     id: "nextnet",

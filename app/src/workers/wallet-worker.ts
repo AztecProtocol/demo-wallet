@@ -29,6 +29,7 @@ import type {
 } from "../wallet/types/authorization.ts";
 import type { Logger } from "pino";
 import { InternalWallet } from "../wallet/core/internal-wallet.ts";
+import { AztecScanService } from "../wallet/services/aztecscan-service.ts";
 import { getNetworkByChainId } from "../config/networks.ts";
 import { BackendType } from "@aztec/bb.js";
 
@@ -46,6 +47,7 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
+  aztecscanService: AztecScanService | null;
   wallets: Map<
     string,
     Promise<{ external: ExternalWallet; internal: InternalWallet }>
@@ -141,8 +143,15 @@ async function init(
       return { pxe, node, db, pendingAuthorizations };
     })();
 
+    // Create AztecScan service if the network supports it
+    const aztecscanService =
+      network.aztecscanApiUrl && network.aztecscanApiKey
+        ? new AztecScanService(network.aztecscanApiUrl, network.aztecscanApiKey)
+        : null;
+
     session = {
       sharedResources: pxeInit,
+      aztecscanService,
       wallets: new Map(),
     };
     RUNNING_SESSIONS.set(sessionId, session);
@@ -171,7 +180,8 @@ async function init(
         sharedResources.pendingAuthorizations,
         appId,
         chainInfo,
-        externalWalletLogger
+        externalWalletLogger,
+        session.aztecscanService,
       );
       const internalWallet = new InternalWallet(
         sharedResources.pxe,
@@ -180,7 +190,8 @@ async function init(
         sharedResources.pendingAuthorizations,
         appId,
         chainInfo,
-        internalWalletLogger
+        internalWalletLogger,
+        session.aztecscanService,
       );
 
       // Wire up events from both wallets to internal port

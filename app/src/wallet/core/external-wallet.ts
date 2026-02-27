@@ -44,6 +44,7 @@ import {
   type AuthorizationItem,
 } from "../types/authorization";
 import { BaseNativeWallet } from "./base-native-wallet";
+import type { AztecScanService } from "../services/aztecscan-service";
 import { ExternalOperation } from "../operations/base-operation";
 import { RegisterContractOperation } from "../operations/register-contract-operation";
 import { RegisterSenderOperation } from "../operations/register-sender-operation";
@@ -77,8 +78,9 @@ export class ExternalWallet extends BaseNativeWallet {
     appId: string,
     chainInfo: ChainInfo,
     log: Logger,
+    aztecscanService?: AztecScanService | null,
   ) {
-    super(pxe, node, db, pendingAuthorizations, appId, chainInfo, log);
+    super(pxe, node, db, pendingAuthorizations, appId, chainInfo, log, aztecscanService);
   }
 
   /**

@@ -207,15 +207,16 @@ export class RegisterContractOperation extends ExternalOperation<
       // Instance not registered yet
       if (!artifact) {
         // Try to get the artifact from the wallet's contract class storage
-        const existingArtifact = await this.pxe.getContractArtifact(
-          instance.currentContractClassId,
-        );
-        if (!existingArtifact) {
+        // This also falls back to AztecScan if configured (with user authorization)
+        try {
+          artifact = await this.decodingCache.getContractArtifact(
+            instance.currentContractClassId,
+          );
+        } catch {
           throw new Error(
             `Cannot register contract at ${instance.address.toString()}: artifact is required but not provided, and wallet does not have the artifact for contract class ${instance.currentContractClassId.toString()}`,
           );
         }
-        artifact = existingArtifact;
       }
       await this.pxe.registerContract({ artifact, instance });
     }

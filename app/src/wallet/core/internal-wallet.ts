@@ -334,4 +334,21 @@ export class InternalWallet extends BaseNativeWallet {
   async revokeAppAuthorizations(appId: string): Promise<void> {
     await this.db.revokeAppAuthorizations(appId);
   }
+
+  /**
+   * Dev/test method: Trigger artifact fetch from AztecScan for a given contract class ID.
+   * This calls decodingCache.getContractArtifact() which will:
+   * 1. Check local PXE cache
+   * 2. If not found, prompt user via authorization dialog
+   * 3. If approved, fetch from AztecScan API
+   * 4. Register with PXE for persistence
+   *
+   * @returns The artifact name if found, or throws
+   */
+  async fetchArtifactFromAztecScan(contractClassId: string): Promise<string> {
+    const { Fr } = await import("@aztec/aztec.js/fields");
+    const classId = Fr.fromString(contractClassId);
+    const artifact = await this.decodingCache.getContractArtifact(classId);
+    return artifact.name;
+  }
 }

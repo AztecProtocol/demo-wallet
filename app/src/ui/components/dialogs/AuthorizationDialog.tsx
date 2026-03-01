@@ -30,6 +30,7 @@ import { AuthorizePrivateEventsContent } from "../authorization/AuthorizePrivate
 import { AuthorizeContractMetadataContent } from "../authorization/AuthorizeContractMetadataContent";
 import { AuthorizeContractClassMetadataContent } from "../authorization/AuthorizeContractClassMetadataContent";
 import { AuthorizeCapabilitiesContent } from "../authorization/AuthorizeCapabilitiesContent";
+import { AuthorizeFetchArtifactContent } from "../authorization/AuthorizeFetchArtifactContent";
 import { WalletContext } from "../../renderer";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 
@@ -72,6 +73,8 @@ function formatMethodName(method: string): string {
       return "Get Contract Class Metadata";
     case "requestCapabilities":
       return "Request Capabilities";
+    case "fetchArtifact":
+      return "Fetch Contract Artifact";
     default:
       return method;
   }
@@ -153,6 +156,13 @@ function getMethodSubtitle(item: AuthorizationItem): string | null {
       const manifest = item.params.manifest as any;
       const numCapabilities = manifest?.capabilities?.length || 0;
       return `Grant ${numCapabilities} capability type${numCapabilities !== 1 ? "s" : ""}`;
+    }
+    case "fetchArtifact": {
+      const classId = item.params.contractClassId;
+      const source = item.params.source || "AztecScan";
+      return classId
+        ? `Fetch from ${source} (${classId.substring(0, 10)}...)`
+        : `Fetch from ${source}`;
     }
     default:
       return null;
@@ -547,6 +557,13 @@ export function AuthorizationDialog({
                         onCapabilitiesChange={(data) => {
                           handleItemDataChange(item.id, data);
                         }}
+                        showAppId={false}
+                      />
+                    )}
+
+                    {item.method === "fetchArtifact" && (
+                      <AuthorizeFetchArtifactContent
+                        request={item}
                         showAppId={false}
                       />
                     )}

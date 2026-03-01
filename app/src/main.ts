@@ -381,6 +381,7 @@ app.on("ready", async () => {
     "updateAddressBookAuthorization",
     "revokeAuthorization",
     "revokeAppAuthorizations",
+    "fetchArtifactFromAztecScan",
   ];
   for (const method of internalMethods) {
     ipcMain.handle(method, async (_event, args) => {

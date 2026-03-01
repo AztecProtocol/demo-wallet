@@ -9,9 +9,12 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import ContactsIcon from "@mui/icons-material/Contacts";
 import AppsIcon from "@mui/icons-material/Apps";
+import BugReportIcon from "@mui/icons-material/BugReport";
 import { InteractionsList } from "./components/sections/interactions/index.tsx";
 import { AccountsManager } from "./components/sections/accounts/index.tsx";
 import { ContactsManager } from "./components/sections/contacts/index.tsx";
@@ -30,6 +33,7 @@ import type {
 import type { AuthorizationRequest } from "../wallet/types/authorization.ts";
 import { WalletContext } from "./renderer.tsx";
 import { useNetwork } from "./contexts/NetworkContext.tsx";
+import type { InternalWalletInterface } from "../ipc/wallet-internal-interface.ts";
 
 const INTERACTIONS_PANEL_WIDTH = 400;
 const INTERACTIONS_PANEL_MIN_WIDTH = 300;
@@ -37,7 +41,75 @@ const INTERACTIONS_PANEL_MAX_WIDTH = 800;
 const MENU_DRAWER_WIDTH = 240;
 const SIDEBAR_WIDTH = 64;
 
-type MenuSection = "accounts" | "contacts" | "apps";
+type MenuSection = "accounts" | "contacts" | "apps" | "dev";
+
+function DevSection({ walletAPI }: { walletAPI: InternalWalletInterface }) {
+  const [classId, setClassId] = useState(
+    "0x11fdf790e6e0c10019ee58946dc750a5569695e77d128d7659d1d08f50e00ac7"
+  );
+  const [status, setStatus] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  const handleFetch = async () => {
+    setLoading(true);
+    setStatus("Fetching...");
+    try {
+      const name = await walletAPI.fetchArtifactFromAztecScan(classId.trim());
+      setStatus(`Success: artifact "${name}" fetched and registered with PXE`);
+    } catch (err: any) {
+      setStatus(`Error: ${err.message || String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box sx={{ width: "100%", maxWidth: 600 }}>
+      <Typography variant="h6" gutterBottom>
+        Dev: Fetch Artifact from AztecScan
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+        Enter a contract class ID to fetch its artifact from AztecScan.
+        This triggers the full authorization flow.
+      </Typography>
+      <TextField
+        fullWidth
+        label="Contract Class ID"
+        value={classId}
+        onChange={(e) => setClassId(e.target.value)}
+        sx={{ mb: 2 }}
+        size="small"
+        disabled={loading}
+      />
+      <Button
+        variant="contained"
+        onClick={handleFetch}
+        disabled={loading || !classId.trim()}
+        sx={{ mb: 2 }}
+      >
+        {loading ? "Fetching..." : "Fetch Artifact"}
+      </Button>
+      {status && (
+        <Typography
+          variant="body2"
+          sx={{
+            mt: 1,
+            p: 1.5,
+            bgcolor: status.startsWith("Error")
+              ? "error.dark"
+              : status.startsWith("Success")
+                ? "success.dark"
+                : "action.hover",
+            borderRadius: 1,
+            wordBreak: "break-all",
+          }}
+        >
+          {status}
+        </Typography>
+      )}
+    </Box>
+  );
+}
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -228,6 +300,8 @@ export function App() {
         return <ContactsManager />;
       case "apps":
         return <AuthorizedApps />;
+      case "dev":
+        return <DevSection walletAPI={walletAPI} />;
       default:
         return null;
     }
@@ -326,6 +400,19 @@ export function App() {
                 <AppsIcon />
               </ListItemButton>
             </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton
+                selected={currentSection === "dev"}
+                onClick={() => handleMenuItemClick("dev")}
+                sx={{
+                  flexDirection: "column",
+                  py: 2,
+                  minHeight: SIDEBAR_WIDTH,
+                }}
+              >
+                <BugReportIcon />
+              </ListItemButton>
+            </ListItem>
           </List>
         </Box>
 
@@ -378,6 +465,15 @@ export function App() {
                   onClick={() => handleMenuItemClick("apps")}
                 >
                   <ListItemText primary="Apps" />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton
+                  sx={{ height: 64 }}
+                  selected={currentSection === "dev"}
+                  onClick={() => handleMenuItemClick("dev")}
+                >
+                  <ListItemText primary="Dev" />
                 </ListItemButton>
               </ListItem>
             </List>

@@ -175,6 +175,8 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   ): Promise<void>;
   revokeAuthorization(key: string): Promise<void>;
   revokeAppAuthorizations(appId: string): Promise<void>;
+  // Dev/test: trigger AztecScan artifact fetch for a contract class ID
+  fetchArtifactFromAztecScan(contractClassId: string): Promise<string>;
 };
 
 export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface> =
@@ -267,4 +269,6 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
     revokeAuthorization: z.function().args(z.string()),
     // @ts-ignore
     revokeAppAuthorizations: z.function().args(z.string()),
+    // @ts-ignore
+    fetchArtifactFromAztecScan: z.function().args(z.string()).returns(z.string()),
   };

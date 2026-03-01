@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld("walletAPI", {
   revokeAppAuthorizations(stringifiedArgs: string): Promise<void> {
     return ipcRenderer.invoke("revokeAppAuthorizations", stringifiedArgs);
   },
+  fetchArtifactFromAztecScan(stringifiedArgs: string): Promise<string> {
+    return ipcRenderer.invoke("fetchArtifactFromAztecScan", stringifiedArgs);
+  },
   onWalletUpdate(callback) {
     return ipcRenderer.on("wallet-update", (_event, eventData) =>
       callback(eventData)

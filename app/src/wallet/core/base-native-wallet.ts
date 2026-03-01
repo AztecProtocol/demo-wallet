@@ -20,6 +20,7 @@ import type {
   AuthorizationResponse,
 } from "../types/authorization";
 import { prepareForFeePayment } from "../utils/sponsored-fpc";
+import type { AztecScanService } from "../services/aztecscan-service";
 import { AccountFeePaymentMethodOptions } from "@aztec/entrypoints/account";
 import { GasSettings } from "@aztec/stdlib/gas";
 import {
@@ -72,12 +73,9 @@ export abstract class BaseNativeWallet
     protected appId: string,
     protected chainInfo: ChainInfo,
     protected override log: Logger,
+    aztecscanService?: AztecScanService | null,
   ) {
     super(pxe, node);
-    // Create a single decoding cache instance shared across all wallet operations
-    // This cache stores contract names, artifacts, and aliases to avoid repeated PXE lookups
-    this.decodingCache = new DecodingCache(pxe, db);
-
     // Create manager instances for operations to use
     this.interactionManager = new InteractionManager(db);
     this.authorizationManager = new AuthorizationManager(
@@ -85,6 +83,16 @@ export abstract class BaseNativeWallet
       db,
       pendingAuthorizations,
       this.interactionManager, // Use interactionManager as the event emitter
+    );
+
+    // Create a single decoding cache instance shared across all wallet operations
+    // This cache stores contract names, artifacts, and aliases to avoid repeated PXE lookups
+    // When aztecscanService is provided, it can fall back to fetching artifacts from AztecScan
+    this.decodingCache = new DecodingCache(
+      pxe,
+      db,
+      aztecscanService,
+      this.authorizationManager,
     );
   }
 

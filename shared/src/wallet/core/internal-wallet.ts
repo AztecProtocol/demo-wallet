@@ -30,6 +30,7 @@ import {
   toSendOptions,
   type InteractionWaitOptions,
   type SendReturn,
+  extractOffchainOutput,
 } from "@aztec/aztec.js/contracts";
 import { waitForTx } from "@aztec/aztec.js/node";
 
@@ -194,6 +195,7 @@ export class InternalWallet extends BaseNativeWallet {
     );
     const provingTime = Date.now() - provingStartTime;
 
+    const offchainOutput = extractOffchainOutput(provenTx.getOffchainEffects());
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
     if (await this.aztecNode.getTxEffect(txHash)) {
@@ -229,7 +231,7 @@ export class InternalWallet extends BaseNativeWallet {
           timings: { ...rawStats.timings, sending: sendingTime },
         });
       }
-      return txHash as SendReturn<W>;
+      return { txHash, ...offchainOutput } as SendReturn<W>;
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
@@ -251,7 +253,7 @@ export class InternalWallet extends BaseNativeWallet {
       });
     }
 
-    return receipt as SendReturn<W>;
+    return { receipt, ...offchainOutput } as SendReturn<W>;
   }
 
   // Internal-only method: Delete account

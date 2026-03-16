@@ -38,6 +38,15 @@ export const NETWORKS: NetworkConfig[] = [
     color: "#f321c9",
     nodeUrl: "https://nextnet.aztec-labs.com/",
   },
+  {
+    id: "testnet",
+    name: "Testnet",
+    chainId: 11155111,
+    version: 4127419662,
+    description: "Aztec Labs Testnet",
+    color: "#f38721",
+    nodeUrl: "https://rpc.testnet.aztec-labs.com/",
+  },
 ];
 
 export const DEFAULT_NETWORK = NETWORKS[1];

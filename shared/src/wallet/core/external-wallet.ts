@@ -2,7 +2,7 @@ import { type Account, type ChainInfo } from "@aztec/aztec.js/account";
 import {
   type Aliased,
   type SimulateOptions,
-  type SimulateUtilityOptions,
+  type ExecuteUtilityOptions,
   type SendOptions,
   type BatchedMethod,
   type BatchResults,
@@ -29,7 +29,7 @@ import { Fr } from "@aztec/foundation/curves/bn254";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   type TxSimulationResult,
-  type UtilitySimulationResult,
+  type UtilityExecutionResult,
   ExecutionPayload,
   TxHash,
   type TxReceipt,
@@ -403,7 +403,7 @@ export class ExternalWallet extends BaseNativeWallet {
       | TxHash
       | TxReceipt
       | AztecAddress
-      | UtilitySimulationResult
+      | UtilityExecutionResult
       | TxSimulationResult;
 
     interface BatchItem {
@@ -435,7 +435,7 @@ export class ExternalWallet extends BaseNativeWallet {
         case "registerSender":
           operation = this.createRegisterSenderOperation();
           break;
-        case "simulateUtility":
+        case "executeUtility":
           operation = this.createSimulateUtilityOperation();
           break;
         case "simulateTx":
@@ -682,10 +682,10 @@ export class ExternalWallet extends BaseNativeWallet {
    * Public method: Simulate utility function (standalone call).
    * Handles interaction tracking and user authorization.
    */
-  override async simulateUtility(
+  override async executeUtility(
     call: FunctionCall,
-    opts: SimulateUtilityOptions,
-  ): Promise<UtilitySimulationResult> {
+    opts: ExecuteUtilityOptions,
+  ): Promise<UtilityExecutionResult> {
     const op = this.createSimulateUtilityOperation();
     return await op.executeStandalone(call, opts);
   }

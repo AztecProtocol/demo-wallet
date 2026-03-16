@@ -31,6 +31,7 @@ import {
   NO_WAIT,
   type InteractionWaitOptions,
   type SendReturn,
+  extractOffchainOutput,
 } from "@aztec/aztec.js/contracts";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
@@ -324,8 +325,9 @@ export class SendTxOperation<
       throw provingError;
     }
 
-    // Extract proving stats from the result
+    // Extract proving stats and offchain output from the result
     const rawStats = provenTx.stats;
+    const offchainOutput = extractOffchainOutput(provenTx.getOffchainEffects());
 
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
@@ -351,7 +353,7 @@ export class SendTxOperation<
       await this.emitProgress("SENT", `TxHash: ${txHash.toString()}`, true);
       const enrichedStats = { ...rawStats, timings: { ...rawStats.timings, simulation: executionData.simulationTime, sending: sendingTime } };
       await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
-      return txHash as SendTxResult<W>;
+      return { txHash, ...offchainOutput } as SendTxResult<W>;
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
@@ -367,6 +369,6 @@ export class SendTxOperation<
     const enrichedStats = { ...rawStats, timings: { ...rawStats.timings, simulation: executionData.simulationTime, sending: sendingTime, mining: miningTime } };
     await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
 
-    return receipt as SendTxResult<W>;
+    return { receipt, ...offchainOutput } as SendTxResult<W>;
   }
 }

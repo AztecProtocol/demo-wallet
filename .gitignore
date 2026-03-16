@@ -1,3 +1,4 @@
 .local-aztec-path
 node_modules
 .vercel
+.yarn/install-state.gz

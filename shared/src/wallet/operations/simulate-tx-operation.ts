@@ -206,6 +206,7 @@ export class SimulateTxOperation extends ExternalOperation<
             feeOptions.gasSettings,
             blockHeader,
             opts.skipFeeEnforcement ?? true,
+            (address) => this.decodingCache.getAddressAlias(address),
           )
         : Promise.resolve([]),
 

@@ -230,7 +230,7 @@ function StorageAccessGate({
   );
 }
 
-function NoCookieGate() {
+function NoCookieGate({ onRetry }: { onRetry: () => void }) {
   return (
     <Box
       sx={{
@@ -252,6 +252,9 @@ function NoCookieGate() {
       <Link href={window.location.origin} target="_blank" rel="noopener">
         Open wallet
       </Link>
+      <Button variant="outlined" onClick={onRetry} sx={{ mt: 1 }}>
+        I've created an account
+      </Button>
     </Box>
   );
 }
@@ -399,6 +402,16 @@ function IframeContent() {
     await handleRequestStorageAccess();
   }, [handleRequestStorageAccess]);
 
+  // ─── Recheck cookie (after user creates account in new tab) ───
+
+  const handleNoCookieRetry = useCallback(() => {
+    const hasCookie = hasAccountsCookie();
+    console.log("[IframeShell] Rechecking cookie after account creation:", hasCookie);
+    if (hasCookie) {
+      setGate("needs-pin");
+    }
+  }, []);
+
   // ─── Connection handler (starts immediately, no storage needed) ───
 
   useEffect(() => {
@@ -480,7 +493,7 @@ function IframeContent() {
     return (
       <>
         <CssBaseline />
-        <NoCookieGate />
+        <NoCookieGate onRetry={handleNoCookieRetry} />
       </>
     );
   }

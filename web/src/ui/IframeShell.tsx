@@ -182,9 +182,11 @@ function WalletUI({
 
 function StorageAccessGate({
   state,
+  onGrant,
   onRetry,
 }: {
-  state: "needs-visit";
+  state: "needs-storage" | "needs-visit";
+  onGrant: () => void;
   onRetry: () => void;
 }) {
   return (
@@ -201,16 +203,29 @@ function StorageAccessGate({
       }}
     >
       <Typography variant="h6">Aztec Web Demo Wallet</Typography>
-      <Typography variant="body2" color="text.secondary">
-        Your browser requires you to visit the wallet site directly before it
-        can be used in an iframe.
-      </Typography>
-      <Link href={window.location.origin} target="_blank" rel="noopener">
-        Open wallet in a new tab
-      </Link>
-      <Button variant="outlined" onClick={onRetry} sx={{ mt: 1 }}>
-        Retry
-      </Button>
+      {state === "needs-storage" ? (
+        <>
+          <Typography variant="body2" color="text.secondary">
+            This wallet needs access to its stored data to work inside this app.
+          </Typography>
+          <Button variant="contained" onClick={onGrant}>
+            Grant Access
+          </Button>
+        </>
+      ) : (
+        <>
+          <Typography variant="body2" color="text.secondary">
+            Your browser requires you to visit the wallet site directly before
+            it can be used in an iframe.
+          </Typography>
+          <Link href={window.location.origin} target="_blank" rel="noopener">
+            Open wallet in a new tab
+          </Link>
+          <Button variant="outlined" onClick={onRetry} sx={{ mt: 1 }}>
+            Retry
+          </Button>
+        </>
+      )}
     </Box>
   );
 }
@@ -246,9 +261,13 @@ function NoCookieGate() {
 function IframeContent() {
   const { currentNetwork } = useNetwork();
 
-  // Single gate state: checking → needs-pin → needs-visit → no-cookie → ready
+  // Gate states:
+  //   checking → needs-storage → needs-pin → ready
+  //                            → needs-visit (if requestStorageAccess rejected)
+  //                            → no-cookie (if no accounts cookie found)
   type GateState =
     | "checking"
+    | "needs-storage"
     | "needs-pin"
     | "needs-visit"
     | "no-cookie"
@@ -300,12 +319,12 @@ function IframeContent() {
     (async () => {
       const granted = await hasStorageAccessAlready();
       console.log("[IframeShell] hasStorageAccess:", granted);
+      console.log("[IframeShell] document.cookie (initial):", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
       if (granted) {
         // Already have storage access — check cookie state
         const hasCookie = hasAccountsCookie();
         const hasPassphrase = hasCookiePassphrase();
         console.log("[IframeShell] hasCookie:", hasCookie, "hasPassphrase:", hasPassphrase);
-        console.log("[IframeShell] document.cookie:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
         if (hasPassphrase) {
           setGate("ready");
           pinGateRef.current.resolve();
@@ -315,45 +334,49 @@ function IframeContent() {
           setGate("no-cookie");
         }
       } else {
-        // No storage access yet — show PIN dialog immediately.
-        // Storage access will be requested on the user's button click (user gesture).
-        console.log("[IframeShell] No storage access yet, showing PIN dialog");
-        setGate("needs-pin");
+        // No storage access yet — need a user gesture to request it.
+        // Show a "Grant access" button instead of the PIN dialog,
+        // because we can't verify the PIN without cookie access.
+        console.log("[IframeShell] No storage access yet, showing storage gate");
+        setGate("needs-storage");
       }
     })();
   }, []);
 
-  // ─── Combined PIN submit + storage access request ───
-  // The user's click on "Unlock" is a user gesture, which satisfies
-  // the browser's requirement for requestStorageAccess().
+  // ─── Request storage access (user gesture required) ───
+
+  const handleRequestStorageAccess = useCallback(async () => {
+    try {
+      console.log("[IframeShell] Calling requestStorageAccess()...");
+      await document.requestStorageAccess();
+      console.log("[IframeShell] requestStorageAccess() resolved successfully");
+
+      const hasAccessAfter = await document.hasStorageAccess();
+      console.log("[IframeShell] hasStorageAccess after grant:", hasAccessAfter);
+      console.log("[IframeShell] document.cookie after grant:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
+
+      // Storage access granted — now check cookie state
+      const hasCookie = hasAccountsCookie();
+      console.log("[IframeShell] hasCookie after grant:", hasCookie);
+      if (hasCookie) {
+        setGate("needs-pin");
+      } else {
+        setGate("no-cookie");
+      }
+    } catch (err) {
+      console.error("[IframeShell] requestStorageAccess() rejected:", err);
+      console.log("[IframeShell] Safari ITP requires: (1) user visited wallet origin as first-party, (2) wallet set a cookie during that visit, (3) visit had user interaction, (4) visit was within last 30 days");
+      setGate("needs-visit");
+    }
+  }, []);
+
+  // ─── PIN submit (only shown after storage access is granted) ───
 
   const handlePinSubmit = useCallback(async (pin: string) => {
     setPinError(null);
 
-    // Request storage access if we don't have it yet (user gesture required).
-    // Skip if already granted — Firefox rejects redundant requestStorageAccess() calls.
-    const alreadyGranted = await hasStorageAccessAlready();
-    console.log("[IframeShell] handlePinSubmit: alreadyGranted:", alreadyGranted);
-    if (!alreadyGranted && document.requestStorageAccess) {
-      try {
-        console.log("[IframeShell] Calling requestStorageAccess()...");
-        await document.requestStorageAccess();
-        console.log("[IframeShell] requestStorageAccess() resolved successfully");
-        // Safari may need a moment to propagate the grant
-        const hasAccessAfter = await document.hasStorageAccess();
-        console.log("[IframeShell] hasStorageAccess after grant:", hasAccessAfter);
-        console.log("[IframeShell] document.cookie after grant:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
-      } catch (err) {
-        // Browser requires a first-party visit before granting storage access
-        console.error("[IframeShell] requestStorageAccess() rejected:", err);
-        setGate("needs-visit");
-        return;
-      }
-    }
-
-    // Now we have cookie access — verify the PIN
     const hasCookie = hasAccountsCookie();
-    console.log("[IframeShell] After storage access: hasCookie:", hasCookie, "document.cookie:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
+    console.log("[IframeShell] handlePinSubmit: hasCookie:", hasCookie, "document.cookie:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
     if (!hasCookie) {
       setGate("no-cookie");
       return;
@@ -369,10 +392,12 @@ function IframeContent() {
     }
   }, []);
 
+  // ─── Retry: re-attempt requestStorageAccess (user gesture) ───
+
   const handleRetryClick = useCallback(async () => {
-    const has = await document.hasStorageAccess();
-    setGate(has ? "needs-pin" : "needs-visit");
-  }, []);
+    console.log("[IframeShell] Retry clicked, re-attempting requestStorageAccess...");
+    await handleRequestStorageAccess();
+  }, [handleRequestStorageAccess]);
 
   // ─── Connection handler (starts immediately, no storage needed) ───
 
@@ -438,11 +463,15 @@ function IframeContent() {
     return <CssBaseline />;
   }
 
-  if (gate === "needs-visit") {
+  if (gate === "needs-storage" || gate === "needs-visit") {
     return (
       <>
         <CssBaseline />
-        <StorageAccessGate state="needs-visit" onRetry={handleRetryClick} />
+        <StorageAccessGate
+          state={gate}
+          onGrant={handleRequestStorageAccess}
+          onRetry={handleRetryClick}
+        />
       </>
     );
   }

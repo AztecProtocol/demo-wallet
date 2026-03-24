@@ -9,7 +9,7 @@
  *   4. WalletUI — PXE init, account bootstrap, wallet rendering
  *
  * The IframeConnectionHandler starts immediately (no storage needed for
- * discovery / key exchange). getExternalWallet awaits the PIN gate before
+ * discovery / key exchange). getWallet awaits the PIN gate before
  * bootstrapping accounts from the cookie.
  */
 
@@ -48,7 +48,7 @@ import { WalletApi, emitWalletUpdate } from "./utils/wallet-api.ts";
 import {
   IframeConnectionHandler,
   type IframeConnectionConfig,
-} from "../wallet/iframe-connection-handler.ts";
+} from "@aztec/wallet-sdk/iframe/handlers";
 import {
   getOrCreateSession,
   setCookiePassphrase,
@@ -303,7 +303,7 @@ function IframeContent() {
   }, [enqueueAuthRequest]);
 
   // ─── PIN gate promise ───
-  // getExternalWallet awaits this before bootstrapping accounts from cookie.
+  // getWallet awaits this before bootstrapping accounts from cookie.
   // Resolved when the PIN is verified or passphrase is already set.
   const pinGateRef = useRef<{ resolve: () => void; promise: Promise<void> }>(
     null!,
@@ -412,7 +412,7 @@ function IframeContent() {
       await readAccountsCookie(pin); // verify decryption works
       setCookiePassphrase(pin);
       setGate("ready");
-      pinGateRef.current.resolve(); // unblock getExternalWallet
+      pinGateRef.current.resolve(); // unblock getWallet
     } catch {
       setPinError("Wrong PIN. Please try again.");
     }
@@ -457,7 +457,7 @@ function IframeContent() {
       onVerificationHash: (hash) => {
         setVerificationHash(hash);
       },
-      getExternalWallet: async (appId, chainInfo) => {
+      getWallet: async (appId, chainInfo) => {
         clearVerificationHashRef.current();
         const rawChainId = (chainInfo as any).chainId;
         const rawVersion = (chainInfo as any).version;

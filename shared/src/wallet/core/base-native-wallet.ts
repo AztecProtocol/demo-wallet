@@ -1,7 +1,8 @@
 import {
   type Account,
-  SignerlessAccount,
   type ChainInfo,
+  type NoFrom,
+  NO_FROM,
 } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { AccountManager, type Aliased } from "@aztec/aztec.js/wallet";
@@ -31,7 +32,6 @@ import {
   createStubAccount,
   StubAccountContractArtifact,
 } from "@aztec/accounts/stub";
-import { getCanonicalMultiCallEntrypoint } from "@aztec/protocol-contracts/multi-call-entrypoint";
 import type { FieldsOf } from "@aztec/foundation/types";
 import { BaseWallet, type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 
@@ -169,20 +169,15 @@ export abstract class BaseNativeWallet
   protected async getAccountFromAddressInternal(
     address: AztecAddress,
   ): Promise<Account> {
-    let account: Account | undefined;
-    if (address.equals(AztecAddress.ZERO)) {
-      account = new SignerlessAccount();
-    } else {
-      const { secretKey, salt, signingKey, type } =
-        await this.db.retrieveAccount(address);
-      const accountManager = await this.getAccountManager(
-        type,
-        secretKey,
-        salt,
-        signingKey,
-      );
-      account = await accountManager.getAccount();
-    }
+    const { secretKey, salt, signingKey, type } =
+      await this.db.retrieveAccount(address);
+    const accountManager = await this.getAccountManager(
+      type,
+      secretKey,
+      salt,
+      signingKey,
+    );
+    const account = await accountManager.getAccount();
 
     if (!account) {
       throw new Error(`Account not found in wallet for address: ${address}`);
@@ -202,42 +197,32 @@ export abstract class BaseNativeWallet
    * @returns Stub account, instance, and artifact for simulation
    */
   protected async getFakeAccountDataFor(address: AztecAddress) {
-    if (!address.equals(AztecAddress.ZERO)) {
-      const originalAccount = await this.getAccountFromAddress(address);
-      const originalAddress = originalAccount.getCompleteAddress();
-      const contractInstance = await this.pxe.getContractInstance(
-        originalAddress.address,
+    const originalAccount = await this.getAccountFromAddress(address);
+    const originalAddress = originalAccount.getCompleteAddress();
+    const contractInstance = await this.pxe.getContractInstance(
+      originalAddress.address,
+    );
+    if (!contractInstance) {
+      throw new Error(
+        `No contract instance found for address: ${originalAddress.address}`,
       );
-      if (!contractInstance) {
-        throw new Error(
-          `No contract instance found for address: ${originalAddress.address}`,
-        );
-      }
-      const account = createStubAccount(originalAddress);
-      const instance = await getContractInstanceFromInstantiationParams(
-        StubAccountContractArtifact,
-        {
-          salt: Fr.random(),
-        },
-      );
-      return {
-        account,
-        instance,
-        artifact: StubAccountContractArtifact,
-      };
-    } else {
-      const contract = await getCanonicalMultiCallEntrypoint();
-      const account = new SignerlessAccount();
-      return {
-        instance: contract.instance,
-        account,
-        artifact: contract.artifact,
-      };
     }
+    const account = createStubAccount(originalAddress);
+    const instance = await getContractInstanceFromInstantiationParams(
+      StubAccountContractArtifact,
+      {
+        salt: Fr.random(),
+      },
+    );
+    return {
+      account,
+      instance,
+      artifact: StubAccountContractArtifact,
+    };
   }
 
   override async completeFeeOptions(
-    from: AztecAddress,
+    from: AztecAddress | NoFrom,
     feePayer?: AztecAddress,
     gasSettings?: Partial<FieldsOf<GasSettings>>,
   ): Promise<FeeOptions> {
@@ -246,16 +231,18 @@ export abstract class BaseNativeWallet
       (await this.aztecNode.getCurrentMinFees()).mul(1 + this.minFeePadding);
     let walletFeePaymentMethod;
     let accountFeePaymentMethodOptions;
-    // The transaction does not include a fee payment method, so we set a default
-    if (!feePayer) {
-      walletFeePaymentMethod = await prepareForFeePayment(this);
-      accountFeePaymentMethodOptions = AccountFeePaymentMethodOptions.EXTERNAL;
-    } else {
-      // The transaction includes fee payment method, so we check if we are the fee payer for it
-      // (this can only happen if the embedded payment method is FeeJuiceWithClaim)
-      accountFeePaymentMethodOptions = from.equals(feePayer)
-        ? AccountFeePaymentMethodOptions.FEE_JUICE_WITH_CLAIM
-        : AccountFeePaymentMethodOptions.EXTERNAL;
+    if (from !== NO_FROM) {
+      // The transaction does not include a fee payment method, so we set a default
+      if (!feePayer) {
+        walletFeePaymentMethod = await prepareForFeePayment(this);
+        accountFeePaymentMethodOptions = AccountFeePaymentMethodOptions.EXTERNAL;
+      } else {
+        // The transaction includes fee payment method, so we check if we are the fee payer for it
+        // (this can only happen if the embedded payment method is FeeJuiceWithClaim)
+        accountFeePaymentMethodOptions = from.equals(feePayer)
+          ? AccountFeePaymentMethodOptions.FEE_JUICE_WITH_CLAIM
+          : AccountFeePaymentMethodOptions.EXTERNAL;
+      }
     }
     const fullGasSettings: GasSettings = GasSettings.default({
       ...gasSettings,

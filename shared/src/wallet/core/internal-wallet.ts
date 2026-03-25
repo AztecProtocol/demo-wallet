@@ -1,4 +1,4 @@
-import { type Account } from "@aztec/aztec.js/account";
+import { NO_FROM, type Account } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import {
   type Aliased,
@@ -129,7 +129,7 @@ export class InternalWallet extends BaseNativeWallet {
         await import("../utils/sponsored-fpc.ts");
       const paymentMethod = await prepareForFeePayment(this);
       const opts: DeployAccountOptions = {
-        from: AztecAddress.ZERO,
+        from: NO_FROM,
         fee: {
           paymentMethod,
         },
@@ -191,11 +191,15 @@ export class InternalWallet extends BaseNativeWallet {
     );
     const provenTx = await this.pxe.proveTx(
       txRequest,
-      this.scopesFor(opts.from),
+      this.scopesFrom(opts.from),
     );
     const provingTime = Date.now() - provingStartTime;
 
-    const offchainOutput = extractOffchainOutput(provenTx.getOffchainEffects());
+    const offchainOutput = extractOffchainOutput(
+      provenTx.getOffchainEffects(),
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables
+        .timestamp,
+    );
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
     if (await this.aztecNode.getTxEffect(txHash)) {
@@ -235,7 +239,9 @@ export class InternalWallet extends BaseNativeWallet {
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
-    await this.interactionManager.storeAndEmit(interaction.update({ status: "MINING" }));
+    await this.interactionManager.storeAndEmit(
+      interaction.update({ status: "MINING" }),
+    );
     const miningStartTime = Date.now();
     const waitOpts = typeof opts.wait === "object" ? opts.wait : undefined;
     const receipt = await waitForTx(this.aztecNode, txHash, waitOpts);
@@ -249,7 +255,11 @@ export class InternalWallet extends BaseNativeWallet {
       const rawStats = provenTx.stats;
       await this.db.updateTxPayloadStats(interaction.id, {
         ...rawStats,
-        timings: { ...rawStats.timings, sending: sendingTime, mining: miningTime },
+        timings: {
+          ...rawStats.timings,
+          sending: sendingTime,
+          mining: miningTime,
+        },
       });
     }
 
@@ -407,8 +417,6 @@ export class InternalWallet extends BaseNativeWallet {
       complete: true,
       title: "Capability change",
     });
-    this.interactionManager.dispatchEvent(
-      new WalletUpdateEvent(interaction),
-    );
+    this.interactionManager.dispatchEvent(new WalletUpdateEvent(interaction));
   }
 }

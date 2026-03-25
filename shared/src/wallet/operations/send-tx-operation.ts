@@ -27,16 +27,18 @@ import {
   generateSimulationTitle,
 } from "../utils/simulation-utils";
 import type { SendOptions } from "@aztec/aztec.js/wallet";
+import { type NoFrom, NO_FROM } from "@aztec/aztec.js/account";
 import {
   NO_WAIT,
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
+  getGasLimits,
 } from "@aztec/aztec.js/contracts";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import type { CallIntent } from "@aztec/aztec.js/authorization";
-import type { GasSettings } from "@aztec/stdlib/gas";
+import { GasSettings } from "@aztec/stdlib/gas";
 import type { FieldsOf } from "@aztec/foundation/types";
 import { serializePrivateExecutionSteps } from "@aztec/stdlib/kernel";
 import type { FeeOptions } from "@aztec/wallet-sdk/base-wallet";
@@ -67,7 +69,7 @@ interface SendTxExecutionData<W extends InteractionWaitOptions = undefined> {
 type SendTxDisplayData = {
   payloadHash: string;
   title: string;
-  from: AztecAddress;
+  from: AztecAddress | NoFrom;
   callAuthorizations: ReadableCallAuthorization[];
   executionTrace?: DecodedExecutionTrace;
   stats?: any;
@@ -110,16 +112,16 @@ export class SendTxOperation<
     ) => Promise<AuthWitness>,
     private createTxExecutionRequestFromPayloadAndFee: (
       exec: ExecutionPayload,
-      from: AztecAddress,
+      from: AztecAddress | NoFrom,
       fee: FeeOptions,
     ) => Promise<TxExecutionRequest>,
     private completeFeeOptions: (
-      from: AztecAddress,
+      from: AztecAddress | NoFrom,
       feePayer: AztecAddress | undefined,
       gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
     private contextualizeError: (err: unknown, context: string) => Error,
-    private scopesFor: (from: AztecAddress) => AztecAddress[],
+    private scopesFrom: (from: AztecAddress | NoFrom) => AztecAddress[],
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -167,13 +169,10 @@ export class SendTxOperation<
     PrepareResult<SendTxResult<W>, SendTxDisplayData, SendTxExecutionData<W>>
   > {
     const payloadHash = hashExecutionPayload(executionPayload);
-    const fee = await this.completeFeeOptions(
-      opts.from,
-      executionPayload.feePayer,
-      opts.fee?.gasSettings,
-    );
 
-    // Use simulateTx operation's prepare method (will throw if simulation fails)
+    // Use simulateTx operation's prepare method (will throw if simulation fails).
+    // The simulation uses high gas limits internally (completeFeeOptionsForEstimation)
+    // to avoid running out of gas during estimation.
     // Note: Strip the 'wait' property since SimulateOptions doesn't have it
     const { wait: _wait, ...simulateOpts } = opts;
     const prepared = await this.simulateTxOp.prepare(
@@ -186,21 +185,39 @@ export class SendTxOperation<
       prepared.executionData!.decoded;
 
     // Create auth witnesses for call authorizations
-    const authWitnesses = await Promise.all(
-      callAuthorizations.map((auth) =>
-        this.createAuthWit(opts.from, {
-          caller: auth.rawData.caller,
-          call: auth.rawData.functionCall,
-        }),
-      ),
-    );
-    executionPayload.authWitnesses.push(...authWitnesses);
+    if (callAuthorizations.length > 0) {
+      const authWitnesses = await Promise.all(
+        callAuthorizations.map((auth) =>
+          this.createAuthWit(auth.rawData.onBehalfOf, {
+            caller: auth.rawData.caller,
+            call: auth.rawData.functionCall,
+          }),
+        ),
+      );
+      executionPayload.authWitnesses.push(...authWitnesses);
+    }
 
-    // Create transaction request
+    // Use the simulation result to estimate gas, then build the final fee options
+    // with estimated gas limits (user-provided overrides take priority).
+    const feeOptions = await this.completeFeeOptions(
+      opts.from,
+      executionPayload.feePayer,
+      opts.fee?.gasSettings,
+    );
+    const estimated = getGasLimits(prepared.executionData!.simulationResult);
+    const gasSettings = GasSettings.from({
+      ...opts.fee?.gasSettings,
+      maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
+      maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
+      gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
+      teardownGasLimits: opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
+    });
+
+    // Create transaction request with estimated gas settings
     const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
       executionPayload,
       opts.from,
-      fee,
+      { ...feeOptions, gasSettings },
     );
 
     const title = await generateSimulationTitle(
@@ -268,11 +285,15 @@ export class SendTxOperation<
     // Report proving stage
     await this.emitProgress("PROVING");
 
+    const from = executionData.from === NO_FROM
+      ? NO_FROM
+      : AztecAddress.fromString(executionData.from!);
+
     let provenTx: TxProvingResult;
     try {
       provenTx = await this.pxe.proveTx(
         executionData.txRequest,
-        this.scopesFor(AztecAddress.fromString(executionData.from!)),
+        this.scopesFrom(from),
       );
     } catch (provingError: unknown) {
       // Proving failed - offer to export debug data
@@ -290,9 +311,7 @@ export class SendTxOperation<
           {
             profileMode: "execution-steps",
             skipProofGeneration: true,
-            scopes: this.scopesFor(
-              AztecAddress.fromString(executionData.from!),
-            ),
+            scopes: this.scopesFrom(from),
           },
         );
 
@@ -327,7 +346,10 @@ export class SendTxOperation<
 
     // Extract proving stats and offchain output from the result
     const rawStats = provenTx.stats;
-    const offchainOutput = extractOffchainOutput(provenTx.getOffchainEffects());
+    const offchainOutput = extractOffchainOutput(
+      provenTx.getOffchainEffects(),
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables.timestamp,
+    );
 
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();

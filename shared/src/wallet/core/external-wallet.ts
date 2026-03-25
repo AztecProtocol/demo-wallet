@@ -134,7 +134,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.completeFeeOptions.bind(this),
       this.getFakeAccountDataFor.bind(this),
       this.getChainInfo.bind(this),
-      this.scopesFor.bind(this),
+      this.scopesFrom.bind(this),
       this.cancellableTransactions,
       this.log,
     );
@@ -159,7 +159,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.createTxExecutionRequestFromPayloadAndFee.bind(this),
       this.completeFeeOptions.bind(this),
       this.contextualizeError.bind(this),
-      this.scopesFor.bind(this),
+      this.scopesFrom.bind(this),
     );
   }
 
@@ -287,30 +287,28 @@ export class ExternalWallet extends BaseNativeWallet {
   protected async getAccountFromAddress(
     address: AztecAddress,
   ): Promise<Account> {
-    if (!address.equals(AztecAddress.ZERO)) {
-      // Check if there's a persistent getAccounts authorization
-      const authData = await this.db.retrievePersistentAuthorization(
-        this.appId,
-        "getAccounts",
+    // Check if there's a persistent getAccounts authorization
+    const authData = await this.db.retrievePersistentAuthorization(
+      this.appId,
+      "getAccounts",
+    );
+
+    if (!authData || !authData.accounts) {
+      throw new Error(
+        `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`,
       );
+    }
 
-      if (!authData || !authData.accounts) {
-        throw new Error(
-          `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`,
-        );
-      }
+    // Check if the specific account is in the authorized list
+    const authorizedAddresses = authData.accounts.map((acc: any) =>
+      acc.item.toString(),
+    );
+    const requestedAddress = address.toString();
 
-      // Check if the specific account is in the authorized list
-      const authorizedAddresses = authData.accounts.map((acc: any) =>
-        acc.item.toString(),
+    if (!authorizedAddresses.includes(requestedAddress)) {
+      throw new Error(
+        `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`,
       );
-      const requestedAddress = address.toString();
-
-      if (!authorizedAddresses.includes(requestedAddress)) {
-        throw new Error(
-          `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`,
-        );
-      }
     }
 
     // Authorization passed, delegate to base implementation

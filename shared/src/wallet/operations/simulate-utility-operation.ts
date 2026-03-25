@@ -130,7 +130,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
     const payloadHash = hashUtilityCall(call);
 
     // Simulate the utility function
-    const simulationResult = await this.pxe.executeUtility(call, { authwits: opts.authWitnesses, scopes: [opts.scope] });
+    const simulationResult = await this.pxe.executeUtility(call, { authwits: opts.authWitnesses, scopes: opts.scopes });
 
     // Get contract name for better display
     const contractName = await this.decodingCache.getAddressAlias(call.to);

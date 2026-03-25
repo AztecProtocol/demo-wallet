@@ -27,10 +27,23 @@ const ROOT = resolve(__dirname, "..");
 const SAVED_PATH_FILE = resolve(ROOT, ".local-aztec-path");
 
 // Package.json files to modify (relative to repo root)
-const PACKAGE_FILES = ["app/package.json", "shared/package.json", "extension/package.json"];
+// Root package.json is required for Yarn 4 workspaces (resolutions in workspace packages are ignored).
+// Workspace package.json files are also modified so `extension/` (standalone, outside workspaces) works.
+const PACKAGE_FILES = ["package.json", "app/package.json", "web/package.json", "shared/package.json", "extension/package.json"];
 
 // Directories containing package.json files (for yarn install)
-const PACKAGE_DIRS = ["app", "shared", "extension"];
+const PACKAGE_DIRS = ["app", "web", "shared", "extension"];
+
+// Vite config files to update with fs.allow paths
+const VITE_CONFIGS = ["web/vite.config.ts"];
+
+// Paths within aztec-packages that need to be allowed in vite's fs.allow
+const VITE_FS_ALLOW_PATHS = [
+  "yarn-project",
+  "noir/packages/noirc_abi/web",
+  "noir/packages/acvm_js/web",
+  "barretenberg/ts/dest/browser",
+];
 
 // Mapping of @aztec/* packages to their paths within aztec-packages
 const PACKAGE_MAPPINGS = {
@@ -107,6 +120,85 @@ function generateResolutions(aztecPath) {
     resolutions[pkg] = `link:${aztecPath}/${subPath}`;
   }
   return resolutions;
+}
+
+function updateViteConfigs(aztecPath) {
+  for (const viteConfig of VITE_CONFIGS) {
+    const viteConfigPath = resolve(ROOT, viteConfig);
+    if (!existsSync(viteConfigPath)) {
+      console.log(`Skipping ${viteConfig} (not found)`);
+      continue;
+    }
+
+    let content = readFileSync(viteConfigPath, "utf-8");
+
+    const fsAllowPaths = VITE_FS_ALLOW_PATHS.map(
+      (p) => `          '${aztecPath}/${p}',`
+    ).join("\n");
+
+    const newFsAllowBlock = `fs: {
+        allow: [
+          searchForWorkspaceRoot(import.meta.dirname),
+${fsAllowPaths}
+        ],
+      },`;
+
+    const fsBlockRegex = /fs:\s*\{[\s\S]*?allow:\s*\[[\s\S]*?\],[\s\S]*?\},/;
+
+    if (fsBlockRegex.test(content)) {
+      content = content.replace(fsBlockRegex, newFsAllowBlock);
+      writeFileSync(viteConfigPath, content);
+      console.log(`Updated ${viteConfig} with aztec-packages paths`);
+    } else {
+      console.log(`Warning: Could not find fs.allow block in ${viteConfig}`);
+    }
+  }
+}
+
+function removeViteFsAllow() {
+  for (const viteConfig of VITE_CONFIGS) {
+    const viteConfigPath = resolve(ROOT, viteConfig);
+    if (!existsSync(viteConfigPath)) {
+      console.log(`Skipping ${viteConfig} (not found)`);
+      continue;
+    }
+
+    let content = readFileSync(viteConfigPath, "utf-8");
+
+    const minimalFsAllowBlock = `fs: {
+        allow: [searchForWorkspaceRoot(import.meta.dirname)],
+      },`;
+
+    const fsBlockRegex = /fs:\s*\{[\s\S]*?allow:\s*\[[\s\S]*?\],[\s\S]*?\},/;
+
+    if (fsBlockRegex.test(content)) {
+      content = content.replace(fsBlockRegex, minimalFsAllowBlock);
+      writeFileSync(viteConfigPath, content);
+      console.log(`Removed aztec-packages paths from ${viteConfig}`);
+    } else {
+      console.log(`Warning: Could not find fs.allow block in ${viteConfig}`);
+    }
+  }
+}
+
+function getViteFsAllowStatus() {
+  for (const viteConfig of VITE_CONFIGS) {
+    const viteConfigPath = resolve(ROOT, viteConfig);
+    if (!existsSync(viteConfigPath)) {
+      continue;
+    }
+
+    const content = readFileSync(viteConfigPath, "utf-8");
+
+    const match = content.match(/allow:\s*\[[\s\S]*?'(\/[^']+\/(?:yarn-project|barretenberg|noir))/);
+    if (match) {
+      const fullPath = match[1];
+      const baseMatch = fullPath.match(/^(.+?)\/(?:yarn-project|barretenberg|noir)/);
+      return { config: viteConfig, path: baseMatch ? baseMatch[1] : "unknown" };
+    }
+  }
+
+  return null;
 }
 
 function setupGitHooks() {
@@ -286,6 +378,8 @@ function enable(aztecPath) {
     console.log(`Enabled local resolutions in ${file}`);
   }
 
+  updateViteConfigs(resolvedPath);
+
   // Setup git hooks to prevent accidental commits
   setupGitHooks();
 
@@ -316,6 +410,8 @@ function disable() {
     }
   }
 
+  removeViteFsAllow();
+
   console.log(`\nLocal aztec-packages resolutions disabled.`);
 
   // Clean up stale symlinks (yarn install is done separately)
@@ -339,6 +435,15 @@ function status() {
       console.log(`${file}: ENABLED (${path})`);
     } else {
       console.log(`${file}: disabled`);
+    }
+  }
+
+  const viteStatus = getViteFsAllowStatus();
+  if (viteStatus) {
+    console.log(`${viteStatus.config}: ENABLED (${viteStatus.path})`);
+  } else {
+    for (const vc of VITE_CONFIGS) {
+      console.log(`${vc}: disabled`);
     }
   }
 

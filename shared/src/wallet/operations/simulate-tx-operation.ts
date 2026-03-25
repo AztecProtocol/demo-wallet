@@ -3,15 +3,18 @@ import {
   type PrepareResult,
   type PersistenceConfig,
 } from "./base-operation";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   TxSimulationResult,
+  SimulationOverrides,
   type TxExecutionRequest,
   type ExecutionPayload,
   mergeExecutionPayloads,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import { Fr } from "@aztec/foundation/curves/bn254";
+import { type NoFrom, NO_FROM } from "@aztec/aztec.js/account";
+import { DefaultEntrypoint } from "@aztec/entrypoints/default";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -84,7 +87,7 @@ interface SimulateTxExecutionData {
 type SimulateTxDisplayData = {
   payloadHash: string;
   title: string;
-  from: AztecAddress;
+  from: AztecAddress | NoFrom;
   decoded: ReadableTxInformation;
   stats?: StoredStats;
   embeddedPaymentMethodFeePayer?: string;
@@ -118,12 +121,12 @@ export class SimulateTxOperation extends ExternalOperation<
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
     private completeFeeOptionsForEstimation: (
-      from: AztecAddress,
+      from: AztecAddress | NoFrom,
       feePayer: AztecAddress | undefined,
       gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
     private completeFeeOptions: (
-      from: AztecAddress,
+      from: AztecAddress | NoFrom,
       feePayer: AztecAddress | undefined,
       gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
@@ -131,7 +134,7 @@ export class SimulateTxOperation extends ExternalOperation<
       address: AztecAddress,
     ) => Promise<FakeAccountData>,
     private getChainInfo: () => Promise<ChainInfo>,
-    private scopesFor: (from: AztecAddress) => AztecAddress[],
+    private scopesFrom: (from: AztecAddress | NoFrom) => AztecAddress[],
     private cancellableTransactions: boolean,
     private log: Logger,
   ) {
@@ -195,13 +198,14 @@ export class SimulateTxOperation extends ExternalOperation<
     const blockHeader = await this.pxe.getSyncedBlockHeader();
 
     // STEP 2: Run both paths in parallel
+    const simulationOrigin = opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;
     const simulationStart = Date.now();
     const [optimizedResults, normalResult] = await Promise.all([
       optimizableCalls.length > 0
         ? simulateViaNode(
             this.node,
             optimizableCalls,
-            opts.from,
+            simulationOrigin,
             chainInfo,
             feeOptions.gasSettings,
             blockHeader,
@@ -282,7 +286,7 @@ export class SimulateTxOperation extends ExternalOperation<
     gasSettings: GasSettings,
     chainInfo: ChainInfo,
     executionOptions: DefaultAccountEntrypointOptions,
-    from: AztecAddress,
+    from: AztecAddress | NoFrom,
   ): Promise<{ result: TxSimulationResult; txReq: TxExecutionRequest }> {
     const normalPayload = feeExecutionPayload
       ? mergeExecutionPayloads([
@@ -291,24 +295,31 @@ export class SimulateTxOperation extends ExternalOperation<
         ])
       : { ...originalPayload, calls };
 
-    const { account, instance, artifact } =
-      await this.getFakeAccountDataFor(from);
-
-    const txReq = await account.createTxExecutionRequest(
-      normalPayload,
-      gasSettings,
-      chainInfo,
-      executionOptions,
-    );
+    let overrides: SimulationOverrides | undefined;
+    let txReq: TxExecutionRequest;
+    if (from === NO_FROM) {
+      const entrypoint = new DefaultEntrypoint();
+      txReq = await entrypoint.createTxExecutionRequest(normalPayload, gasSettings, chainInfo);
+    } else {
+      const { account, instance, artifact } =
+        await this.getFakeAccountDataFor(from);
+      overrides = {
+        contracts: { [from.toString()]: { instance, artifact } },
+      };
+      txReq = await account.createTxExecutionRequest(
+        normalPayload,
+        gasSettings,
+        chainInfo,
+        executionOptions,
+      );
+    }
 
     const result = await this.pxe.simulateTx(txReq, {
-      scopes: this.scopesFor(from),
+      scopes: this.scopesFrom(from),
       simulatePublic: true,
       skipFeeEnforcement: true,
       skipTxValidation: true,
-      overrides: {
-        contracts: { [from.toString()]: { instance, artifact } },
-      },
+      overrides,
     });
 
     return { result, txReq };

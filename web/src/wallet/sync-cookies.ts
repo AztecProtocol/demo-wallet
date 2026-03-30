@@ -47,6 +47,8 @@ export interface PortableAccount {
   type: AccountType;
   /** Human-readable alias */
   alias?: string;
+  /** Whether the account has been deployed on-chain */
+  deployed?: boolean;
 }
 
 const COOKIE_NAME = "aztec-wallet-accounts";

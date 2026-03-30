@@ -250,7 +250,7 @@ export async function getOrCreateSession(
             type = JSON.parse(detail)?.type;
           } catch { /* ignore parse errors */ }
 
-          if (!IS_IFRAME && type === "createAccount") {
+          if (!IS_IFRAME && (type === "createAccount" || type === "deployAccount")) {
             scheduleAccountSync(sharedResources.db);
           } else if (!IS_IFRAME && type === "registerSender") {
             scheduleContactSync(sharedResources.db);
@@ -342,8 +342,8 @@ export async function bootstrapAccountsFromCookie(
     const salt = Fr.fromString(portable.salt);
     const signingKey = Buffer.from(portable.signingKey, "hex");
 
+    const address = AztecAddress.fromString(portable.address);
     if (!existingAddresses.has(portable.address)) {
-      const address = AztecAddress.fromString(portable.address);
       await db.storeAccount(address, {
         type: portable.type,
         secretKey,
@@ -355,6 +355,11 @@ export async function bootstrapAccountsFromCookie(
       log.info(
         `Imported account ${portable.alias ?? portable.address} from cookie`,
       );
+    }
+
+    // Sync deployed state from cookie
+    if (portable.deployed) {
+      await db.markAccountDeployed(address);
     }
 
     // Register with PXE via the wallet's getAccountManager (idempotent).
@@ -426,6 +431,7 @@ async function syncAccountsToCookie(db: WalletDB): Promise<void> {
         signingKey: Buffer.from(account.signingKey).toString("hex"),
         type: account.type,
         alias,
+        deployed: account.deployed,
       });
     }
 

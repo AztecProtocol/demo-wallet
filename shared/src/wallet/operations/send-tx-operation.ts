@@ -4,7 +4,7 @@ import {
   type PersistenceConfig,
 } from "./base-operation";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { TxHash } from "@aztec/stdlib/tx";
+import { TxHash, TxStatus } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import type {
   ExecutionPayload,
@@ -62,6 +62,7 @@ interface SendTxExecutionData<W extends InteractionWaitOptions = undefined> {
   // Store simulation result and metadata for persisting after execution
   simulationResult?: any;
   from?: string;
+  additionalScopes?: AztecAddress[];
   embeddedPaymentMethodFeePayer?: string;
 }
 
@@ -121,7 +122,10 @@ export class SendTxOperation<
       gasSettings?: Partial<FieldsOf<GasSettings>>,
     ) => Promise<FeeOptions>,
     private contextualizeError: (err: unknown, context: string) => Error,
-    private scopesFrom: (from: AztecAddress | NoFrom) => AztecAddress[],
+    private scopesFrom: (
+      from: AztecAddress | NoFrom,
+      additionalScopes?: AztecAddress[],
+    ) => AztecAddress[],
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -244,6 +248,7 @@ export class SendTxOperation<
         payloadHash,
         simulationTime: prepared.displayData?.stats?.timings?.total,
         from: opts.from.toString(),
+        additionalScopes: opts.additionalScopes,
       },
     };
   }
@@ -295,7 +300,7 @@ export class SendTxOperation<
     try {
       provenTx = await this.pxe.proveTx(
         executionData.txRequest,
-        this.scopesFrom(from),
+        this.scopesFrom(from, executionData.additionalScopes),
       );
     } catch (provingError: unknown) {
       // Proving failed - offer to export debug data
@@ -396,7 +401,10 @@ export class SendTxOperation<
     const miningStartTime = Date.now();
     const waitOpts =
       typeof executionData.wait === "object" ? executionData.wait : undefined;
-    const receipt = await waitForTx(this.aztecNode, txHash, waitOpts);
+    const receipt = await waitForTx(this.aztecNode, txHash, {
+      ...waitOpts,
+      waitForStatus: TxStatus.PROPOSED,
+    });
     const miningTime = Date.now() - miningStartTime;
 
     await this.emitProgress("SENT", `TxHash: ${txHash.toString()}`, true);

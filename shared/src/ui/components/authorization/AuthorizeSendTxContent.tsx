@@ -33,7 +33,7 @@ export function AuthorizeSendTxContent({
   const from = params.from;
   const embeddedPaymentMethodFeePayer = params.embeddedPaymentMethodFeePayer;
 
-  const isFromZero = from && AztecAddress.fromString(from).equals(AztecAddress.ZERO);
+  const isNoFrom = from === "NO_FROM" || (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
@@ -45,12 +45,12 @@ export function AuthorizeSendTxContent({
         </Typography>
       )}
 
-      {(isFromZero || hasEmbeddedFeePayer) && (
+      {(isNoFrom || hasEmbeddedFeePayer) && (
         compact ? (
           <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mb: 1 }}>
-            {isFromZero && (
+            {isNoFrom && (
               <Chip
-                label="MulticallEntrypoint"
+                label="External entrypoint"
                 size="small"
                 color="info"
                 variant="outlined"
@@ -69,9 +69,9 @@ export function AuthorizeSendTxContent({
           </Box>
         ) : (
           <>
-            {isFromZero && (
+            {isNoFrom && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                This request uses the MulticallEntrypoint and does not execute from any of your accounts.
+                This transaction uses an external entrypoint and does not execute from any of your accounts.
               </Alert>
             )}
             {hasEmbeddedFeePayer && (

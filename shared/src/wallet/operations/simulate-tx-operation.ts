@@ -140,7 +140,7 @@ export class SimulateTxOperation extends ExternalOperation<
       >
     >,
     private getChainInfo: () => Promise<ChainInfo>,
-    private scopesFrom: (from: AztecAddress | NoFrom) => AztecAddress[],
+    private scopesFrom: (from: AztecAddress | NoFrom, additionalScopes?: AztecAddress[]) => AztecAddress[],
     private cancellableTransactions: boolean,
     private log: Logger,
   ) {
@@ -229,6 +229,7 @@ export class SimulateTxOperation extends ExternalOperation<
             chainInfo,
             executionOptions,
             opts.from,
+            opts.additionalScopes,
           )
         : Promise.resolve(null),
     ]);
@@ -293,6 +294,7 @@ export class SimulateTxOperation extends ExternalOperation<
     chainInfo: ChainInfo,
     executionOptions: DefaultAccountEntrypointOptions,
     from: AztecAddress | NoFrom,
+    additionalScopes?: AztecAddress[],
   ): Promise<{ result: TxSimulationResult; txReq: TxExecutionRequest }> {
     const normalPayload = feeExecutionPayload
       ? mergeExecutionPayloads([
@@ -327,7 +329,7 @@ export class SimulateTxOperation extends ExternalOperation<
       : undefined;
 
     const result = await this.pxe.simulateTx(txReq, {
-      scopes: this.scopesFrom(from),
+      scopes: this.scopesFrom(from, additionalScopes),
       simulatePublic: true,
       skipFeeEnforcement: true,
       skipTxValidation: true,

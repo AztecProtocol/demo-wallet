@@ -431,16 +431,20 @@ export function AuthorizationDialog({
                               {/* From Account Info */}
                               {(() => {
                                 const fromAddress = item.params.from;
-                                const account = accountList.find((a) =>
+                                const isNoFrom = !fromAddress || fromAddress === "NO_FROM";
+                                const account = isNoFrom ? undefined : accountList.find((a) =>
                                   a.item.equals(
                                     AztecAddress.fromString(fromAddress)
                                   )
                                 );
-                                const internalAlias =
-                                  account?.alias || "Unknown Account";
-                                const formattedAddress = fromAddress
-                                  ? `${fromAddress.slice(0, 10)}...${fromAddress.slice(-8)}`
-                                  : "Unknown";
+                                const internalAlias = isNoFrom
+                                  ? "External entrypoint"
+                                  : account?.alias || "Unknown Account";
+                                const formattedAddress = isNoFrom
+                                  ? "App-provided entrypoint"
+                                  : fromAddress
+                                    ? `${fromAddress.slice(0, 10)}...${fromAddress.slice(-8)}`
+                                    : "Unknown";
                                 return (
                                   <Box
                                     sx={{
@@ -451,7 +455,7 @@ export function AuthorizationDialog({
                                   >
                                     <AccountCircle
                                       fontSize={isSmall ? "inherit" : "small"}
-                                      color="primary"
+                                      color={isNoFrom ? "info" : "primary"}
                                     />
                                     {!isSmall && (
                                       <Typography variant="body2" fontWeight="medium">

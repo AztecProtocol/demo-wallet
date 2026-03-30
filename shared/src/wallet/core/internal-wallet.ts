@@ -18,6 +18,7 @@ import {
   collectOffchainEffects,
   type ExecutionPayload,
   TxSimulationResult,
+  TxStatus,
 } from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
@@ -336,7 +337,10 @@ export class InternalWallet extends BaseNativeWallet {
     );
     const miningStartTime = Date.now();
     const waitOpts = typeof opts.wait === "object" ? opts.wait : undefined;
-    const receipt = await waitForTx(this.aztecNode, txHash, waitOpts);
+    const receipt = await waitForTx(this.aztecNode, txHash, {
+      ...waitOpts,
+      waitForStatus: TxStatus.PROPOSED,
+    });
     const miningTime = Date.now() - miningStartTime;
 
     const timingSummary = `Prove: ${formatDuration(provingTime)} | Send: ${formatDuration(sendingTime)} | Mine: ${formatDuration(miningTime)}`;

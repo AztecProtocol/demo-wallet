@@ -253,18 +253,27 @@ export class WalletDB {
   async listAccounts(opts?: {
     deployedOnly?: boolean;
   }): Promise<Aliased<AztecAddress>[]> {
-    const result = [];
+    // Collect all account aliases first to avoid interleaving reads across
+    // IndexedDB stores (which kills the cursor's transaction).
+    const allAccounts: Aliased<AztecAddress>[] = [];
     for await (const [alias, item] of this.aliases.entriesAsync()) {
       if (alias.startsWith("accounts:")) {
-        const address = AztecAddress.fromString(item.toString());
-        if (opts?.deployedOnly) {
-          const deployed = await this.isAccountDeployed(address);
-          if (!deployed) continue;
-        }
-        result.push({
+        allAccounts.push({
           alias: alias.replace("accounts:", ""),
-          item: address,
+          item: AztecAddress.fromString(item.toString()),
         });
+      }
+    }
+
+    if (!opts?.deployedOnly) {
+      return allAccounts;
+    }
+
+    // Filter to deployed accounts only (safe to read accounts store now)
+    const result = [];
+    for (const acc of allAccounts) {
+      if (await this.isAccountDeployed(acc.item)) {
+        result.push(acc);
       }
     }
     return result;

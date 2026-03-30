@@ -44,6 +44,8 @@ import {
   networkToChainInfo,
   type AuthorizationRequest,
 } from "@demo-wallet/shared/core";
+import type { ChainInfo } from "@aztec/aztec.js/account";
+import type { Wallet } from "@aztec/aztec.js/wallet";
 import { WalletApi, emitWalletUpdate } from "./utils/wallet-api.ts";
 import {
   IframeConnectionHandler,
@@ -457,41 +459,66 @@ function IframeContent() {
       onVerificationHash: (hash) => {
         setVerificationHash(hash);
       },
-      getWallet: async (appId, chainInfo) => {
-        clearVerificationHashRef.current();
-        const rawChainId = (chainInfo as any).chainId;
-        const rawVersion = (chainInfo as any).version;
-        const chainId =
-          rawChainId instanceof Fr
-            ? rawChainId
-            : Fr.fromString(String(rawChainId));
-        const version =
-          rawVersion instanceof Fr
-            ? rawVersion
-            : Fr.fromString(String(rawVersion));
+      getWallet: (() => {
+        const walletCache = new Map<string, Promise<Wallet>>();
+        // Serialize all wallet method calls to avoid concurrent IndexedDB
+        // transactions (PXE + wallet-db) interfering with each other.
+        let queue: Promise<unknown> = Promise.resolve();
+        return async (appId: string, chainInfo: ChainInfo) => {
+          clearVerificationHashRef.current();
+          const rawChainId = (chainInfo as any).chainId;
+          const rawVersion = (chainInfo as any).version;
+          const chainId =
+            rawChainId instanceof Fr
+              ? rawChainId
+              : Fr.fromString(String(rawChainId));
+          const version =
+            rawVersion instanceof Fr
+              ? rawVersion
+              : Fr.fromString(String(rawVersion));
 
-        // Wait for the user to enter the PIN before proceeding.
-        // Storage access is already granted during handlePinSubmit (user gesture).
-        // This blocks until handlePinSubmit resolves the gate.
-        await pinGateRef.current.promise;
+          const cacheKey = `${chainId.toString()}-${version.toString()}-${appId}`;
+          if (!walletCache.has(cacheKey)) {
+            const walletPromise = (async () => {
+              // Wait for the user to enter the PIN before proceeding.
+              await pinGateRef.current.promise;
 
-        const normalizedChainInfo = { chainId, version };
-        const { external } = await getOrCreateSession(
-          normalizedChainInfo,
-          appId,
-          (eventType, detail) => {
-            if (eventType === "wallet-update") {
-              emitWalletUpdate(detail);
-            } else if (eventType === "authorization-request") {
-              const request: AuthorizationRequest =
-                typeof detail === "string" ? JSON.parse(detail) : detail;
-              enqueueAuthRef.current(request);
-            }
-          },
-        );
+              const normalizedChainInfo = { chainId, version };
+              const { external } = await getOrCreateSession(
+                normalizedChainInfo,
+                appId,
+                (eventType, detail) => {
+                  if (eventType === "wallet-update") {
+                    emitWalletUpdate(detail);
+                  } else if (eventType === "authorization-request") {
+                    const request: AuthorizationRequest =
+                      typeof detail === "string" ? JSON.parse(detail) : detail;
+                    enqueueAuthRef.current(request);
+                  }
+                },
+              );
 
-        return external;
-      },
+              // Wrap wallet in a serializing proxy so concurrent postMessage
+              // calls don't trigger parallel PXE/IndexedDB operations.
+              return new Proxy(external as Wallet, {
+                get(target, prop, receiver) {
+                  const value = Reflect.get(target, prop, receiver);
+                  if (typeof value !== "function") return value;
+                  return (...args: unknown[]) => {
+                    const result = (queue = queue
+                      .catch(() => {})
+                      .then(() => value.apply(target, args)));
+                    return result;
+                  };
+                },
+              });
+            })();
+
+            walletCache.set(cacheKey, walletPromise);
+          }
+          return walletCache.get(cacheKey)!;
+        };
+      })(),
     });
 
     handler.start();

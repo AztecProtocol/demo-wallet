@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "NODE_OPTIONS=--max_http_header_size=128000 vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "preview": "NODE_OPTIONS=--max_http_header_size=128000 vite preview",
     "lint": "eslint .",
     "local-aztec:enable": "node scripts/toggle-local-aztec.js enable && corepack yarn install",
     "local-aztec:disable": "node scripts/toggle-local-aztec.js disable && corepack yarn install"

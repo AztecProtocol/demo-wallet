@@ -42,6 +42,7 @@ import {
 } from "@demo-wallet/shared/ui";
 import {
   networkToChainInfo,
+  getNetworkByChainId,
   type AuthorizationRequest,
 } from "@demo-wallet/shared/core";
 import type { ChainInfo } from "@aztec/aztec.js/account";
@@ -264,7 +265,9 @@ function NoCookieGate({ onRetry }: { onRetry: () => void }) {
 // ─── Outer: centralized gating ───
 
 function IframeContent() {
-  const { currentNetwork } = useNetwork();
+  const { currentNetwork, switchNetwork } = useNetwork();
+  const switchNetworkRef = useRef(switchNetwork);
+  useEffect(() => { switchNetworkRef.current = switchNetwork; }, [switchNetwork]);
 
   // Gate states:
   //   checking → needs-storage → needs-pin → ready
@@ -412,6 +415,7 @@ function IframeContent() {
       },
       getWallet: (() => {
         const walletCache = new Map<string, Promise<Wallet>>();
+        let networkLocked = false;
         return async (appId: string, chainInfo: ChainInfo) => {
           clearVerificationHashRef.current();
           const rawChainId = (chainInfo as any).chainId;
@@ -424,6 +428,18 @@ function IframeContent() {
             rawVersion instanceof Fr
               ? rawVersion
               : Fr.fromString(String(rawVersion));
+
+          // Lock the iframe to the dApp's network on first wallet request
+          if (!networkLocked) {
+            networkLocked = true;
+            const dAppNetwork = getNetworkByChainId(
+              chainId.toNumber(),
+              version.toNumber(),
+            );
+            if (dAppNetwork) {
+              switchNetworkRef.current(dAppNetwork.id);
+            }
+          }
 
           const cacheKey = `${chainId.toString()}-${version.toString()}-${appId}`;
           if (!walletCache.has(cacheKey)) {

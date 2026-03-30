@@ -27,6 +27,12 @@
  */
 
 import type { AccountType } from "@demo-wallet/shared/core";
+import {
+  encryptWithPassphrase,
+  decryptWithPassphrase,
+  uint8ToBase64,
+  base64ToUint8,
+} from "@aztec/wallet-sdk/crypto";
 
 export interface PortableAccount {
   /** AztecAddress hex string */
@@ -45,95 +51,13 @@ export interface PortableAccount {
 
 const COOKIE_NAME = "aztec-wallet-accounts";
 const MAX_AGE = 31536000; // 1 year in seconds
-// High iteration count to compensate for short PINs.
-// ~1-2 seconds per derivation on modern hardware.
-const PBKDF2_ITERATIONS = 2_000_000;
-const SALT_BYTES = 16;
-const IV_BYTES = 12;
-
-// ─── Crypto helpers (Web Crypto API) ───
-
-async function deriveKey(
-  passphrase: string,
-  salt: Uint8Array,
-): Promise<CryptoKey> {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(passphrase),
-    "PBKDF2",
-    false,
-    ["deriveKey"],
-  );
-  return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
-
-async function encryptBytes(
-  plaintext: Uint8Array,
-  passphrase: string,
-): Promise<Uint8Array> {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const key = await deriveKey(passphrase, salt);
-  const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      plaintext,
-    ),
-  );
-  // Layout: [salt (16)] [iv (12)] [ciphertext (...)]
-  const result = new Uint8Array(SALT_BYTES + IV_BYTES + ciphertext.length);
-  result.set(salt, 0);
-  result.set(iv, SALT_BYTES);
-  result.set(ciphertext, SALT_BYTES + IV_BYTES);
-  return result;
-}
-
-async function decryptBytes(
-  data: Uint8Array,
-  passphrase: string,
-): Promise<Uint8Array> {
-  const salt = data.slice(0, SALT_BYTES);
-  const iv = data.slice(SALT_BYTES, SALT_BYTES + IV_BYTES);
-  const ciphertext = data.slice(SALT_BYTES + IV_BYTES);
-  const key = await deriveKey(passphrase, salt);
-  return new Uint8Array(
-    await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
-      key,
-      ciphertext,
-    ),
-  );
-}
 
 function encryptString(plaintext: string, passphrase: string): Promise<Uint8Array> {
-  return encryptBytes(new TextEncoder().encode(plaintext), passphrase);
+  return encryptWithPassphrase(new TextEncoder().encode(plaintext), passphrase);
 }
 
 function decryptString(data: Uint8Array, passphrase: string): Promise<string> {
-  return decryptBytes(data, passphrase).then((b) => new TextDecoder().decode(b));
-}
-
-// ─── Helpers for binary ↔ base64 (browser-safe) ───
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary);
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  return decryptWithPassphrase(data, passphrase).then((b) => new TextDecoder().decode(b));
 }
 
 // ─── Public API ───
@@ -289,7 +213,7 @@ export async function writeContactsCookies(
   const chunks = chunkBytes(packed, MAX_PLAINTEXT_PER_CHUNK);
 
   for (let i = 0; i < chunks.length; i++) {
-    const encrypted = await encryptBytes(chunks[i], passphrase);
+    const encrypted = await encryptWithPassphrase(chunks[i], passphrase);
     const encoded = uint8ToBase64(encrypted);
     document.cookie = [
       `${CONTACTS_COOKIE_PREFIX}${i}=${encoded}`,
@@ -324,7 +248,7 @@ export async function readContactsCookies(
     if (!match) break;
     const encoded = match.split("=").slice(1).join("=");
     const data = base64ToUint8(encoded);
-    chunks.push(await decryptBytes(data, passphrase));
+    chunks.push(await decryptWithPassphrase(data, passphrase));
   }
 
   if (chunks.length === 0) return [];
@@ -393,7 +317,7 @@ export async function writeCapabilitiesCookies(
   const chunks = chunkBytes(plaintext, MAX_PLAINTEXT_PER_CHUNK);
 
   for (let i = 0; i < chunks.length; i++) {
-    const encrypted = await encryptBytes(chunks[i], passphrase);
+    const encrypted = await encryptWithPassphrase(chunks[i], passphrase);
     const encoded = uint8ToBase64(encrypted);
     document.cookie = [
       `${CAPS_COOKIE_PREFIX}${i}=${encoded}`,
@@ -428,7 +352,7 @@ export async function readCapabilitiesCookies(
     if (!match) break;
     const encoded = match.split("=").slice(1).join("=");
     const data = base64ToUint8(encoded);
-    chunks.push(await decryptBytes(data, passphrase));
+    chunks.push(await decryptWithPassphrase(data, passphrase));
   }
 
   if (chunks.length === 0) return [];

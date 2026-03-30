@@ -26,6 +26,7 @@ export interface ReadableCallAuthorization {
   }>;
   rawData: {
     caller: AztecAddress;
+    onBehalfOf: AztecAddress;
     innerHash: any;
     functionCall: FunctionCall;
     parameters: Array<{
@@ -90,6 +91,7 @@ export class CallAuthorizationFormatter {
       }));
       return {
         caller: callAuthorizationRequest.msgSender,
+        onBehalfOf: callAuthorizationRequest.onBehalfOf,
         innerHash: callAuthorizationRequest.innerHash,
         parameters,
         functionCall: new FunctionCall(
@@ -110,6 +112,7 @@ export class CallAuthorizationFormatter {
 
   async formatCallAuthorizationForDisplay(auth: {
     caller: AztecAddress;
+    onBehalfOf: AztecAddress;
     innerHash: any;
     parameters: Array<{
       name: string;
@@ -175,6 +178,7 @@ export class CallAuthorizationFormatter {
     callAuthorizations: Array<
       | {
           caller: AztecAddress;
+          onBehalfOf: AztecAddress;
           innerHash: any;
           parameters: Array<{
             name: string;

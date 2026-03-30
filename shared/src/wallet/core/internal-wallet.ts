@@ -1,12 +1,10 @@
-import { type Account } from "@aztec/aztec.js/account";
+import { NO_FROM, type Account } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import {
   type Aliased,
   type DeployAccountOptions,
   type SendOptions,
   type GrantedCapability,
-  type ContractsCapability,
-  type Capability,
 } from "@aztec/aztec.js/wallet";
 import { type Fr } from "@aztec/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
@@ -17,9 +15,10 @@ import {
 } from "../types/wallet-interaction";
 
 import {
+  collectOffchainEffects,
   type ExecutionPayload,
-  TxHash,
   TxSimulationResult,
+  TxStatus,
 } from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
@@ -30,11 +29,18 @@ import {
   toSendOptions,
   type InteractionWaitOptions,
   type SendReturn,
+  extractOffchainOutput,
+  getGasLimits,
 } from "@aztec/aztec.js/contracts";
 import { waitForTx } from "@aztec/aztec.js/node";
+import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
+import { GasSettings } from "@aztec/stdlib/gas";
 
 // Enriched account type for internal use
-export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
+export type InternalAccount = Aliased<AztecAddress> & {
+  type: AccountType;
+  deployed: boolean;
+};
 
 /**
  * 1. Skips all authorization checks (trusted internal GUI)
@@ -55,12 +61,12 @@ export class InternalWallet extends BaseNativeWallet {
     // Skip authorization via override above
     const accounts = await this.db.listAccounts();
 
-    // Enrich with account type information
+    // Enrich with account type and deployed state
     return Promise.all(
-      accounts.map(async (acc) => ({
-        ...acc,
-        type: (await this.db.retrieveAccount(acc.item)).type,
-      })),
+      accounts.map(async (acc) => {
+        const { type, deployed } = await this.db.retrieveAccount(acc.item);
+        return { ...acc, type, deployed };
+      }),
     );
   }
 
@@ -98,7 +104,7 @@ export class InternalWallet extends BaseNativeWallet {
       type: "createAccount",
       status: "CREATING",
       complete: false,
-      title: `Creating and deploying account ${alias}`,
+      title: `Creating account ${alias}`,
     });
     await this.interactionManager.storeAndEmit(interaction);
 
@@ -116,37 +122,15 @@ export class InternalWallet extends BaseNativeWallet {
         alias,
         signingKey,
       });
+
       await this.interactionManager.storeAndEmit(
         interaction.update({
-          status: "PREPARING ACCOUNT",
+          status: "CREATED",
+          complete: true,
           description: `Address ${accountManager.address.toString()}`,
         }),
       );
-
-      const deployMethod = await accountManager.getDeployMethod();
-      const { prepareForFeePayment } =
-        await import("../utils/sponsored-fpc.ts");
-      const paymentMethod = await prepareForFeePayment(this);
-      const opts: DeployAccountOptions = {
-        from: AztecAddress.ZERO,
-        fee: {
-          paymentMethod,
-        },
-        skipClassPublication: true,
-        skipInstancePublication: true,
-      };
-
-      const exec = await deployMethod.request({
-        ...opts,
-        deployer: AztecAddress.ZERO,
-      });
-      await this.sendTx(exec, await toSendOptions(opts), interaction);
-
-      await this.interactionManager.storeAndEmit(
-        interaction.update({ status: "DEPLOYED", complete: true }),
-      );
     } catch (error: any) {
-      // Update interaction with error status
       await this.interactionManager.storeAndEmit(
         interaction.update({
           status: "ERROR",
@@ -154,7 +138,117 @@ export class InternalWallet extends BaseNativeWallet {
           description: `Failed: ${error.message || String(error)}`,
         }),
       );
-      // Re-throw so the UI can also handle it
+      throw error;
+    }
+  }
+
+  async deployAccount(address: AztecAddress): Promise<void> {
+    const interaction = WalletInteraction.from({
+      type: "deployAccount",
+      status: "DEPLOYING",
+      complete: false,
+      title: `Deploying account`,
+    });
+    await this.interactionManager.storeAndEmit(interaction);
+
+    try {
+      const { secretKey, salt, signingKey, type } =
+        await this.db.retrieveAccount(address);
+      const accountManager = await this.getAccountManager(
+        type,
+        secretKey,
+        salt,
+        signingKey,
+      );
+
+      await this.interactionManager.storeAndEmit(
+        interaction.update({
+          description: `Address ${address.toString()}`,
+        }),
+      );
+
+      const deployMethod = await accountManager.getDeployMethod();
+      const opts: DeployAccountOptions = {
+        from: NO_FROM,
+        skipClassPublication: true,
+        skipInstancePublication: true,
+      };
+
+      const executionPayload = await deployMethod.request({
+        ...opts,
+        deployer: AztecAddress.ZERO,
+      });
+
+      const feeOptions = await this.completeFeeOptionsForEstimation(
+        opts.from,
+        executionPayload.feePayer,
+        opts.fee?.gasSettings,
+      );
+
+      const simulationResult = await this.simulateViaEntrypoint(
+        executionPayload,
+        {
+          from: opts.from,
+          feeOptions,
+          scopes: this.scopesFrom(opts.from, opts.additionalScopes),
+          skipTxValidation: true,
+        },
+      );
+
+      const offchainEffects = collectOffchainEffects(
+        simulationResult.privateExecutionResult,
+      );
+      const authWitnesses = await Promise.all(
+        offchainEffects.map(async (effect) => {
+          try {
+            const authRequest = await CallAuthorizationRequest.fromFields(
+              effect.data,
+            );
+            return this.createAuthWit(authRequest.onBehalfOf, {
+              consumer: effect.contractAddress,
+              innerHash: authRequest.innerHash,
+            });
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      for (const authwit of authWitnesses) {
+        if (authwit) {
+          executionPayload.authWitnesses.push(authwit);
+        }
+      }
+      const estimated = getGasLimits(simulationResult);
+      this.log.verbose(
+        `Estimated gas limits for tx: DA=${estimated.gasLimits.daGas} L2=${estimated.gasLimits.l2Gas} teardownDA=${estimated.teardownGasLimits.daGas} teardownL2=${estimated.teardownGasLimits.l2Gas}`,
+      );
+      const gasSettings = GasSettings.from({
+        ...opts.fee?.gasSettings,
+        maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
+        maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
+        gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
+        teardownGasLimits:
+          opts.fee?.gasSettings?.teardownGasLimits ??
+          estimated.teardownGasLimits,
+      });
+      const sendOptions = {
+        ...(await toSendOptions(opts)),
+        fee: { ...opts.fee, gasSettings },
+      };
+      await this.sendTx(executionPayload, sendOptions, interaction);
+
+      await this.db.markAccountDeployed(address);
+      await this.interactionManager.storeAndEmit(
+        interaction.update({ status: "DEPLOYED", complete: true }),
+      );
+    } catch (error: any) {
+      await this.interactionManager.storeAndEmit(
+        interaction.update({
+          status: "ERROR",
+          complete: true,
+          description: `Failed: ${error.message || String(error)}`,
+        }),
+      );
       throw error;
     }
   }
@@ -190,10 +284,15 @@ export class InternalWallet extends BaseNativeWallet {
     );
     const provenTx = await this.pxe.proveTx(
       txRequest,
-      this.scopesFor(opts.from),
+      this.scopesFrom(opts.from),
     );
     const provingTime = Date.now() - provingStartTime;
 
+    const offchainOutput = extractOffchainOutput(
+      provenTx.getOffchainEffects(),
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables
+        .timestamp,
+    );
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
     if (await this.aztecNode.getTxEffect(txHash)) {
@@ -229,14 +328,19 @@ export class InternalWallet extends BaseNativeWallet {
           timings: { ...rawStats.timings, sending: sendingTime },
         });
       }
-      return txHash as SendReturn<W>;
+      return { txHash, ...offchainOutput } as SendReturn<W>;
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
-    await this.interactionManager.storeAndEmit(interaction.update({ status: "MINING" }));
+    await this.interactionManager.storeAndEmit(
+      interaction.update({ status: "MINING" }),
+    );
     const miningStartTime = Date.now();
     const waitOpts = typeof opts.wait === "object" ? opts.wait : undefined;
-    const receipt = await waitForTx(this.aztecNode, txHash, waitOpts);
+    const receipt = await waitForTx(this.aztecNode, txHash, {
+      ...waitOpts,
+      waitForStatus: TxStatus.PROPOSED,
+    });
     const miningTime = Date.now() - miningStartTime;
 
     const timingSummary = `Prove: ${formatDuration(provingTime)} | Send: ${formatDuration(sendingTime)} | Mine: ${formatDuration(miningTime)}`;
@@ -247,11 +351,15 @@ export class InternalWallet extends BaseNativeWallet {
       const rawStats = provenTx.stats;
       await this.db.updateTxPayloadStats(interaction.id, {
         ...rawStats,
-        timings: { ...rawStats.timings, sending: sendingTime, mining: miningTime },
+        timings: {
+          ...rawStats.timings,
+          sending: sendingTime,
+          mining: miningTime,
+        },
       });
     }
 
-    return receipt as SendReturn<W>;
+    return { receipt, ...offchainOutput } as SendReturn<W>;
   }
 
   // Internal-only method: Delete account
@@ -405,8 +513,6 @@ export class InternalWallet extends BaseNativeWallet {
       complete: true,
       title: "Capability change",
     });
-    this.interactionManager.dispatchEvent(
-      new WalletUpdateEvent(interaction),
-    );
+    this.interactionManager.dispatchEvent(new WalletUpdateEvent(interaction));
   }
 }

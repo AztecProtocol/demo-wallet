@@ -6,11 +6,11 @@ import {
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import type {
-  UtilitySimulationResult,
+  UtilityExecutionResult,
   SimulationStats,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import type { SimulateUtilityOptions } from "@aztec/aztec.js/wallet";
+import type { ExecuteUtilityOptions } from "@aztec/aztec.js/wallet";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -34,14 +34,14 @@ interface UtilityExecutionTrace {
 }
 
 // Arguments tuple for the operation
-type SimulateUtilityArgs = [call: FunctionCall, opts: SimulateUtilityOptions];
+type SimulateUtilityArgs = [call: FunctionCall, opts: ExecuteUtilityOptions];
 
 // Result type for the operation
-type SimulateUtilityResult = UtilitySimulationResult;
+type SimulateUtilityResult = UtilityExecutionResult;
 
 // Execution data stored between prepare and execute phases
 interface SimulateUtilityExecutionData {
-  simulationResult: UtilitySimulationResult;
+  simulationResult: UtilityExecutionResult;
   executionTrace: UtilityExecutionTrace;
   payloadHash: string;
 }
@@ -87,7 +87,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
 
   async check(
     _call: FunctionCall,
-    _opts: SimulateUtilityOptions,
+    _opts: ExecuteUtilityOptions,
   ): Promise<SimulateUtilityResult | undefined> {
     // No early return checks for this operation
     return undefined;
@@ -95,7 +95,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
 
   async createInteraction(
     call: FunctionCall,
-    _opts: SimulateUtilityOptions,
+    _opts: ExecuteUtilityOptions,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const payloadHash = hashUtilityCall(call);
@@ -118,7 +118,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
 
   async prepare(
     call: FunctionCall,
-    opts: SimulateUtilityOptions,
+    opts: ExecuteUtilityOptions,
   ): Promise<
     PrepareResult<
       SimulateUtilityResult,
@@ -130,7 +130,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
     const payloadHash = hashUtilityCall(call);
 
     // Simulate the utility function
-    const simulationResult = await this.pxe.simulateUtility(call, { authwits: opts.authWitnesses, scopes: [opts.scope] });
+    const simulationResult = await this.pxe.executeUtility(call, { authwits: opts.authWitnesses, scopes: opts.scopes });
 
     // Get contract name for better display
     const contractName = await this.decodingCache.getAddressAlias(call.to);

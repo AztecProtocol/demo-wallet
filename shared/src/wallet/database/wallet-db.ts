@@ -169,6 +169,11 @@ export class WalletDB {
       `${address.toString()}:signingKey`,
       "toBuffer" in signingKey ? signingKey.toBuffer() : signingKey,
     );
+    // New accounts are undeployed by default
+    await this.accounts.set(
+      `${address.toString()}:deployed`,
+      Buffer.from("false"),
+    );
     this.logger.info(
       `Account stored in database with alias${alias ? `es last & ${alias}` : " last"}`,
     );
@@ -223,17 +228,52 @@ export class WalletDB {
     const signingKey = await this.accounts.getAsync(
       `${address.toString()}:signingKey`,
     )!;
-    return { address, secretKey, salt, type, signingKey };
+    const deployedBuf = await this.accounts.getAsync(
+      `${address.toString()}:deployed`,
+    );
+    const deployed = deployedBuf?.toString("utf8") === "true";
+    return { address, secretKey, salt, type, signingKey, deployed };
   }
 
-  async listAccounts(): Promise<Aliased<AztecAddress>[]> {
-    const result = [];
+  async markAccountDeployed(address: AztecAddress): Promise<void> {
+    await this.accounts.set(
+      `${address.toString()}:deployed`,
+      Buffer.from("true"),
+    );
+    this.logger.info(`Account ${address.toString()} marked as deployed`);
+  }
+
+  async isAccountDeployed(address: AztecAddress): Promise<boolean> {
+    const buf = await this.accounts.getAsync(
+      `${address.toString()}:deployed`,
+    );
+    return buf?.toString("utf8") === "true";
+  }
+
+  async listAccounts(opts?: {
+    deployedOnly?: boolean;
+  }): Promise<Aliased<AztecAddress>[]> {
+    // Collect all account aliases first to avoid interleaving reads across
+    // IndexedDB stores (which kills the cursor's transaction).
+    const allAccounts: Aliased<AztecAddress>[] = [];
     for await (const [alias, item] of this.aliases.entriesAsync()) {
       if (alias.startsWith("accounts:")) {
-        result.push({
+        allAccounts.push({
           alias: alias.replace("accounts:", ""),
           item: AztecAddress.fromString(item.toString()),
         });
+      }
+    }
+
+    if (!opts?.deployedOnly) {
+      return allAccounts;
+    }
+
+    // Filter to deployed accounts only (safe to read accounts store now)
+    const result = [];
+    for (const acc of allAccounts) {
+      if (await this.isAccountDeployed(acc.item)) {
+        result.push(acc);
       }
     }
     return result;

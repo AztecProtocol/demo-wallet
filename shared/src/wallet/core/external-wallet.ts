@@ -2,7 +2,7 @@ import { type Account, type ChainInfo } from "@aztec/aztec.js/account";
 import {
   type Aliased,
   type SimulateOptions,
-  type SimulateUtilityOptions,
+  type ExecuteUtilityOptions,
   type SendOptions,
   type BatchedMethod,
   type BatchResults,
@@ -29,7 +29,7 @@ import { Fr } from "@aztec/foundation/curves/bn254";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   type TxSimulationResult,
-  type UtilitySimulationResult,
+  type UtilityExecutionResult,
   ExecutionPayload,
   TxHash,
   type TxReceipt,
@@ -133,8 +133,9 @@ export class ExternalWallet extends BaseNativeWallet {
       this.completeFeeOptionsForEstimation.bind(this),
       this.completeFeeOptions.bind(this),
       this.getFakeAccountDataFor.bind(this),
+      this.buildAccountOverrides.bind(this),
       this.getChainInfo.bind(this),
-      this.scopesFor.bind(this),
+      this.scopesFrom.bind(this),
       this.cancellableTransactions,
       this.log,
     );
@@ -159,7 +160,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.createTxExecutionRequestFromPayloadAndFee.bind(this),
       this.completeFeeOptions.bind(this),
       this.contextualizeError.bind(this),
-      this.scopesFor.bind(this),
+      this.scopesFrom.bind(this),
     );
   }
 
@@ -287,30 +288,28 @@ export class ExternalWallet extends BaseNativeWallet {
   protected async getAccountFromAddress(
     address: AztecAddress,
   ): Promise<Account> {
-    if (!address.equals(AztecAddress.ZERO)) {
-      // Check if there's a persistent getAccounts authorization
-      const authData = await this.db.retrievePersistentAuthorization(
-        this.appId,
-        "getAccounts",
+    // Check if there's a persistent getAccounts authorization
+    const authData = await this.db.retrievePersistentAuthorization(
+      this.appId,
+      "getAccounts",
+    );
+
+    if (!authData || !authData.accounts) {
+      throw new Error(
+        `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`,
       );
+    }
 
-      if (!authData || !authData.accounts) {
-        throw new Error(
-          `App ${this.appId} does not have authorization to access any accounts. Please request getAccounts authorization first.`,
-        );
-      }
+    // Check if the specific account is in the authorized list
+    const authorizedAddresses = authData.accounts.map((acc: any) =>
+      acc.item.toString(),
+    );
+    const requestedAddress = address.toString();
 
-      // Check if the specific account is in the authorized list
-      const authorizedAddresses = authData.accounts.map((acc: any) =>
-        acc.item.toString(),
+    if (!authorizedAddresses.includes(requestedAddress)) {
+      throw new Error(
+        `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`,
       );
-      const requestedAddress = address.toString();
-
-      if (!authorizedAddresses.includes(requestedAddress)) {
-        throw new Error(
-          `App ${this.appId} does not have authorization to use account ${requestedAddress}. Authorized accounts: ${authorizedAddresses.join(", ")}`,
-        );
-      }
     }
 
     // Authorization passed, delegate to base implementation
@@ -403,7 +402,7 @@ export class ExternalWallet extends BaseNativeWallet {
       | TxHash
       | TxReceipt
       | AztecAddress
-      | UtilitySimulationResult
+      | UtilityExecutionResult
       | TxSimulationResult;
 
     interface BatchItem {
@@ -435,7 +434,7 @@ export class ExternalWallet extends BaseNativeWallet {
         case "registerSender":
           operation = this.createRegisterSenderOperation();
           break;
-        case "simulateUtility":
+        case "executeUtility":
           operation = this.createSimulateUtilityOperation();
           break;
         case "simulateTx":
@@ -682,10 +681,10 @@ export class ExternalWallet extends BaseNativeWallet {
    * Public method: Simulate utility function (standalone call).
    * Handles interaction tracking and user authorization.
    */
-  override async simulateUtility(
+  override async executeUtility(
     call: FunctionCall,
-    opts: SimulateUtilityOptions,
-  ): Promise<UtilitySimulationResult> {
+    opts: ExecuteUtilityOptions,
+  ): Promise<UtilityExecutionResult> {
     const op = this.createSimulateUtilityOperation();
     return await op.executeStandalone(call, opts);
   }

@@ -533,7 +533,19 @@ export async function getSharedResources(chainInfo: ChainInfo): Promise<{
   >;
 }> {
   const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
-  const session = RUNNING_SESSIONS.get(sessionId);
+  let session = RUNNING_SESSIONS.get(sessionId);
+
+  // If version is 0 (unresolved), find the session by chainId prefix
+  if (!session && chainInfo.version.toNumber() === 0) {
+    const prefix = `${chainInfo.chainId.toNumber()}-`;
+    for (const [key, value] of RUNNING_SESSIONS) {
+      if (key.startsWith(prefix) && key !== sessionId) {
+        session = value;
+        break;
+      }
+    }
+  }
+
   if (!session) {
     throw new Error(`No session found for sessionId=${sessionId}`);
   }

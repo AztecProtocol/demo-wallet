@@ -1,4 +1,5 @@
 import { Fr } from "@aztec/aztec.js/fields";
+import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import { useContext, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -60,6 +61,15 @@ export function AccountsManager() {
     }
   };
 
+  const handleDeploy = async (address: AztecAddress) => {
+    try {
+      await walletAPI.deployAccount(address);
+      await loadAccounts();
+    } catch (err: any) {
+      setError(err.message || "Failed to deploy account");
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", gap: 2 }}>
@@ -113,7 +123,7 @@ export function AccountsManager() {
             }}
           >
             {accounts.map((account, index) => (
-              <AccountBox key={index} QRButton account={account} />
+              <AccountBox key={index} QRButton account={account} onDeploy={handleDeploy} />
             ))}
             {embeddedMode && (
               <Button

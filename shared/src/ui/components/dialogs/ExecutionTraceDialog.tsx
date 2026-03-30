@@ -35,7 +35,7 @@ export function ExecutionTraceDialog({
 
   if (!trace) return null;
 
-  const isFromZero = from && AztecAddress.fromString(from).equals(AztecAddress.ZERO);
+  const isFromZero = from === "NO_FROM" || (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
@@ -70,7 +70,7 @@ export function ExecutionTraceDialog({
       <DialogContent dividers sx={{ px: { xs: 1, sm: 3 }, overflow: "hidden auto", minWidth: 0 }}>
         {isFromZero && (
           <Alert severity="info" sx={{ mb: 1 }}>
-            This request uses the MulticallEntrypoint and does not execute from any of your accounts.
+            This transaction uses an external entrypoint and does not execute from any of your accounts.
           </Alert>
         )}
         {hasEmbeddedFeePayer && (

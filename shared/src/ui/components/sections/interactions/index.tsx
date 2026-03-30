@@ -81,6 +81,7 @@ const getInteractionTypeLabel = (type: WalletInteractionType) => {
   const labels: Record<WalletInteractionType, string> = {
     registerContract: "Register Contract",
     createAccount: "Create Account",
+    deployAccount: "Deploy Account",
     simulateTx: "Simulate Transaction",
     simulateUtility: "Simulate Utility",
     sendTx: "Send Transaction",
@@ -101,6 +102,7 @@ const getInteractionTypeColor = (type: WalletInteractionType) => {
   const colors: Record<WalletInteractionType, string> = {
     registerContract: "#9c27b0", // purple
     createAccount: "#2196f3", // blue
+    deployAccount: "#1565c0", // dark blue (deployment action)
     simulateTx: "#ff9800", // orange
     simulateUtility: "#ff9800", // orange (same as simulateTx)
     sendTx: "#7c4dff", // purple/violet (proving action)
@@ -120,6 +122,7 @@ const getInteractionTypeColor = (type: WalletInteractionType) => {
 const allInteractionTypes: WalletInteractionType[] = [
   "registerContract",
   "createAccount",
+  "deployAccount",
   "simulateTx",
   "simulateUtility",
   "sendTx",

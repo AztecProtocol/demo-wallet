@@ -2,6 +2,7 @@ import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { sha256 } from "@aztec/foundation/crypto/sha256";
 import { serializeToBuffer } from "@aztec/foundation/serialize";
 import { FunctionCall, FunctionType } from "@aztec/stdlib/abi";
+import { NO_FROM, type NoFrom } from "@aztec/aztec.js/account";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import type { ExecutionPayload } from "@aztec/stdlib/tx";
 
@@ -75,7 +76,7 @@ export function hashUtilityCall(call: FunctionCall): string {
 export async function generateSimulationTitle(
   executionPayload: ExecutionPayload,
   cache: DecodingCache,
-  fromAccount: AztecAddress,
+  fromAccount: AztecAddress | NoFrom,
   embeddedPaymentMethodFeePayer?: AztecAddress
 ): Promise<string> {
   // Filter out wallet-added calls:
@@ -83,7 +84,7 @@ export async function generateSimulationTitle(
   // 2. Fee payment method calls (unless user explicitly provided one)
   const userCalls = executionPayload.calls.filter((call) => {
     // Always exclude the account entrypoint (call to the from address)
-    if (call.to.equals(fromAccount)) {
+    if (fromAccount !== NO_FROM && call.to.equals(fromAccount)) {
       return false;
     }
 

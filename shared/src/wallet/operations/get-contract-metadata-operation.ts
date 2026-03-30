@@ -4,7 +4,7 @@ import {
   type PersistenceConfig,
 } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { ContractMetadata } from "@aztec/aztec.js/wallet";
+import { type ContractMetadata, ContractInitializationStatus } from "@aztec/aztec.js/wallet";
 import {
   WalletInteraction,
   type WalletInteractionType,
@@ -30,7 +30,7 @@ type GetContractMetadataDisplayData = {
   address: string;
   contractName: string;
   isRegistered: boolean;
-  isInitialized: boolean;
+  isInitialized: ContractInitializationStatus;
   isPublished: boolean;
 };
 
@@ -106,7 +106,7 @@ export class GetContractMetadataOperation extends ExternalOperation<
       address: address.toString(),
       contractName,
       isRegistered: !!metadata.instance,
-      isInitialized: metadata.isContractInitialized,
+      isInitialized: metadata.initializationStatus,
       isPublished: metadata.isContractPublished,
     };
 

@@ -1,17 +1,27 @@
 import type { PXE } from "@aztec/pxe/client/lazy";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
+import type { Aliased } from "@aztec/aztec.js/wallet";
 import type { WalletDB } from "../database/wallet-db";
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 
 /**
  * Cache for contract metadata, artifacts, and address aliases to reduce expensive PXE queries.
  * Shared across CallAuthorizationFormatter and TxCallStackDecoder.
+ *
+ * IMPORTANT: This cache is designed to be IndexedDB-safe. It avoids interleaving
+ * reads across different IndexedDB databases (wallet-db vs PXE) within the same
+ * async call chain. Wallet-db data (accounts, senders) is loaded once and cached
+ * in memory, so subsequent alias lookups never touch IndexedDB between PXE calls.
  */
 export class DecodingCache {
   private instanceCache = new Map<string, ContractInstanceWithAddress>();
   private artifactCache = new Map<string, ContractArtifact>();
   private addressAliasCache = new Map<string, string>();
+
+  /** Pre-loaded wallet-db data to avoid IndexedDB reads during PXE call chains */
+  private accountsSnapshot: Aliased<AztecAddress>[] | null = null;
+  private sendersSnapshot: Aliased<AztecAddress>[] | null = null;
 
   constructor(
     private pxe: PXE,
@@ -69,8 +79,34 @@ export class DecodingCache {
   }
 
   /**
+   * Load accounts and senders from wallet-db into memory.
+   * Called once so that getAddressAlias never needs to touch
+   * IndexedDB between PXE calls (avoiding transaction conflicts).
+   */
+  private async ensureWalletDataLoaded(): Promise<void> {
+    if (this.accountsSnapshot === null) {
+      this.accountsSnapshot = await this.db.listAccounts();
+    }
+    if (this.sendersSnapshot === null) {
+      this.sendersSnapshot = await this.db.listSenders();
+    }
+  }
+
+  /**
+   * Invalidate the cached wallet-db snapshots so they'll be
+   * re-loaded on next access. Call after account/sender changes.
+   */
+  invalidateWalletData(): void {
+    this.accountsSnapshot = null;
+    this.sendersSnapshot = null;
+  }
+
+  /**
    * Get address alias with caching.
    * Checks accounts, senders, and contract metadata in order.
+   *
+   * Wallet-db data is loaded once and cached to avoid interleaving
+   * IndexedDB reads across wallet-db and PXE stores.
    */
   async getAddressAlias(address: AztecAddress): Promise<string> {
     const key = address.toString();
@@ -79,24 +115,25 @@ export class DecodingCache {
       return this.addressAliasCache.get(key)!;
     }
 
-    // Check if it's an account
-    const accounts = await this.db.listAccounts();
-    const account = accounts.find((acc) => acc.item.equals(address));
+    // Load wallet-db data into memory first (single IndexedDB access)
+    await this.ensureWalletDataLoaded();
+
+    // Check if it's an account (pure memory lookup now)
+    const account = this.accountsSnapshot!.find((acc) => acc.item.equals(address));
     if (account) {
       this.addressAliasCache.set(key, account.alias);
       return account.alias;
     }
 
-    // Check if it's a registered sender (contact)
-    const senders = await this.db.listSenders();
-    const sender = senders.find((s) => s.item.equals(address));
+    // Check if it's a registered sender (pure memory lookup now)
+    const sender = this.sendersSnapshot!.find((s) => s.item.equals(address));
     if (sender) {
       const alias = sender.alias.replace("senders:", "");
       this.addressAliasCache.set(key, alias);
       return alias;
     }
 
-    // Try to get contract metadata for more info
+    // Try to get contract metadata for more info (PXE-only calls now, no wallet-db interleaving)
     try {
       const instance = await this.getContractInstance(address);
       const artifact = await this.getContractArtifact(

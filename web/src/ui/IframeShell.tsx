@@ -9,7 +9,7 @@
  *   4. WalletUI — PXE init, account bootstrap, wallet rendering
  *
  * The IframeConnectionHandler starts immediately (no storage needed for
- * discovery / key exchange). getExternalWallet awaits the PIN gate before
+ * discovery / key exchange). getWallet awaits the PIN gate before
  * bootstrapping accounts from the cookie.
  */
 
@@ -44,11 +44,13 @@ import {
   networkToChainInfo,
   type AuthorizationRequest,
 } from "@demo-wallet/shared/core";
+import type { ChainInfo } from "@aztec/aztec.js/account";
+import type { Wallet } from "@aztec/aztec.js/wallet";
 import { WalletApi, emitWalletUpdate } from "./utils/wallet-api.ts";
 import {
   IframeConnectionHandler,
   type IframeConnectionConfig,
-} from "../wallet/iframe-connection-handler.ts";
+} from "@aztec/wallet-sdk/iframe/handlers";
 import {
   getOrCreateSession,
   setCookiePassphrase,
@@ -303,7 +305,7 @@ function IframeContent() {
   }, [enqueueAuthRequest]);
 
   // ─── PIN gate promise ───
-  // getExternalWallet awaits this before bootstrapping accounts from cookie.
+  // getWallet awaits this before bootstrapping accounts from cookie.
   // Resolved when the PIN is verified or passphrase is already set.
   const pinGateRef = useRef<{ resolve: () => void; promise: Promise<void> }>(
     null!,
@@ -321,13 +323,9 @@ function IframeContent() {
   useEffect(() => {
     (async () => {
       const granted = await hasStorageAccessAlready();
-      console.log("[IframeShell] hasStorageAccess:", granted);
-      console.log("[IframeShell] document.cookie (initial):", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
       if (granted) {
-        // Already have storage access — check cookie state
         const hasCookie = hasAccountsCookie();
         const hasPassphrase = hasCookiePassphrase();
-        console.log("[IframeShell] hasCookie:", hasCookie, "hasPassphrase:", hasPassphrase);
         if (hasPassphrase) {
           setGate("ready");
           pinGateRef.current.resolve();
@@ -337,10 +335,6 @@ function IframeContent() {
           setGate("no-cookie");
         }
       } else {
-        // No storage access yet — need a user gesture to request it.
-        // Show a "Grant access" button instead of the PIN dialog,
-        // because we can't verify the PIN without cookie access.
-        console.log("[IframeShell] No storage access yet, showing storage gate");
         setGate("needs-storage");
       }
     })();
@@ -350,25 +344,15 @@ function IframeContent() {
 
   const handleRequestStorageAccess = useCallback(async () => {
     try {
-      console.log("[IframeShell] Calling requestStorageAccess()...");
       await document.requestStorageAccess();
-      console.log("[IframeShell] requestStorageAccess() resolved successfully");
 
-      const hasAccessAfter = await document.hasStorageAccess();
-      console.log("[IframeShell] hasStorageAccess after grant:", hasAccessAfter);
-      console.log("[IframeShell] document.cookie after grant:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
-
-      // Storage access granted — now check cookie state
       const hasCookie = hasAccountsCookie();
-      console.log("[IframeShell] hasCookie after grant:", hasCookie);
       if (hasCookie) {
         setGate("needs-pin");
       } else {
         setGate("no-cookie");
       }
     } catch (err) {
-      console.error("[IframeShell] requestStorageAccess() rejected:", err);
-      console.log("[IframeShell] Safari ITP requires: (1) user visited wallet origin as first-party, (2) wallet set a cookie during that visit, (3) visit had user interaction, (4) visit was within last 30 days");
       setGate("needs-visit");
     }
   }, []);
@@ -379,7 +363,6 @@ function IframeContent() {
     setPinError(null);
 
     const hasCookie = hasAccountsCookie();
-    console.log("[IframeShell] handlePinSubmit: hasCookie:", hasCookie, "document.cookie:", document.cookie ? document.cookie.substring(0, 80) + "..." : "(empty)");
     if (!hasCookie) {
       setGate("no-cookie");
       return;
@@ -389,7 +372,7 @@ function IframeContent() {
       await readAccountsCookie(pin); // verify decryption works
       setCookiePassphrase(pin);
       setGate("ready");
-      pinGateRef.current.resolve(); // unblock getExternalWallet
+      pinGateRef.current.resolve(); // unblock getWallet
     } catch {
       setPinError("Wrong PIN. Please try again.");
     }
@@ -398,7 +381,6 @@ function IframeContent() {
   // ─── Retry: re-attempt requestStorageAccess (user gesture) ───
 
   const handleRetryClick = useCallback(async () => {
-    console.log("[IframeShell] Retry clicked, re-attempting requestStorageAccess...");
     await handleRequestStorageAccess();
   }, [handleRequestStorageAccess]);
 
@@ -406,7 +388,6 @@ function IframeContent() {
 
   const handleNoCookieRetry = useCallback(() => {
     const hasCookie = hasAccountsCookie();
-    console.log("[IframeShell] Rechecking cookie after account creation:", hasCookie);
     if (hasCookie) {
       setGate("needs-pin");
     }
@@ -429,41 +410,66 @@ function IframeContent() {
       onVerificationHash: (hash) => {
         setVerificationHash(hash);
       },
-      getExternalWallet: async (appId, chainInfo) => {
-        clearVerificationHashRef.current();
-        const rawChainId = (chainInfo as any).chainId;
-        const rawVersion = (chainInfo as any).version;
-        const chainId =
-          rawChainId instanceof Fr
-            ? rawChainId
-            : Fr.fromString(String(rawChainId));
-        const version =
-          rawVersion instanceof Fr
-            ? rawVersion
-            : Fr.fromString(String(rawVersion));
+      getWallet: (() => {
+        const walletCache = new Map<string, Promise<Wallet>>();
+        // Serialize all wallet method calls to avoid concurrent IndexedDB
+        // transactions (PXE + wallet-db) interfering with each other.
+        let queue: Promise<unknown> = Promise.resolve();
+        return async (appId: string, chainInfo: ChainInfo) => {
+          clearVerificationHashRef.current();
+          const rawChainId = (chainInfo as any).chainId;
+          const rawVersion = (chainInfo as any).version;
+          const chainId =
+            rawChainId instanceof Fr
+              ? rawChainId
+              : Fr.fromString(String(rawChainId));
+          const version =
+            rawVersion instanceof Fr
+              ? rawVersion
+              : Fr.fromString(String(rawVersion));
 
-        // Wait for the user to enter the PIN before proceeding.
-        // Storage access is already granted during handlePinSubmit (user gesture).
-        // This blocks until handlePinSubmit resolves the gate.
-        await pinGateRef.current.promise;
+          const cacheKey = `${chainId.toString()}-${version.toString()}-${appId}`;
+          if (!walletCache.has(cacheKey)) {
+            const walletPromise = (async () => {
+              // Wait for the user to enter the PIN before proceeding.
+              await pinGateRef.current.promise;
 
-        const normalizedChainInfo = { chainId, version };
-        const { external } = await getOrCreateSession(
-          normalizedChainInfo,
-          appId,
-          (eventType, detail) => {
-            if (eventType === "wallet-update") {
-              emitWalletUpdate(detail);
-            } else if (eventType === "authorization-request") {
-              const request: AuthorizationRequest =
-                typeof detail === "string" ? JSON.parse(detail) : detail;
-              enqueueAuthRef.current(request);
-            }
-          },
-        );
+              const normalizedChainInfo = { chainId, version };
+              const { external } = await getOrCreateSession(
+                normalizedChainInfo,
+                appId,
+                (eventType, detail) => {
+                  if (eventType === "wallet-update") {
+                    emitWalletUpdate(detail);
+                  } else if (eventType === "authorization-request") {
+                    const request: AuthorizationRequest =
+                      typeof detail === "string" ? JSON.parse(detail) : detail;
+                    enqueueAuthRef.current(request);
+                  }
+                },
+              );
 
-        return external;
-      },
+              // Wrap wallet in a serializing proxy so concurrent postMessage
+              // calls don't trigger parallel PXE/IndexedDB operations.
+              return new Proxy(external as Wallet, {
+                get(target, prop, receiver) {
+                  const value = Reflect.get(target, prop, receiver);
+                  if (typeof value !== "function") return value;
+                  return (...args: unknown[]) => {
+                    const result = (queue = queue
+                      .catch(() => {})
+                      .then(() => value.apply(target, args)));
+                    return result;
+                  };
+                },
+              });
+            })();
+
+            walletCache.set(cacheKey, walletPromise);
+          }
+          return walletCache.get(cacheKey)!;
+        };
+      })(),
     });
 
     handler.start();

@@ -1,6 +1,14 @@
 import { defineConfig, Plugin, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { PolyfillOptions, nodePolyfills } from "vite-plugin-node-polyfills";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+
+// Resolve the actual location of vite-plugin-node-polyfills (may be hoisted in workspaces)
+const polyfillsPkgPath = resolve(
+  dirname(fileURLToPath(import.meta.resolve("vite-plugin-node-polyfills"))),
+  "..",
+);
 
 // Workaround for https://github.com/davidmyersdev/vite-plugin-node-polyfills/issues/81
 const nodePolyfillsFix = (options?: PolyfillOptions): Plugin => {
@@ -13,7 +21,7 @@ const nodePolyfillsFix = (options?: PolyfillOptions): Plugin => {
           source,
         );
       if (m) {
-        return `./node_modules/vite-plugin-node-polyfills/shims/${m[1]}/dist/index.cjs`;
+        return resolve(polyfillsPkgPath, `shims/${m[1]}/dist/index.cjs`);
       }
     },
   };
@@ -30,8 +38,8 @@ export default defineConfig({
       "Cross-Origin-Resource-Policy": "cross-origin",
     },
     fs: {
-      allow: [searchForWorkspaceRoot(import.meta.dirname)],
-    },
+        allow: [searchForWorkspaceRoot(import.meta.dirname)],
+      },
   },
   optimizeDeps: {
     // These packages contain native WASM/binary assets - exclude from pre-bundling

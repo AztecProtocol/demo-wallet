@@ -133,6 +133,12 @@ export class SimulateTxOperation extends ExternalOperation<
     private getFakeAccountDataFor: (
       address: AztecAddress,
     ) => Promise<FakeAccountData>,
+    private buildAccountOverrides: () => Promise<
+      Record<
+        string,
+        { instance: ContractInstanceWithAddress; artifact: ContractArtifact }
+      >
+    >,
     private getChainInfo: () => Promise<ChainInfo>,
     private scopesFrom: (from: AztecAddress | NoFrom) => AztecAddress[],
     private cancellableTransactions: boolean,
@@ -295,7 +301,10 @@ export class SimulateTxOperation extends ExternalOperation<
         ])
       : { ...originalPayload, calls };
 
-    let overrides: SimulationOverrides | undefined;
+    // Build overrides for all known accounts so kernelless simulation works
+    // for any call that touches account contracts (including sponsored calls)
+    const accountOverrides = await this.buildAccountOverrides();
+
     let txReq: TxExecutionRequest;
     if (from === NO_FROM) {
       const entrypoint = new DefaultEntrypoint();
@@ -303,9 +312,8 @@ export class SimulateTxOperation extends ExternalOperation<
     } else {
       const { account, instance, artifact } =
         await this.getFakeAccountDataFor(from);
-      overrides = {
-        contracts: { [from.toString()]: { instance, artifact } },
-      };
+      // Ensure the from account's stub is in the overrides map
+      accountOverrides[from.toString()] = { instance, artifact };
       txReq = await account.createTxExecutionRequest(
         normalPayload,
         gasSettings,
@@ -313,6 +321,10 @@ export class SimulateTxOperation extends ExternalOperation<
         executionOptions,
       );
     }
+
+    const overrides = Object.keys(accountOverrides).length > 0
+      ? new SimulationOverrides(accountOverrides)
+      : undefined;
 
     const result = await this.pxe.simulateTx(txReq, {
       scopes: this.scopesFrom(from),

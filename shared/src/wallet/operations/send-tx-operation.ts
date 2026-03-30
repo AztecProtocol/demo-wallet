@@ -175,10 +175,10 @@ export class SendTxOperation<
     // to avoid running out of gas during estimation.
     // Note: Strip the 'wait' property since SimulateOptions doesn't have it
     const { wait: _wait, ...simulateOpts } = opts;
-    const prepared = await this.simulateTxOp.prepare(
-      executionPayload,
-      simulateOpts,
-    );
+    const prepared = await this.simulateTxOp.prepare(executionPayload, {
+      ...simulateOpts,
+      fee: { ...simulateOpts.fee, estimateGas: true },
+    });
 
     // Decode simulation results
     const { callAuthorizations, executionTrace } =
@@ -210,7 +210,8 @@ export class SendTxOperation<
       maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
       maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
       gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
-      teardownGasLimits: opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
+      teardownGasLimits:
+        opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
     });
 
     // Create transaction request with estimated gas settings
@@ -285,9 +286,10 @@ export class SendTxOperation<
     // Report proving stage
     await this.emitProgress("PROVING");
 
-    const from = executionData.from === NO_FROM
-      ? NO_FROM
-      : AztecAddress.fromString(executionData.from!);
+    const from =
+      executionData.from === NO_FROM
+        ? NO_FROM
+        : AztecAddress.fromString(executionData.from!);
 
     let provenTx: TxProvingResult;
     try {
@@ -348,7 +350,8 @@ export class SendTxOperation<
     const rawStats = provenTx.stats;
     const offchainOutput = extractOffchainOutput(
       provenTx.getOffchainEffects(),
-      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables.timestamp,
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables
+        .timestamp,
     );
 
     const tx = await provenTx.toTx();
@@ -373,8 +376,18 @@ export class SendTxOperation<
     // If wait is NO_WAIT, return txHash immediately
     if (executionData.wait === NO_WAIT) {
       await this.emitProgress("SENT", `TxHash: ${txHash.toString()}`, true);
-      const enrichedStats = { ...rawStats, timings: { ...rawStats.timings, simulation: executionData.simulationTime, sending: sendingTime } };
-      await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
+      const enrichedStats = {
+        ...rawStats,
+        timings: {
+          ...rawStats.timings,
+          simulation: executionData.simulationTime,
+          sending: sendingTime,
+        },
+      };
+      await this.db.updateTxPayloadStats(
+        executionData.payloadHash,
+        enrichedStats,
+      );
       return { txHash, ...offchainOutput } as SendTxResult<W>;
     }
 
@@ -388,8 +401,19 @@ export class SendTxOperation<
 
     await this.emitProgress("SENT", `TxHash: ${txHash.toString()}`, true);
 
-    const enrichedStats = { ...rawStats, timings: { ...rawStats.timings, simulation: executionData.simulationTime, sending: sendingTime, mining: miningTime } };
-    await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
+    const enrichedStats = {
+      ...rawStats,
+      timings: {
+        ...rawStats.timings,
+        simulation: executionData.simulationTime,
+        sending: sendingTime,
+        mining: miningTime,
+      },
+    };
+    await this.db.updateTxPayloadStats(
+      executionData.payloadHash,
+      enrichedStats,
+    );
 
     return { receipt, ...offchainOutput } as SendTxResult<W>;
   }

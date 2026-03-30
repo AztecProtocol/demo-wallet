@@ -17,6 +17,7 @@ import {
 } from "../types/wallet-interaction";
 
 import {
+  collectOffchainEffects,
   type ExecutionPayload,
   TxHash,
   TxSimulationResult,
@@ -31,8 +32,11 @@ import {
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
+  getGasLimits,
 } from "@aztec/aztec.js/contracts";
 import { waitForTx } from "@aztec/aztec.js/node";
+import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
+import { GasSettings } from "@aztec/stdlib/gas";
 
 // Enriched account type for internal use
 export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
@@ -125,23 +129,76 @@ export class InternalWallet extends BaseNativeWallet {
       );
 
       const deployMethod = await accountManager.getDeployMethod();
-      const { prepareForFeePayment } =
-        await import("../utils/sponsored-fpc.ts");
-      const paymentMethod = await prepareForFeePayment(this);
       const opts: DeployAccountOptions = {
         from: NO_FROM,
-        fee: {
-          paymentMethod,
-        },
         skipClassPublication: true,
         skipInstancePublication: true,
       };
 
-      const exec = await deployMethod.request({
+      const executionPayload = await deployMethod.request({
         ...opts,
         deployer: AztecAddress.ZERO,
       });
-      await this.sendTx(exec, await toSendOptions(opts), interaction);
+
+      const feeOptions = await this.completeFeeOptionsForEstimation(
+        opts.from,
+        executionPayload.feePayer,
+        opts.fee?.gasSettings,
+      );
+
+      // Simulate the transaction first to estimate gas and capture required
+      // private authwitnesses based on offchain effects.
+      const simulationResult = await this.simulateViaEntrypoint(
+        executionPayload,
+        {
+          from: opts.from,
+          feeOptions,
+          scopes: this.scopesFrom(opts.from, opts.additionalScopes),
+          skipTxValidation: true,
+        },
+      );
+
+      const offchainEffects = collectOffchainEffects(
+        simulationResult.privateExecutionResult,
+      );
+      const authWitnesses = await Promise.all(
+        offchainEffects.map(async (effect) => {
+          try {
+            const authRequest = await CallAuthorizationRequest.fromFields(
+              effect.data,
+            );
+            return this.createAuthWit(authRequest.onBehalfOf, {
+              consumer: effect.contractAddress,
+              innerHash: authRequest.innerHash,
+            });
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      for (const authwit of authWitnesses) {
+        if (authwit) {
+          executionPayload.authWitnesses.push(authwit);
+        }
+      }
+      const estimated = getGasLimits(simulationResult);
+      this.log.verbose(
+        `Estimated gas limits for tx: DA=${estimated.gasLimits.daGas} L2=${estimated.gasLimits.l2Gas} teardownDA=${estimated.teardownGasLimits.daGas} teardownL2=${estimated.teardownGasLimits.l2Gas}`,
+      );
+      const gasSettings = GasSettings.from({
+        ...opts.fee?.gasSettings,
+        maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
+        maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
+        gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
+        teardownGasLimits:
+          opts.fee?.gasSettings?.teardownGasLimits ??
+          estimated.teardownGasLimits,
+      });
+      const sendOptions = {
+        ...(await toSendOptions(opts)),
+        fee: { ...opts.fee, gasSettings },
+      };
+      await this.sendTx(executionPayload, sendOptions, interaction);
 
       await this.interactionManager.storeAndEmit(
         interaction.update({ status: "DEPLOYED", complete: true }),

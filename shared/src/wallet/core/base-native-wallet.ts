@@ -20,9 +20,6 @@ import type {
   AuthorizationRequest,
   AuthorizationResponse,
 } from "../types/authorization";
-import { prepareForFeePayment } from "../utils/sponsored-fpc";
-import { AccountFeePaymentMethodOptions } from "@aztec/entrypoints/account";
-import { GasSettings } from "@aztec/stdlib/gas";
 import {
   EcdsaKAccountContract,
   EcdsaRAccountContract,
@@ -32,8 +29,9 @@ import {
   createStubAccount,
   StubAccountContractArtifact,
 } from "@aztec/accounts/stub";
-import type { FieldsOf } from "@aztec/foundation/types";
-import { BaseWallet, type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
+import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
+import type { ContractArtifact } from "@aztec/stdlib/abi";
+import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -221,38 +219,39 @@ export abstract class BaseNativeWallet
     };
   }
 
-  override async completeFeeOptions(
-    from: AztecAddress | NoFrom,
-    feePayer?: AztecAddress,
-    gasSettings?: Partial<FieldsOf<GasSettings>>,
-  ): Promise<FeeOptions> {
-    const maxFeesPerGas =
-      gasSettings?.maxFeesPerGas ??
-      (await this.aztecNode.getCurrentMinFees()).mul(1 + this.minFeePadding);
-    let walletFeePaymentMethod;
-    let accountFeePaymentMethodOptions;
-    if (from !== NO_FROM) {
-      // The transaction does not include a fee payment method, so we set a default
-      if (!feePayer) {
-        walletFeePaymentMethod = await prepareForFeePayment(this);
-        accountFeePaymentMethodOptions = AccountFeePaymentMethodOptions.EXTERNAL;
-      } else {
-        // The transaction includes fee payment method, so we check if we are the fee payer for it
-        // (this can only happen if the embedded payment method is FeeJuiceWithClaim)
-        accountFeePaymentMethodOptions = from.equals(feePayer)
-          ? AccountFeePaymentMethodOptions.FEE_JUICE_WITH_CLAIM
-          : AccountFeePaymentMethodOptions.EXTERNAL;
+  /**
+   * Builds simulation overrides for all known accounts in the wallet.
+   * This ensures kernelless simulation works for any call that touches
+   * account contracts, including sponsored calls with NO_FROM.
+   */
+  protected async buildAccountOverrides(): Promise<
+    Record<
+      string,
+      { instance: ContractInstanceWithAddress; artifact: ContractArtifact }
+    >
+  > {
+    const accounts = await this.db.listAccounts();
+    const contracts: Record<
+      string,
+      { instance: ContractInstanceWithAddress; artifact: ContractArtifact }
+    > = {};
+
+    for (const account of accounts) {
+      try {
+        const instance = await getContractInstanceFromInstantiationParams(
+          StubAccountContractArtifact,
+          { salt: Fr.random() },
+        );
+        contracts[account.item.toString()] = {
+          instance,
+          artifact: StubAccountContractArtifact,
+        };
+      } catch {
+        // Skip accounts that can't be resolved
       }
     }
-    const fullGasSettings: GasSettings = GasSettings.default({
-      ...gasSettings,
-      maxFeesPerGas,
-    });
-    return {
-      gasSettings: fullGasSettings,
-      walletFeePaymentMethod,
-      accountFeePaymentMethodOptions,
-    };
+
+    return contracts;
   }
 
   override getChainInfo(): Promise<ChainInfo> {

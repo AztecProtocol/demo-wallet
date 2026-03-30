@@ -133,6 +133,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.completeFeeOptionsForEstimation.bind(this),
       this.completeFeeOptions.bind(this),
       this.getFakeAccountDataFor.bind(this),
+      this.buildAccountOverrides.bind(this),
       this.getChainInfo.bind(this),
       this.scopesFrom.bind(this),
       this.cancellableTransactions,

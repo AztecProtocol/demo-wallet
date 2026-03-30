@@ -33,12 +33,14 @@ export function AuthorizeAccountsContent({
     const loadAccounts = async () => {
       const allAccounts: InternalAccount[] = await walletAPI.getAccounts();
       setAccounts(
-        allAccounts.map((acc) => ({
-          address: acc.item.toString(),
-          alias: acc.alias,
-          originalAlias: acc.alias,
-          selected: false,
-        }))
+        allAccounts
+          .filter((acc) => acc.deployed)
+          .map((acc) => ({
+            address: acc.item.toString(),
+            alias: acc.alias,
+            originalAlias: acc.alias,
+            selected: false,
+          }))
       );
     };
     loadAccounts();

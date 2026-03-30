@@ -53,9 +53,10 @@ export function EditAccountAuthorizationDialog({
     try {
       setError(null);
       const accounts = await walletAPI.getAccounts();
+      const deployedAccounts = accounts.filter((acc) => acc.deployed);
       const currentAddresses = new Set(currentAccounts.map((a) => a.item));
 
-      const accountsWithSelection = accounts.map((acc) => {
+      const accountsWithSelection = deployedAccounts.map((acc) => {
         const isSelected = currentAddresses.has(acc.item.toString());
         const currentAccount = currentAccounts.find(
           (ca) => ca.item === acc.item.toString()

@@ -169,6 +169,11 @@ export class WalletDB {
       `${address.toString()}:signingKey`,
       "toBuffer" in signingKey ? signingKey.toBuffer() : signingKey,
     );
+    // New accounts are undeployed by default
+    await this.accounts.set(
+      `${address.toString()}:deployed`,
+      Buffer.from("false"),
+    );
     this.logger.info(
       `Account stored in database with alias${alias ? `es last & ${alias}` : " last"}`,
     );
@@ -223,16 +228,42 @@ export class WalletDB {
     const signingKey = await this.accounts.getAsync(
       `${address.toString()}:signingKey`,
     )!;
-    return { address, secretKey, salt, type, signingKey };
+    const deployedBuf = await this.accounts.getAsync(
+      `${address.toString()}:deployed`,
+    );
+    const deployed = deployedBuf?.toString("utf8") === "true";
+    return { address, secretKey, salt, type, signingKey, deployed };
   }
 
-  async listAccounts(): Promise<Aliased<AztecAddress>[]> {
+  async markAccountDeployed(address: AztecAddress): Promise<void> {
+    await this.accounts.set(
+      `${address.toString()}:deployed`,
+      Buffer.from("true"),
+    );
+    this.logger.info(`Account ${address.toString()} marked as deployed`);
+  }
+
+  async isAccountDeployed(address: AztecAddress): Promise<boolean> {
+    const buf = await this.accounts.getAsync(
+      `${address.toString()}:deployed`,
+    );
+    return buf?.toString("utf8") === "true";
+  }
+
+  async listAccounts(opts?: {
+    deployedOnly?: boolean;
+  }): Promise<Aliased<AztecAddress>[]> {
     const result = [];
     for await (const [alias, item] of this.aliases.entriesAsync()) {
       if (alias.startsWith("accounts:")) {
+        const address = AztecAddress.fromString(item.toString());
+        if (opts?.deployedOnly) {
+          const deployed = await this.isAccountDeployed(address);
+          if (!deployed) continue;
+        }
         result.push({
           alias: alias.replace("accounts:", ""),
-          item: AztecAddress.fromString(item.toString()),
+          item: address,
         });
       }
     }

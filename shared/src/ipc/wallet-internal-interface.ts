@@ -1,4 +1,5 @@
 import { Fr } from "@aztec/aztec.js/fields";
+import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import { type Wallet, WalletSchema, type GrantedCapability } from "@aztec/aztec.js/wallet";
 import { optional, schemas } from "@aztec/stdlib/schemas";
 import { z } from "zod";
@@ -132,6 +133,7 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
     salt: Fr,
     signingKey: Buffer
   ): Promise<void>;
+  deployAccount(address: AztecAddress): Promise<void>;
   getAccounts(): Promise<InternalAccount[]>; // Override with enriched type
   getInteractions(): Promise<WalletInteraction<WalletInteractionType>[]>;
   getExecutionTrace(interactionId: string): Promise<
@@ -191,6 +193,10 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
         schemas.Fr,
         schemas.Buffer
       ),
+    // @ts-ignore Annoying zod error
+    deployAccount: z
+      .function()
+      .args(schemas.AztecAddress),
     // @ts-ignore - Type inference for enriched InternalAccount with type field
     getAccounts: z
       .function()
@@ -201,6 +207,7 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
             alias: z.string(),
             item: schemas.AztecAddress,
             type: z.enum(AccountTypes),
+            deployed: z.boolean(),
           })
         )
       ),

@@ -1,12 +1,12 @@
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
-import ArrowDropDown from "@mui/icons-material/ArrowDropDown";
+import Chip from "@mui/material/Chip";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 
-import { addressToShortStr, keyToShortStr } from "../../../../utils/format";
 import IconButton from "@mui/material/IconButton";
 import { useState } from "react";
 import QrCode from "@mui/icons-material/QrCode";
@@ -15,11 +15,12 @@ import { type Aliased } from "@aztec/aztec.js/wallet";
 import { type AztecAddress } from "@aztec/aztec.js/addresses";
 
 interface AccountBoxProps {
-  account: Aliased<AztecAddress> & { type: string };
+  account: Aliased<AztecAddress> & { type: string; deployed: boolean };
   QRButton?: boolean;
+  onDeploy?: (address: AztecAddress) => void;
 }
 
-export function AccountBox({ account, QRButton = false }: AccountBoxProps) {
+export function AccountBox({ account, QRButton = false, onDeploy }: AccountBoxProps) {
   const [openQR, setOpenQR] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -37,6 +38,7 @@ export function AccountBox({ account, QRButton = false }: AccountBoxProps) {
         width: "100%",
         boxShadow: 2,
         transition: "box-shadow 0.2s, transform 0.2s",
+        opacity: account.deployed ? 1 : 0.55,
         "&:hover": {
           boxShadow: 4,
           transform: "translateY(-2px)",
@@ -52,15 +54,24 @@ export function AccountBox({ account, QRButton = false }: AccountBoxProps) {
         }}
       >
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{
-              fontWeight: 600,
-              mb: 0.5,
-            }}
-          >
-            {account.alias}
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 600,
+              }}
+            >
+              {account.alias}
+            </Typography>
+            {!account.deployed && (
+              <Chip
+                label="Not deployed"
+                size="small"
+                variant="outlined"
+                sx={{ fontSize: "0.65rem", height: 20 }}
+              />
+            )}
+          </Box>
           <Typography
             variant="body2"
             sx={{
@@ -83,6 +94,17 @@ export function AccountBox({ account, QRButton = false }: AccountBoxProps) {
             {account.type}
           </Typography>
         </Box>
+        {!account.deployed && onDeploy && (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RocketLaunchIcon fontSize="small" />}
+            onClick={() => onDeploy(account.item)}
+            sx={{ textTransform: "none", fontSize: "0.75rem", whiteSpace: "nowrap" }}
+          >
+            Deploy
+          </Button>
+        )}
         {account.item && (
           <IconButton
             size="small"

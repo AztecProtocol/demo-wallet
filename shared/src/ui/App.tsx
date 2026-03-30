@@ -64,6 +64,7 @@ export function App() {
   >([
     "registerContract",
     "createAccount",
+    "deployAccount",
     "simulateTx",
     "simulateUtility",
     "sendTx",
@@ -373,7 +374,8 @@ export function App() {
             active.type === "sendTx" ||
             active.type === "simulateTx" ||
             active.type === "simulateUtility" ||
-            active.type === "createAccount";
+            active.type === "createAccount" ||
+            active.type === "deployAccount";
           return (
             <Box
               onClick={() => setCompactTab("interactions")}

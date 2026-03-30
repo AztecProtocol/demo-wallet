@@ -5,8 +5,6 @@ import {
   type DeployAccountOptions,
   type SendOptions,
   type GrantedCapability,
-  type ContractsCapability,
-  type Capability,
 } from "@aztec/aztec.js/wallet";
 import { type Fr } from "@aztec/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
@@ -19,7 +17,6 @@ import {
 import {
   collectOffchainEffects,
   type ExecutionPayload,
-  TxHash,
   TxSimulationResult,
 } from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
@@ -39,7 +36,10 @@ import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
 import { GasSettings } from "@aztec/stdlib/gas";
 
 // Enriched account type for internal use
-export type InternalAccount = Aliased<AztecAddress> & { type: AccountType };
+export type InternalAccount = Aliased<AztecAddress> & {
+  type: AccountType;
+  deployed: boolean;
+};
 
 /**
  * 1. Skips all authorization checks (trusted internal GUI)
@@ -60,12 +60,12 @@ export class InternalWallet extends BaseNativeWallet {
     // Skip authorization via override above
     const accounts = await this.db.listAccounts();
 
-    // Enrich with account type information
+    // Enrich with account type and deployed state
     return Promise.all(
-      accounts.map(async (acc) => ({
-        ...acc,
-        type: (await this.db.retrieveAccount(acc.item)).type,
-      })),
+      accounts.map(async (acc) => {
+        const { type, deployed } = await this.db.retrieveAccount(acc.item);
+        return { ...acc, type, deployed };
+      }),
     );
   }
 
@@ -103,7 +103,7 @@ export class InternalWallet extends BaseNativeWallet {
       type: "createAccount",
       status: "CREATING",
       complete: false,
-      title: `Creating and deploying account ${alias}`,
+      title: `Creating account ${alias}`,
     });
     await this.interactionManager.storeAndEmit(interaction);
 
@@ -121,10 +121,48 @@ export class InternalWallet extends BaseNativeWallet {
         alias,
         signingKey,
       });
+
       await this.interactionManager.storeAndEmit(
         interaction.update({
-          status: "PREPARING ACCOUNT",
+          status: "CREATED",
+          complete: true,
           description: `Address ${accountManager.address.toString()}`,
+        }),
+      );
+    } catch (error: any) {
+      await this.interactionManager.storeAndEmit(
+        interaction.update({
+          status: "ERROR",
+          complete: true,
+          description: `Failed: ${error.message || String(error)}`,
+        }),
+      );
+      throw error;
+    }
+  }
+
+  async deployAccount(address: AztecAddress): Promise<void> {
+    const interaction = WalletInteraction.from({
+      type: "deployAccount",
+      status: "DEPLOYING",
+      complete: false,
+      title: `Deploying account`,
+    });
+    await this.interactionManager.storeAndEmit(interaction);
+
+    try {
+      const { secretKey, salt, signingKey, type } =
+        await this.db.retrieveAccount(address);
+      const accountManager = await this.getAccountManager(
+        type,
+        secretKey,
+        salt,
+        signingKey,
+      );
+
+      await this.interactionManager.storeAndEmit(
+        interaction.update({
+          description: `Address ${address.toString()}`,
         }),
       );
 
@@ -146,8 +184,6 @@ export class InternalWallet extends BaseNativeWallet {
         opts.fee?.gasSettings,
       );
 
-      // Simulate the transaction first to estimate gas and capture required
-      // private authwitnesses based on offchain effects.
       const simulationResult = await this.simulateViaEntrypoint(
         executionPayload,
         {
@@ -200,11 +236,11 @@ export class InternalWallet extends BaseNativeWallet {
       };
       await this.sendTx(executionPayload, sendOptions, interaction);
 
+      await this.db.markAccountDeployed(address);
       await this.interactionManager.storeAndEmit(
         interaction.update({ status: "DEPLOYED", complete: true }),
       );
     } catch (error: any) {
-      // Update interaction with error status
       await this.interactionManager.storeAndEmit(
         interaction.update({
           status: "ERROR",
@@ -212,7 +248,6 @@ export class InternalWallet extends BaseNativeWallet {
           description: `Failed: ${error.message || String(error)}`,
         }),
       );
-      // Re-throw so the UI can also handle it
       throw error;
     }
   }

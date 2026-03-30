@@ -123,7 +123,6 @@ export function AuthorizeCapabilitiesContent({
     const loadData = async () => {
       // Load accounts
       const allAccounts: InternalAccount[] = await walletAPI.getAccounts();
-      const deployedAccounts = allAccounts.filter((acc) => acc.deployed);
 
       // Check if manifest requests accounts capability
       const accountsCap = manifest.capabilities.find(
@@ -136,7 +135,7 @@ export function AuthorizeCapabilitiesContent({
       const hasGetAccountsGrant = existingGrants.get("getAccounts") === true;
 
       setAccounts(
-        deployedAccounts.map((acc) => ({
+        allAccounts.map((acc) => ({
           address: acc.item.toString(),
           alias: acc.alias,
           originalAlias: acc.alias,

@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("walletAPI", {
   createAccount(stringifiedArgs: string): Promise<TxHash> {
     return ipcRenderer.invoke("createAccount", stringifiedArgs);
   },
+  deployAccount(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("deployAccount", stringifiedArgs);
+  },
   getInteractions(
     stringifiedArgs: string
   ): Promise<WalletInteraction<WalletInteractionType>[]> {

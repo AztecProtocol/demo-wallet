@@ -10,6 +10,7 @@ import {
   type TxExecutionRequest,
   type ExecutionPayload,
   mergeExecutionPayloads,
+  BlockHeader,
 } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import { Fr } from "@aztec/foundation/curves/bn254";
@@ -140,7 +141,10 @@ export class SimulateTxOperation extends ExternalOperation<
       >
     >,
     private getChainInfo: () => Promise<ChainInfo>,
-    private scopesFrom: (from: AztecAddress | NoFrom, additionalScopes?: AztecAddress[]) => AztecAddress[],
+    private scopesFrom: (
+      from: AztecAddress | NoFrom,
+      additionalScopes?: AztecAddress[],
+    ) => AztecAddress[],
     private cancellableTransactions: boolean,
     private log: Logger,
   ) {
@@ -201,10 +205,17 @@ export class SimulateTxOperation extends ExternalOperation<
       extractOptimizablePublicStaticCalls(executionPayload);
 
     const chainInfo = await this.getChainInfo();
-    const blockHeader = await this.pxe.getSyncedBlockHeader();
-
+    let blockHeader: BlockHeader;
+    // PXE might not be synced yet, so we pull the latest header from the node
+    // To keep things consistent, we'll always try with PXE first
+    try {
+      blockHeader = await this.pxe.getSyncedBlockHeader();
+    } catch {
+      blockHeader = (await this.node.getBlockHeader())!;
+    }
     // STEP 2: Run both paths in parallel
-    const simulationOrigin = opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;
+    const simulationOrigin =
+      opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;
     const simulationStart = Date.now();
     const [optimizedResults, normalResult] = await Promise.all([
       optimizableCalls.length > 0
@@ -244,7 +255,15 @@ export class SimulateTxOperation extends ExternalOperation<
     // simulations stats is null so inject a minimal object with the wall-clock total.
     const metadataStats: StoredStats = simulationResult.stats
       ? (simulationResult.stats as StoredStats)
-      : { timings: { sync: 0, perFunction: [], unaccounted: 0, total: wallTime, simulation: wallTime } };
+      : {
+          timings: {
+            sync: 0,
+            perFunction: [],
+            unaccounted: 0,
+            total: wallTime,
+            simulation: wallTime,
+          },
+        };
 
     await this.db.storeTxPayloadData(payloadHash, simulationResult, {
       from: opts.from.toString(),
@@ -310,7 +329,11 @@ export class SimulateTxOperation extends ExternalOperation<
     let txReq: TxExecutionRequest;
     if (from === NO_FROM) {
       const entrypoint = new DefaultEntrypoint();
-      txReq = await entrypoint.createTxExecutionRequest(normalPayload, gasSettings, chainInfo);
+      txReq = await entrypoint.createTxExecutionRequest(
+        normalPayload,
+        gasSettings,
+        chainInfo,
+      );
     } else {
       const { account, instance, artifact } =
         await this.getFakeAccountDataFor(from);
@@ -324,9 +347,10 @@ export class SimulateTxOperation extends ExternalOperation<
       );
     }
 
-    const overrides = Object.keys(accountOverrides).length > 0
-      ? new SimulationOverrides(accountOverrides)
-      : undefined;
+    const overrides =
+      Object.keys(accountOverrides).length > 0
+        ? new SimulationOverrides(accountOverrides)
+        : undefined;
 
     const result = await this.pxe.simulateTx(txReq, {
       scopes: this.scopesFrom(from, additionalScopes),

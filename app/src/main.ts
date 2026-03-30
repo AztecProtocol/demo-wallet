@@ -370,6 +370,7 @@ app.on("ready", async () => {
     "registerSender",
     "getTxReceipt",
     "createAccount",
+    "deployAccount",
     "getInteractions",
     "getExecutionTrace",
     "resolveAuthorization",

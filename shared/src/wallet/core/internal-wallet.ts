@@ -145,7 +145,7 @@ export class InternalWallet extends BaseNativeWallet {
   async deployAccount(address: AztecAddress): Promise<void> {
     const interaction = WalletInteraction.from({
       type: "deployAccount",
-      status: "DEPLOYING",
+      status: "SIMULATING",
       complete: false,
       title: `Deploying account`,
     });
@@ -193,6 +193,11 @@ export class InternalWallet extends BaseNativeWallet {
           scopes: this.scopesFrom(opts.from, opts.additionalScopes),
           skipTxValidation: true,
         },
+      );
+
+      // Mark simulation complete so the live timeline can measure its duration
+      await this.interactionManager.storeAndEmit(
+        interaction.update({ status: "REQUESTING AUTHORIZATION" }),
       );
 
       const offchainEffects = collectOffchainEffects(

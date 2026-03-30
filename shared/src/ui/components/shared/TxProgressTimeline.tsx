@@ -78,14 +78,14 @@ const formatDurationLong = (ms: number): string => {
 };
 
 function getPhaseDefs(type: WalletInteractionType): PhaseDef[] {
-  if (type === "sendTx" || type === "createAccount") return SEND_TX_PHASE_DEFS;
+  if (type === "sendTx" || type === "createAccount" || type === "deployAccount") return SEND_TX_PHASE_DEFS;
   return SIMULATE_TX_PHASE_DEFS;
 }
 
 // Maps an interaction status string to the PhaseDef.statusKey it corresponds to.
 // Returns null when no live phase should be shown (auth wait is intentionally excluded).
 function getCurrentPhaseKey(status: string, type: WalletInteractionType): string | null {
-  if (type === "sendTx" || type === "createAccount") {
+  if (type === "sendTx" || type === "createAccount" || type === "deployAccount") {
     if (status.includes("SIMULATING")) return "SIMULATING";
     if (status.includes("PROVING")) return "PROVING";
     if (status.includes("SENDING")) return "SENDING";

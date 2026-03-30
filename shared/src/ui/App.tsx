@@ -123,6 +123,9 @@ export function App() {
         phaseStartsRef.current.set(startKey, interaction.timestamp);
       }
 
+      // Skip internal-only events that shouldn't appear in the interactions list
+      if ((interaction as any).type === "capabilityChange") return;
+
       setInteractions((prevEvents) => {
         const eventsMap = new Map<
           string,

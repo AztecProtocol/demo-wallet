@@ -94,7 +94,7 @@ export class GetAccountsOperation extends ExternalOperation<
       executionData: { accounts: aliasedAccounts },
       persistence: {
         storageKey: "getAccounts",
-        persistData: null, // Will be filled from authorization response
+        persistData: undefined, // Use data from authorization response (selected accounts)
       },
     };
   }
@@ -123,15 +123,20 @@ export class GetAccountsOperation extends ExternalOperation<
     const itemResponse = response.itemResponses[itemId];
     const authData = itemResponse?.data as any;
 
-    if (!authData || !authData.accounts) {
-      throw new Error("Authorization response missing account data");
+    if (authData?.accounts) {
+      // User selected specific accounts (or auto-approved with stored accounts)
+      this.selectedAccounts = authData.accounts.map((acc: any) => ({
+        alias: acc.alias,
+        item: typeof acc.item === "string" ? acc.item : acc.item.toString(),
+      }));
+    } else {
+      // Legacy auto-approval (stored null) — fall back to all accounts from prepare
+      const accounts = await this.db.listAccounts();
+      this.selectedAccounts = accounts.map((acc) => ({
+        alias: acc.alias,
+        item: acc.item.toString(),
+      }));
     }
-
-    // Store the accounts selected by the user
-    this.selectedAccounts = authData.accounts.map((acc: any) => ({
-      alias: acc.alias,
-      item: typeof acc.item === "string" ? acc.item : acc.item.toString(),
-    }));
   }
 
   async execute(

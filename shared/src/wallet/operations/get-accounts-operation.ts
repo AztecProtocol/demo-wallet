@@ -82,8 +82,8 @@ export class GetAccountsOperation extends ExternalOperation<
       GetAccountsExecutionData
     >
   > {
-    // Load only deployed accounts — undeployed accounts are not exposed to apps
-    const accounts = await this.db.listAccounts({ deployedOnly: true });
+    // Load all accounts from database
+    const accounts = await this.db.listAccounts();
     const aliasedAccounts: Aliased<AztecAddress>[] = accounts.map((acc) => ({
       alias: acc.alias,
       item: acc.item,

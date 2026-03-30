@@ -1,8 +1,8 @@
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
+import Tooltip from "@mui/material/Tooltip";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
@@ -95,15 +95,15 @@ export function AccountBox({ account, QRButton = false, onDeploy }: AccountBoxPr
           </Typography>
         </Box>
         {!account.deployed && onDeploy && (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RocketLaunchIcon fontSize="small" />}
-            onClick={() => onDeploy(account.item)}
-            sx={{ textTransform: "none", fontSize: "0.75rem", whiteSpace: "nowrap" }}
-          >
-            Deploy
-          </Button>
+          <Tooltip title="Deploy account">
+            <IconButton
+              size="small"
+              onClick={() => onDeploy(account.item)}
+              color="primary"
+            >
+              <RocketLaunchIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         )}
         {account.item && (
           <IconButton

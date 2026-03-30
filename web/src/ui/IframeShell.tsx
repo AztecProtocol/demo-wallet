@@ -412,9 +412,6 @@ function IframeContent() {
       },
       getWallet: (() => {
         const walletCache = new Map<string, Promise<Wallet>>();
-        // Serialize all wallet method calls to avoid concurrent IndexedDB
-        // transactions (PXE + wallet-db) interfering with each other.
-        let queue: Promise<unknown> = Promise.resolve();
         return async (appId: string, chainInfo: ChainInfo) => {
           clearVerificationHashRef.current();
           const rawChainId = (chainInfo as any).chainId;
@@ -449,10 +446,16 @@ function IframeContent() {
                 },
               );
 
-              // Wrap wallet in a serializing proxy so concurrent postMessage
-              // calls don't trigger parallel PXE/IndexedDB operations.
+              // Serialize all wallet method calls to avoid concurrent IndexedDB
+              // transactions (PXE + wallet-db) interfering with each other.
+              // IMPORTANT: 'then' must NOT be intercepted — otherwise the Proxy
+              // looks like a thenable and `await getWallet()` deadlocks.
+              let queue: Promise<unknown> = Promise.resolve();
               return new Proxy(external as Wallet, {
                 get(target, prop, receiver) {
+                  if (prop === "then" || typeof prop === "symbol") {
+                    return Reflect.get(target, prop, receiver);
+                  }
                   const value = Reflect.get(target, prop, receiver);
                   if (typeof value !== "function") return value;
                   return (...args: unknown[]) => {

@@ -32,6 +32,14 @@ import {
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
+import { Gas, GasSettings } from "@aztec/stdlib/gas";
+import type { FieldsOf } from "@aztec/foundation/types";
+import {
+  GAS_ESTIMATION_DA_GAS_LIMIT,
+  GAS_ESTIMATION_L2_GAS_LIMIT,
+  GAS_ESTIMATION_TEARDOWN_DA_GAS_LIMIT,
+  GAS_ESTIMATION_TEARDOWN_L2_GAS_LIMIT,
+} from "@aztec/constants";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -317,5 +325,36 @@ export abstract class BaseNativeWallet
    */
   resolveAuthorization(response: AuthorizationResponse) {
     this.authorizationManager.resolveAuthorization(response);
+  }
+
+  /**
+   * Overrides the base wallet's completeFeeOptionsForEstimation to respect
+   * user-provided gasLimits and teardownGasLimits during simulation.
+   *
+   * The installed @aztec/wallet-sdk version always replaces gas limits with
+   * high estimation constants, causing _ensure_max_fee assertions in FPC
+   * teardown to fail when the user has provided tight teardown gas limits.
+   */
+  protected override async completeFeeOptionsForEstimation(
+    from: AztecAddress | NoFrom,
+    feePayer?: AztecAddress,
+    gasSettings?: Partial<FieldsOf<GasSettings>>,
+  ) {
+    const defaultFeeOptions = await this.completeFeeOptions(from, feePayer, gasSettings);
+    const { maxFeesPerGas, maxPriorityFeesPerGas } = defaultFeeOptions.gasSettings;
+    const gasSettingsForEstimation = new GasSettings(
+      gasSettings?.gasLimits
+        ? Gas.from(gasSettings.gasLimits)
+        : new Gas(GAS_ESTIMATION_DA_GAS_LIMIT, GAS_ESTIMATION_L2_GAS_LIMIT),
+      gasSettings?.teardownGasLimits
+        ? Gas.from(gasSettings.teardownGasLimits)
+        : new Gas(GAS_ESTIMATION_TEARDOWN_DA_GAS_LIMIT, GAS_ESTIMATION_TEARDOWN_L2_GAS_LIMIT),
+      maxFeesPerGas,
+      maxPriorityFeesPerGas,
+    );
+    return {
+      ...defaultFeeOptions,
+      gasSettings: gasSettingsForEstimation,
+    };
   }
 }

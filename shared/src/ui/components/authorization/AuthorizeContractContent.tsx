@@ -22,8 +22,7 @@ export function AuthorizeContractContent({
     <>
       {showAppId && (
         <Typography variant="body1" gutterBottom>
-          App <strong>{request.appId}</strong> wants to register a contract for
-          interaction.
+          App <strong>{request.appId}</strong> wants to register a contract for interaction.
         </Typography>
       )}
       <Box
@@ -77,9 +76,7 @@ export function AuthorizeContractContent({
             gap: 1,
           }}
         >
-          <CheckCircleIcon
-            sx={{ fontSize: 18, color: "success.main" }}
-          />
+          <CheckCircleIcon sx={{ fontSize: 18, color: "success.main" }} />
           <Typography variant="caption" color="success.main">
             Contract Verified
           </Typography>
@@ -98,8 +95,8 @@ export function AuthorizeContractContent({
         </Box>
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This will allow the app to interact with this contract. The contract
-        will be registered in your wallet's PXE instance.
+        This will allow the app to interact with this contract. The contract will be registered in
+        your wallet's PXE instance.
       </Typography>
     </>
   );

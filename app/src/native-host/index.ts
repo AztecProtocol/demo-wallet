@@ -45,10 +45,7 @@ async function main(): Promise<void> {
       status: "connected",
     });
   } catch (err) {
-    const errorMsg =
-      err instanceof Error
-        ? err.message
-        : "Failed to connect to Demo Wallet app";
+    const errorMsg = err instanceof Error ? err.message : "Failed to connect to Demo Wallet app";
     log(`Failed to connect: ${errorMsg}`);
     // Send error back to extension before exiting
     stdio.send({

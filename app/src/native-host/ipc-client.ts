@@ -84,8 +84,8 @@ export class IpcClient {
           } else {
             reject(
               new Error(
-                `Failed to connect to Electron app after ${this.maxReconnectAttempts} attempts`
-              )
+                `Failed to connect to Electron app after ${this.maxReconnectAttempts} attempts`,
+              ),
             );
           }
         } else {

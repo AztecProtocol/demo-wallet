@@ -5,6 +5,7 @@ import {
   type DeployAccountOptions,
   type SendOptions,
   type GrantedCapability,
+  TxSimulationResultWithAppOffset,
 } from "@aztec/aztec.js/wallet";
 import { type Fr } from "@aztec/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
@@ -14,16 +15,11 @@ import {
   type WalletInteractionType,
 } from "../types/wallet-interaction";
 
-import {
-  collectOffchainEffects,
-  type ExecutionPayload,
-  TxSimulationResult,
-  TxStatus,
-} from "@aztec/stdlib/tx";
+import { collectOffchainEffects, type ExecutionPayload, TxStatus } from "@aztec/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
 
-import { BaseNativeWallet } from "./base-native-wallet.ts";
+import { DemoWallet } from "./demo-wallet.ts";
 import {
   NO_WAIT,
   toSendOptions,
@@ -47,11 +43,9 @@ export type InternalAccount = Aliased<AztecAddress> & {
  * 2. Returns enriched data (e.g., account types)
  * 3. Provides additional internal-only methods
  */
-export class InternalWallet extends BaseNativeWallet {
+export class InternalWallet extends DemoWallet {
   // Override getAccountFromAddress to skip authorization check
-  protected override async getAccountFromAddress(
-    address: AztecAddress,
-  ): Promise<Account> {
+  protected override async getAccountFromAddress(address: AztecAddress): Promise<Account> {
     // Internal wallet is trusted, skip authorization and use base implementation
     return this.getAccountFromAddressInternal(address);
   }
@@ -70,10 +64,7 @@ export class InternalWallet extends BaseNativeWallet {
     );
   }
 
-  override async registerSender(
-    address: AztecAddress,
-    alias: string,
-  ): Promise<AztecAddress> {
+  override async registerSender(address: AztecAddress, alias: string): Promise<AztecAddress> {
     // Store sender in database
     await this.db.storeSender(address, alias);
     // Register with PXE
@@ -109,12 +100,7 @@ export class InternalWallet extends BaseNativeWallet {
     await this.interactionManager.storeAndEmit(interaction);
 
     try {
-      const accountManager = await this.getAccountManager(
-        type,
-        secret,
-        salt,
-        signingKey,
-      );
+      const accountManager = await this.getAccountManager(type, secret, salt, signingKey);
       await this.db.storeAccount(accountManager.address, {
         type,
         secretKey: secret,
@@ -152,14 +138,8 @@ export class InternalWallet extends BaseNativeWallet {
     await this.interactionManager.storeAndEmit(interaction);
 
     try {
-      const { secretKey, salt, signingKey, type } =
-        await this.db.retrieveAccount(address);
-      const accountManager = await this.getAccountManager(
-        type,
-        secretKey,
-        salt,
-        signingKey,
-      );
+      const { secretKey, salt, signingKey, type } = await this.db.retrieveAccount(address);
+      const accountManager = await this.getAccountManager(type, secretKey, salt, signingKey);
 
       await this.interactionManager.storeAndEmit(
         interaction.update({
@@ -179,36 +159,30 @@ export class InternalWallet extends BaseNativeWallet {
         deployer: AztecAddress.ZERO,
       });
 
-      const feeOptions = await this.completeFeeOptionsForEstimation(
-        opts.from,
-        executionPayload.feePayer,
-        opts.fee?.gasSettings,
-      );
+      const feeOptions = await this.completeFeeOptions({
+        from: opts.from,
+        feePayer: executionPayload.feePayer,
+        gasSettings: opts.fee?.gasSettings,
+        forEstimation: true,
+      });
 
-      const simulationResult = await this.simulateViaEntrypoint(
-        executionPayload,
-        {
-          from: opts.from,
-          feeOptions,
-          scopes: this.scopesFrom(opts.from, opts.additionalScopes),
-          skipTxValidation: true,
-        },
-      );
+      const simulationResult = await this.simulateViaEntrypoint(executionPayload, {
+        from: opts.from,
+        feeOptions,
+        additionalScopes: opts.additionalScopes,
+        skipTxValidation: true,
+      });
 
       // Mark simulation complete so the live timeline can measure its duration
       await this.interactionManager.storeAndEmit(
         interaction.update({ status: "REQUESTING AUTHORIZATION" }),
       );
 
-      const offchainEffects = collectOffchainEffects(
-        simulationResult.privateExecutionResult,
-      );
+      const offchainEffects = collectOffchainEffects(simulationResult.privateExecutionResult);
       const authWitnesses = await Promise.all(
         offchainEffects.map(async (effect) => {
           try {
-            const authRequest = await CallAuthorizationRequest.fromFields(
-              effect.data,
-            );
+            const authRequest = await CallAuthorizationRequest.fromFields(effect.data);
             return this.createAuthWit(authRequest.onBehalfOf, {
               consumer: effect.contractAddress,
               innerHash: authRequest.innerHash,
@@ -232,9 +206,7 @@ export class InternalWallet extends BaseNativeWallet {
         maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
         maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
         gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
-        teardownGasLimits:
-          opts.fee?.gasSettings?.teardownGasLimits ??
-          estimated.teardownGasLimits,
+        teardownGasLimits: opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
       });
       const sendOptions = {
         ...(await toSendOptions(opts)),
@@ -263,11 +235,11 @@ export class InternalWallet extends BaseNativeWallet {
     opts: SendOptions<W>,
     interaction?: WalletInteraction<WalletInteractionType>,
   ): Promise<SendReturn<W>> {
-    const fee = await this.completeFeeOptions(
-      opts.from,
-      executionPayload.feePayer,
-      opts.fee?.gasSettings,
-    );
+    const fee = await this.completeFeeOptions({
+      from: opts.from,
+      feePayer: executionPayload.feePayer,
+      gasSettings: opts.fee?.gasSettings,
+    });
     const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
       executionPayload,
       opts.from,
@@ -287,23 +259,17 @@ export class InternalWallet extends BaseNativeWallet {
         status: "PROVING",
       }),
     );
-    const provenTx = await this.pxe.proveTx(
-      txRequest,
-      this.scopesFrom(opts.from),
-    );
+    const provenTx = await this.pxe.proveTx(txRequest, this.scopesFrom(opts.from));
     const provingTime = Date.now() - provingStartTime;
 
     const offchainOutput = extractOffchainOutput(
       provenTx.getOffchainEffects(),
-      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables
-        .timestamp,
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables.timestamp,
     );
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
     if (await this.aztecNode.getTxEffect(txHash)) {
-      throw new Error(
-        `A settled tx with equal hash ${txHash.toString()} exists.`,
-      );
+      throw new Error(`A settled tx with equal hash ${txHash.toString()} exists.`);
     }
 
     // Track sending time
@@ -337,9 +303,7 @@ export class InternalWallet extends BaseNativeWallet {
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
-    await this.interactionManager.storeAndEmit(
-      interaction.update({ status: "MINING" }),
-    );
+    await this.interactionManager.storeAndEmit(interaction.update({ status: "MINING" }));
     const miningStartTime = Date.now();
     const waitOpts = typeof opts.wait === "object" ? opts.wait : undefined;
     const receipt = await waitForTx(this.aztecNode, txHash, {
@@ -349,9 +313,7 @@ export class InternalWallet extends BaseNativeWallet {
     const miningTime = Date.now() - miningStartTime;
 
     const timingSummary = `Prove: ${formatDuration(provingTime)} | Send: ${formatDuration(sendingTime)} | Mine: ${formatDuration(miningTime)}`;
-    await this.interactionManager.storeAndEmit(
-      interaction.update({ description: timingSummary }),
-    );
+    await this.interactionManager.storeAndEmit(interaction.update({ description: timingSummary }));
     if (interaction) {
       const rawStats = provenTx.stats;
       await this.db.updateTxPayloadStats(interaction.id, {
@@ -409,15 +371,13 @@ export class InternalWallet extends BaseNativeWallet {
       };
     }
 
-    // Use the shared decoding cache from BaseNativeWallet
+    // Use the shared decoding cache from DemoWallet
     const decodingService = new TxDecodingService(this.decodingCache, this.log);
-    const parsedSimulationResult = TxSimulationResult.schema.parse(
+    const parsedSimulationResult = TxSimulationResultWithAppOffset.schema.parse(
       data.simulationResult,
     );
 
-    const { executionTrace } = await decodingService.decodeTransaction(
-      parsedSimulationResult,
-    );
+    const { executionTrace } = await decodingService.decodeTransaction(parsedSimulationResult);
     // stats is already enriched at origin with simulation/sending/mining wall-clock times.
     // Fall back to simStats for simulate-only interactions.
     const stats = data.metadata?.stats ?? parsedSimulationResult.stats;
@@ -426,8 +386,7 @@ export class InternalWallet extends BaseNativeWallet {
       trace: executionTrace,
       stats,
       from: data.metadata?.from,
-      embeddedPaymentMethodFeePayer:
-        data.metadata?.embeddedPaymentMethodFeePayer,
+      embeddedPaymentMethodFeePayer: data.metadata?.embeddedPaymentMethodFeePayer,
     };
   }
 
@@ -446,21 +405,15 @@ export class InternalWallet extends BaseNativeWallet {
     return { requested, granted };
   }
 
-  async resolveContractNames(
-    addresses: string[],
-  ): Promise<Record<string, string>> {
+  async resolveContractNames(addresses: string[]): Promise<Record<string, string>> {
     const result: Record<string, string> = {};
     for (const addrStr of addresses) {
-      result[addrStr] = await this.decodingCache.getAddressAlias(
-        AztecAddress.fromString(addrStr),
-      );
+      result[addrStr] = await this.decodingCache.getAddressAlias(AztecAddress.fromString(addrStr));
     }
     return result;
   }
 
-  async capabilityToStorageKeys(
-    capability: GrantedCapability,
-  ): Promise<string[]> {
+  async capabilityToStorageKeys(capability: GrantedCapability): Promise<string[]> {
     return this.db.capabilityToStorageKeys(capability);
   }
 
@@ -473,10 +426,7 @@ export class InternalWallet extends BaseNativeWallet {
     this.emitCapabilityChange();
   }
 
-  async revokeCapability(
-    appId: string,
-    capability: GrantedCapability,
-  ): Promise<void> {
+  async revokeCapability(appId: string, capability: GrantedCapability): Promise<void> {
     await this.db.revokeCapability(appId, capability);
     this.emitCapabilityChange();
   }

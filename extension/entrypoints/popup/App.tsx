@@ -75,18 +75,16 @@ function getHostname(origin: string): string {
 function EmojiGrid({ emojis }: { emojis: string }): JSX.Element {
   // Split emojis into array (handles multi-byte emoji correctly)
   const emojiArray = [...emojis];
-  const rows = [
-    emojiArray.slice(0, 3),
-    emojiArray.slice(3, 6),
-    emojiArray.slice(6, 9),
-  ];
+  const rows = [emojiArray.slice(0, 3), emojiArray.slice(3, 6), emojiArray.slice(6, 9)];
 
   return (
     <div className="emoji-grid">
       {rows.map((row, i) => (
         <div key={i} className="emoji-row">
           {row.map((emoji, j) => (
-            <span key={j} className="emoji-cell">{emoji}</span>
+            <span key={j} className="emoji-cell">
+              {emoji}
+            </span>
           ))}
         </div>
       ))}
@@ -207,7 +205,12 @@ function App() {
     await refreshData();
   };
 
-  const handleForgetApp = async (appId: string, appOrigin: string, chainId: string, version: string) => {
+  const handleForgetApp = async (
+    appId: string,
+    appOrigin: string,
+    chainId: string,
+    version: string,
+  ) => {
     await browser.runtime.sendMessage({
       origin: "popup",
       type: "forget-app",
@@ -278,12 +281,7 @@ function App() {
     <div className="popup-container">
       <header className="popup-header">
         <div className="header-left">
-          <svg
-            className="logo"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+          <svg className="logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M12 2L2 7L12 12L22 7L12 2Z"
               stroke="currentColor"
@@ -417,7 +415,10 @@ function App() {
                         const mismatch = !domainsMatch(s.origin, s.appId);
                         const isCurrentTab = currentTabOrigin === s.origin;
                         return (
-                          <div key={s.sessionId} className={`item session session-card ${isCurrentTab ? 'current-tab' : ''}`}>
+                          <div
+                            key={s.sessionId}
+                            className={`item session session-card ${isCurrentTab ? "current-tab" : ""}`}
+                          >
                             <div className="session-header">
                               <span className="item-name">
                                 {s.appId || hostname}
@@ -444,10 +445,16 @@ function App() {
                                   <span className="item-origin">via {hostname}</span>
                                 )}
                                 <span className="item-chain-info">
-                                  <span className="item-chain" title={`Chain ID (hex): ${s.chainId}`}>
+                                  <span
+                                    className="item-chain"
+                                    title={`Chain ID (hex): ${s.chainId}`}
+                                  >
                                     Chain: {hexToDecimal(s.chainId)}
                                   </span>
-                                  <span className="item-chain" title={`Version (hex): ${s.version}`}>
+                                  <span
+                                    className="item-chain"
+                                    title={`Version (hex): ${s.version}`}
+                                  >
                                     Version: {hexToDecimal(s.version)}
                                   </span>
                                 </span>
@@ -485,30 +492,43 @@ function App() {
                       {rememberedApps.map((app) => {
                         const hostname = getHostname(app.origin);
                         const hasActiveSession = sessions.some(
-                          (s) => s.appId === app.appId && s.origin === app.origin
+                          (s) => s.appId === app.appId && s.origin === app.origin,
                         );
                         return (
-                          <div key={`${app.appId}-${app.origin}-${app.chainId}`} className="item trusted-app">
+                          <div
+                            key={`${app.appId}-${app.origin}-${app.chainId}`}
+                            className="item trusted-app"
+                          >
                             <div className="item-info">
                               <span className="item-name">
                                 {app.appId}
                                 {hasActiveSession && (
-                                  <span className="active-indicator" title="Currently connected">●</span>
+                                  <span className="active-indicator" title="Currently connected">
+                                    ●
+                                  </span>
                                 )}
                               </span>
                               <span className="item-origin">via {hostname}</span>
                               <span className="item-chain-info">
-                                <span className="item-chain" title={`Chain ID (hex): ${app.chainId}`}>
+                                <span
+                                  className="item-chain"
+                                  title={`Chain ID (hex): ${app.chainId}`}
+                                >
                                   Chain: {hexToDecimal(app.chainId)}
                                 </span>
-                                <span className="item-chain" title={`Version (hex): ${app.version}`}>
+                                <span
+                                  className="item-chain"
+                                  title={`Version (hex): ${app.version}`}
+                                >
                                   Version: {hexToDecimal(app.version)}
                                 </span>
                               </span>
                             </div>
                             <button
                               className="btn btn-small btn-forget"
-                              onClick={() => handleForgetApp(app.appId, app.origin, app.chainId, app.version)}
+                              onClick={() =>
+                                handleForgetApp(app.appId, app.origin, app.chainId, app.version)
+                              }
                               title="Remove from trusted apps for this network"
                             >
                               Forget
@@ -536,11 +556,7 @@ function App() {
       </main>
 
       <footer className="popup-footer">
-        <img
-          src="/aztec_symbol_circle.png"
-          alt="Aztec Network"
-          className="aztec-logo"
-        />
+        <img src="/aztec_symbol_circle.png" alt="Aztec Network" className="aztec-logo" />
         <span className="aztec-text">Aztec Network</span>
         {status && <span className="version">v{status.walletVersion}</span>}
       </footer>

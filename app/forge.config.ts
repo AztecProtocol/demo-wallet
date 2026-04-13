@@ -18,10 +18,7 @@ type CopyClass<T> = {
 
 type CustomWalker = CopyClass<Walker> & {
   modules: Module[];
-  walkDependenciesForModule: (
-    moduleRoot: string,
-    depType: DepType,
-  ) => Promise<void>;
+  walkDependenciesForModule: (moduleRoot: string, depType: DepType) => Promise<void>;
 };
 
 const externalDependencies = ["@aztec/kv-store", "@aztec/bb.js"];
@@ -55,32 +52,22 @@ const config: ForgeConfig = {
       console.log(`External dependencies: ${externalDependencies.join(", ")}`);
 
       for (const dep of externalDependencies) {
-        const walker = new Walker(
-          path.join(sourceNodeModulesPath, dep),
-        ) as unknown as CustomWalker;
+        const walker = new Walker(path.join(sourceNodeModulesPath, dep)) as unknown as CustomWalker;
 
-        await walker.walkDependenciesForModule(
-          path.join(sourceNodeModulesPath, dep),
-          DepType.PROD,
-        );
+        await walker.walkDependenciesForModule(path.join(sourceNodeModulesPath, dep), DepType.PROD);
 
         walker.modules.forEach((treeDep) => {
           depsToCopy.add(treeDep.name);
         });
       }
 
-      console.log(
-        `Total packages to copy (including transitive): ${depsToCopy.size}`,
-      );
+      console.log(`Total packages to copy (including transitive): ${depsToCopy.size}`);
 
       await Promise.all(
         Array.from(depsToCopy.values()).map(async (packageName) => {
           // Use mapped source if available, otherwise use the original package name
           const sourcePackageName = dependencyMap[packageName] || packageName;
-          const sourcePath = path.join(
-            sourceNodeModulesPath,
-            sourcePackageName,
-          );
+          const sourcePath = path.join(sourceNodeModulesPath, sourcePackageName);
           const destPath = path.join(destNodeModulesPath, packageName);
 
           // Check if source exists (handles hoisted/symlinked deps that may not resolve)
@@ -103,12 +90,7 @@ const config: ForgeConfig = {
     },
   },
   rebuildConfig: {},
-  makers: [
-    new MakerSquirrel({}),
-    new MakerZIP({}, ["darwin"]),
-    new MakerRpm({}),
-    new MakerDeb({}),
-  ],
+  makers: [new MakerSquirrel({}), new MakerZIP({}, ["darwin"]), new MakerRpm({}), new MakerDeb({})],
   plugins: [
     new AutoUnpackNativesPlugin({}),
     new VitePlugin({

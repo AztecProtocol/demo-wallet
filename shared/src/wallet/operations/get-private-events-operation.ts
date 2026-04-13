@@ -1,16 +1,9 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
 import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
 import { decodeFromAbi } from "@aztec/stdlib/abi";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
@@ -81,7 +74,7 @@ export class GetPrivateEventsOperation<T = any> extends ExternalOperation<
 
   async createInteraction(
     eventMetadata: EventMetadataDefinition,
-    eventFilter: PrivateEventFilter,
+    _eventFilter: PrivateEventFilter,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     const interaction = WalletInteraction.from({
       type: "getPrivateEvents",
@@ -99,19 +92,10 @@ export class GetPrivateEventsOperation<T = any> extends ExternalOperation<
   async prepare(
     eventMetadata: EventMetadataDefinition,
     eventFilter: PrivateEventFilter,
-  ): Promise<
-    PrepareResult<
-      GetPrivateEventsResult<T>,
-      GetPrivateEventsDisplayData,
-      GetPrivateEventsExecutionData<T>
-    >
-  > {
+  ): Promise<PrepareResult<GetPrivateEventsDisplayData, GetPrivateEventsExecutionData<T>>> {
     // Query events to show count to user
     // New PXE API: getPrivateEvents(eventSelector, filter) → PackedPrivateEvent[]
-    const packedEvents = await this.pxe.getPrivateEvents(
-      eventMetadata.eventSelector,
-      eventFilter,
-    );
+    const packedEvents = await this.pxe.getPrivateEvents(eventMetadata.eventSelector, eventFilter);
     // Decode each packed event into the typed PrivateEvent<T> format
     const events: PrivateEvent<T>[] = packedEvents.map((packed: any) => ({
       event: decodeFromAbi([eventMetadata.abiType], packed.packedEvent) as T,
@@ -124,9 +108,7 @@ export class GetPrivateEventsOperation<T = any> extends ExternalOperation<
 
     let contractName: string | undefined;
     if (eventFilter.contractAddress) {
-      contractName = await this.decodingCache.getAddressAlias(
-        eventFilter.contractAddress,
-      );
+      contractName = await this.decodingCache.getAddressAlias(eventFilter.contractAddress);
     }
 
     const displayData: GetPrivateEventsDisplayData = {

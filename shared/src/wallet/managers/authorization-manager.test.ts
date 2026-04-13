@@ -4,10 +4,7 @@ import { createLogger } from "@aztec/foundation/log";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { AuthorizationManager } from "./authorization-manager";
 import { WalletDB } from "../database/wallet-db";
-import type {
-  AuthorizationItem,
-  AuthorizationResponse,
-} from "../types/authorization";
+import type { AuthorizationItem, AuthorizationResponse } from "../types/authorization";
 
 const logger = createLogger("test:auth-manager");
 const contractAddr = AztecAddress.fromBigInt(42n).toString();
@@ -26,12 +23,7 @@ beforeEach(async () => {
   db = WalletDB.init(store, logger);
   pendingAuthorizations = new Map();
   eventEmitter = new EventTarget();
-  manager = new AuthorizationManager(
-    APP_ID,
-    db,
-    pendingAuthorizations,
-    eventEmitter,
-  );
+  manager = new AuthorizationManager(APP_ID, db, pendingAuthorizations, eventEmitter);
 });
 
 afterEach(async () => {
@@ -77,9 +69,18 @@ function makeItem(overrides: Partial<AuthorizationItem> & { id: string }): Autho
 
 describe("auto-approval with existing grants", () => {
   it("auto-approves exact key and tracks in __requested__", async () => {
-    await db.storePersistentAuthorization(APP_ID, "getAccounts", { persistent: true, accounts: [] });
+    await db.storePersistentAuthorization(APP_ID, "getAccounts", {
+      persistent: true,
+      accounts: [],
+    });
 
-    const items = [makeItem({ id: "item-1", method: "getAccounts", persistence: { storageKey: "getAccounts", persistData: null } })];
+    const items = [
+      makeItem({
+        id: "item-1",
+        method: "getAccounts",
+        persistence: { storageKey: "getAccounts", persistData: null },
+      }),
+    ];
     const response = await manager.requestAuthorization(items);
 
     expect(response.approved).toBe(true);
@@ -92,21 +93,33 @@ describe("auto-approval with existing grants", () => {
     await db.storePersistentAuthorization(APP_ID, "registerContract:*", { persistent: true });
     const regKey = `registerContract:${contractAddr}`;
     let response = await manager.requestAuthorization([
-      makeItem({ id: "item-1", method: "registerContract", persistence: { storageKey: regKey, persistData: null } }),
+      makeItem({
+        id: "item-1",
+        method: "registerContract",
+        persistence: { storageKey: regKey, persistData: null },
+      }),
     ]);
     expect(response.approved).toBe(true);
 
     // Two-level wildcard: simulateTx:contract:* matches simulateTx:contract:swap
-    await db.storePersistentAuthorization(APP_ID, `simulateTx:${contractAddr}:*`, { persistent: true });
+    await db.storePersistentAuthorization(APP_ID, `simulateTx:${contractAddr}:*`, {
+      persistent: true,
+    });
     response = await manager.requestAuthorization([
-      makeItem({ id: "item-2", persistence: { storageKey: `simulateTx:${contractAddr}:swap`, persistData: null } }),
+      makeItem({
+        id: "item-2",
+        persistence: { storageKey: `simulateTx:${contractAddr}:swap`, persistData: null },
+      }),
     ]);
     expect(response.approved).toBe(true);
 
     // Full wildcard: simulateTx:* matches simulateTx:contract:function
     await db.storePersistentAuthorization(APP_ID, "simulateTx:*", { persistent: true });
     response = await manager.requestAuthorization([
-      makeItem({ id: "item-3", persistence: { storageKey: `simulateTx:${contractAddr2}:transfer`, persistData: null } }),
+      makeItem({
+        id: "item-3",
+        persistence: { storageKey: `simulateTx:${contractAddr2}:transfer`, persistData: null },
+      }),
     ]);
     expect(response.approved).toBe(true);
 
@@ -126,7 +139,10 @@ describe("strict mode", () => {
     // Unauthorized operation → rejected
     await expect(
       manager.requestAuthorization([
-        makeItem({ id: "item-1", persistence: { storageKey: `simulateTx:${contractAddr}:swap`, persistData: null } }),
+        makeItem({
+          id: "item-1",
+          persistence: { storageKey: `simulateTx:${contractAddr}:swap`, persistData: null },
+        }),
       ]),
     ).rejects.toThrow("strict mode");
 
@@ -152,7 +168,10 @@ describe("ad-hoc approval tracks in __requested__", () => {
 
     // Array of keys
     await manager.requestAuthorization([
-      makeItem({ id: "item-2", persistence: { storageKey: [key2, "getAccounts"], persistData: null } }),
+      makeItem({
+        id: "item-2",
+        persistence: { storageKey: [key2, "getAccounts"], persistData: null },
+      }),
     ]);
 
     const requested = await db.getRequestedKeys(APP_ID);
@@ -164,12 +183,19 @@ describe("ad-hoc approval tracks in __requested__", () => {
 
 describe("mixed auto-approved and needs-auth items", () => {
   it("auto-approves pre-granted, prompts for new, tracks all in __requested__", async () => {
-    await db.storePersistentAuthorization(APP_ID, "getAccounts", { persistent: true, accounts: [] });
+    await db.storePersistentAuthorization(APP_ID, "getAccounts", {
+      persistent: true,
+      accounts: [],
+    });
     autoApproveAll();
 
     const simKey = `simulateTx:${contractAddr}:swap`;
     const items = [
-      makeItem({ id: "item-1", method: "getAccounts", persistence: { storageKey: "getAccounts", persistData: null } }),
+      makeItem({
+        id: "item-1",
+        method: "getAccounts",
+        persistence: { storageKey: "getAccounts", persistData: null },
+      }),
       makeItem({ id: "item-2", persistence: { storageKey: simKey, persistData: null } }),
     ];
 
@@ -200,13 +226,27 @@ describe("URL appId ad-hoc flow", () => {
 
     // Three sequential ad-hoc requests
     await urlManager.requestAuthorization([
-      makeItem({ id: "item-1", appId: URL_APP_ID, method: "getAccounts", persistence: { storageKey: "getAccounts", persistData: null } }),
+      makeItem({
+        id: "item-1",
+        appId: URL_APP_ID,
+        method: "getAccounts",
+        persistence: { storageKey: "getAccounts", persistData: null },
+      }),
     ]);
     await urlManager.requestAuthorization([
-      makeItem({ id: "item-2", appId: URL_APP_ID, method: "registerContract", persistence: { storageKey: regKey, persistData: null } }),
+      makeItem({
+        id: "item-2",
+        appId: URL_APP_ID,
+        method: "registerContract",
+        persistence: { storageKey: regKey, persistData: null },
+      }),
     ]);
     await urlManager.requestAuthorization([
-      makeItem({ id: "item-3", appId: URL_APP_ID, persistence: { storageKey: simKey, persistData: null } }),
+      makeItem({
+        id: "item-3",
+        appId: URL_APP_ID,
+        persistence: { storageKey: simKey, persistData: null },
+      }),
     ]);
 
     // Full URL in listAuthorizedApps, not "https"

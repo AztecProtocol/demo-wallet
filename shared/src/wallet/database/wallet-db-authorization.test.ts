@@ -26,21 +26,41 @@ const addr2 = AztecAddress.fromBigInt(2n);
 describe("capabilityToStorageKeys", () => {
   it("converts each capability type to correct keys", () => {
     // accounts
-    const accountsCap = { type: "accounts", canGet: true, canCreateAuthWit: true, accounts: [] } as any;
+    const accountsCap = {
+      type: "accounts",
+      canGet: true,
+      canCreateAuthWit: true,
+      accounts: [],
+    } as any;
     expect(db.capabilityToStorageKeys(accountsCap)).toEqual(["getAccounts", "createAuthWit"]);
 
     // accounts without authwit
-    const accountsNoAuth = { type: "accounts", canGet: true, canCreateAuthWit: false, accounts: [] } as any;
+    const accountsNoAuth = {
+      type: "accounts",
+      canGet: true,
+      canCreateAuthWit: false,
+      accounts: [],
+    } as any;
     expect(db.capabilityToStorageKeys(accountsNoAuth)).toEqual(["getAccounts"]);
 
     // contracts with specific addresses
-    const contractsCap = { type: "contracts", contracts: [addr1], canRegister: true, canGetMetadata: true } as any;
+    const contractsCap = {
+      type: "contracts",
+      contracts: [addr1],
+      canRegister: true,
+      canGetMetadata: true,
+    } as any;
     const contractKeys = db.capabilityToStorageKeys(contractsCap);
     expect(contractKeys).toContain(`registerContract:${addr1.toString()}`);
     expect(contractKeys).toContain(`getContractMetadata:${addr1.toString()}`);
 
     // contracts with wildcard
-    const contractsWild = { type: "contracts", contracts: "*", canRegister: true, canGetMetadata: false } as any;
+    const contractsWild = {
+      type: "contracts",
+      contracts: "*",
+      canRegister: true,
+      canGetMetadata: false,
+    } as any;
     expect(db.capabilityToStorageKeys(contractsWild)).toEqual(["registerContract:*"]);
 
     // simulation with patterns
@@ -54,11 +74,18 @@ describe("capabilityToStorageKeys", () => {
     expect(simKeys).toContain(`simulateUtility:${addr2.toString()}:balance_of`);
 
     // transaction
-    const txCap = { type: "transaction", scope: [{ contract: addr1, function: "transfer" }] } as any;
+    const txCap = {
+      type: "transaction",
+      scope: [{ contract: addr1, function: "transfer" }],
+    } as any;
     expect(db.capabilityToStorageKeys(txCap)).toEqual([`sendTx:${addr1.toString()}:transfer`]);
 
     // data
-    const dataCap = { type: "data", addressBook: true, privateEvents: { contracts: [addr1] } } as any;
+    const dataCap = {
+      type: "data",
+      addressBook: true,
+      privateEvents: { contracts: [addr1] },
+    } as any;
     const dataKeys = db.capabilityToStorageKeys(dataCap);
     expect(dataKeys).toContain("getAddressBook");
     expect(dataKeys).toContain(`getPrivateEvents:${addr1.toString()}`);
@@ -66,14 +93,19 @@ describe("capabilityToStorageKeys", () => {
     // contractClasses
     const classId = Fr.fromString("0x1234");
     const classCap = { type: "contractClasses", classes: [classId], canGetMetadata: true } as any;
-    expect(db.capabilityToStorageKeys(classCap)).toEqual([`getContractClassMetadata:${classId.toString()}`]);
+    expect(db.capabilityToStorageKeys(classCap)).toEqual([
+      `getContractClassMetadata:${classId.toString()}`,
+    ]);
   });
 });
 
 describe("storeCapabilityGrants", () => {
   it("stores additively and appends to __requested__", async () => {
     // Ad-hoc grant
-    await db.storePersistentAuthorization(APP_ID, "getAccounts", { persistent: true, accounts: [] });
+    await db.storePersistentAuthorization(APP_ID, "getAccounts", {
+      persistent: true,
+      accounts: [],
+    });
 
     // Manifest-based grant (should NOT delete the ad-hoc one)
     const simCap = { type: "simulation", transactions: { scope: "*" } } as any;
@@ -89,7 +121,12 @@ describe("storeCapabilityGrants", () => {
   });
 
   it("tracks denied capabilities in __requested__ when requestedCapabilities provided", async () => {
-    const grantedCap = { type: "accounts", canGet: true, canCreateAuthWit: false, accounts: [] } as any;
+    const grantedCap = {
+      type: "accounts",
+      canGet: true,
+      canCreateAuthWit: false,
+      accounts: [],
+    } as any;
     const deniedCap = { type: "simulation", transactions: { scope: "*" } } as any;
 
     await db.storeCapabilityGrants(APP_ID, [grantedCap], [grantedCap, deniedCap]);
@@ -147,7 +184,9 @@ describe("reconstructCapabilitiesFromKeys", () => {
       persistent: true,
       accounts: [{ alias: "My Account", item: addr1.toString() }],
     });
-    await db.storePersistentAuthorization(APP_ID, `registerContract:${addr1.toString()}`, { persistent: true });
+    await db.storePersistentAuthorization(APP_ID, `registerContract:${addr1.toString()}`, {
+      persistent: true,
+    });
 
     const caps = await db.reconstructCapabilitiesFromKeys(APP_ID);
     const accountsCap = caps.find((c) => c.type === "accounts") as any;
@@ -162,7 +201,10 @@ describe("reconstructCapabilitiesFromKeys", () => {
 
   it("getRequestedCapabilities reconstructs from __requested__ keys", async () => {
     await db.appendRequestedKeys(APP_ID, [
-      "getAccounts", "createAuthWit", "simulateTx:*", `registerContract:${addr1.toString()}`,
+      "getAccounts",
+      "createAuthWit",
+      "simulateTx:*",
+      `registerContract:${addr1.toString()}`,
     ]);
 
     const caps = await db.getRequestedCapabilities(APP_ID);
@@ -236,7 +278,12 @@ describe("capability removal round-trips", () => {
 
     // Re-store only what remains (register for both, metadata for addr2 only)
     const newCaps = [
-      { type: "contracts", contracts: [addr1, addr2], canRegister: true, canGetMetadata: false } as any,
+      {
+        type: "contracts",
+        contracts: [addr1, addr2],
+        canRegister: true,
+        canGetMetadata: false,
+      } as any,
       { type: "contracts", contracts: [addr2], canRegister: false, canGetMetadata: true } as any,
     ];
     await db.storeCapabilityGrants(APP_ID, newCaps);
@@ -282,20 +329,18 @@ describe("capability removal round-trips", () => {
 
   it("reconstruct → toKeys round-trip is lossless for per-contract permissions", async () => {
     // Store mixed permissions: addr1 has register only, addr2 has both
-    await db.storePersistentAuthorization(
-      APP_ID, `registerContract:${addr1.toString()}`, { persistent: true },
-    );
-    await db.storePersistentAuthorization(
-      APP_ID, `registerContract:${addr2.toString()}`, { persistent: true },
-    );
-    await db.storePersistentAuthorization(
-      APP_ID, `getContractMetadata:${addr2.toString()}`, { persistent: true },
-    );
+    await db.storePersistentAuthorization(APP_ID, `registerContract:${addr1.toString()}`, {
+      persistent: true,
+    });
+    await db.storePersistentAuthorization(APP_ID, `registerContract:${addr2.toString()}`, {
+      persistent: true,
+    });
+    await db.storePersistentAuthorization(APP_ID, `getContractMetadata:${addr2.toString()}`, {
+      persistent: true,
+    });
 
     const granted = await db.reconstructCapabilitiesFromKeys(APP_ID);
-    const roundTrippedKeys = new Set(
-      granted.flatMap((c) => db.capabilityToStorageKeys(c)),
-    );
+    const roundTrippedKeys = new Set(granted.flatMap((c) => db.capabilityToStorageKeys(c)));
 
     expect(roundTrippedKeys.has(`registerContract:${addr1.toString()}`)).toBe(true);
     expect(roundTrippedKeys.has(`registerContract:${addr2.toString()}`)).toBe(true);
@@ -307,10 +352,12 @@ describe("capability removal round-trips", () => {
   it("reconstruct → toKeys round-trip handles simulation removal", async () => {
     const simCap = {
       type: "simulation",
-      transactions: { scope: [
-        { contract: addr1, function: "swap" },
-        { contract: addr2, function: "transfer" },
-      ] },
+      transactions: {
+        scope: [
+          { contract: addr1, function: "swap" },
+          { contract: addr2, function: "transfer" },
+        ],
+      },
     } as any;
     await db.storeCapabilityGrants(APP_ID, [simCap]);
 

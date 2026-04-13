@@ -1,70 +1,34 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import {
-  TxSimulationResult,
-  SimulationOverrides,
-  type TxExecutionRequest,
-  type ExecutionPayload,
-  mergeExecutionPayloads,
-  BlockHeader,
-} from "@aztec/stdlib/tx";
+import { type ExecutionPayload, BlockHeader } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import { Fr } from "@aztec/foundation/curves/bn254";
-import { type NoFrom, NO_FROM } from "@aztec/aztec.js/account";
-import { DefaultEntrypoint } from "@aztec/entrypoints/default";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { NO_FROM } from "@aztec/aztec.js/account";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB, StoredStats } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
-import type { DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
 import type { ReadableCallAuthorization } from "../decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
-import {
-  hashExecutionPayload,
-  generateSimulationTitle,
-} from "../utils/simulation-utils";
-import type { SimulateOptions } from "@aztec/aztec.js/wallet";
-import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
-import type { ContractArtifact, FunctionCall } from "@aztec/stdlib/abi";
-import type { GasSettings } from "@aztec/stdlib/gas";
-import type { FieldsOf } from "@aztec/foundation/types";
+import { hashExecutionPayload, generateSimulationTitle } from "../utils/simulation-utils";
+import { TxSimulationResultWithAppOffset, type SimulateOptions } from "@aztec/aztec.js/wallet";
+import type { Logger } from "@aztec/aztec.js/log";
 import {
   type FeeOptions,
+  type CompleteFeeOptionsConfig,
+  type SimulateViaEntrypointOptions,
   extractOptimizablePublicStaticCalls,
   simulateViaNode,
   buildMergedSimulationResult,
 } from "@aztec/wallet-sdk/base-wallet";
-import type { ChainInfo } from "@aztec/entrypoints/interfaces";
 import type { AztecNode } from "@aztec/aztec.js/node";
-import type { Logger } from "@aztec/aztec.js/log";
+import type { ChainInfo } from "@aztec/entrypoints/interfaces";
 
 // Readable transaction information with decoded data
 interface ReadableTxInformation {
   callAuthorizations: ReadableCallAuthorization[];
   executionTrace: DecodedExecutionTrace;
-}
-
-// Fake account data structure
-interface FakeAccountData {
-  account: {
-    createTxExecutionRequest: (
-      payload: ExecutionPayload,
-      gasSettings: unknown,
-      chainInfo: ChainInfo,
-      options: DefaultAccountEntrypointOptions,
-    ) => Promise<TxExecutionRequest>;
-  };
-  instance: ContractInstanceWithAddress;
-  artifact: ContractArtifact;
 }
 
 // Arguments tuple for the operation
@@ -75,11 +39,11 @@ type SimulateTxArgs = [
 ];
 
 // Result type for the operation
-type SimulateTxResult = TxSimulationResult;
+type SimulateTxResult = TxSimulationResultWithAppOffset;
 
 // Execution data stored between prepare and execute phases
 interface SimulateTxExecutionData {
-  simulationResult: TxSimulationResult;
+  simulationResult: TxSimulationResultWithAppOffset;
   payloadHash: string;
   decoded?: ReadableTxInformation;
 }
@@ -88,7 +52,7 @@ interface SimulateTxExecutionData {
 type SimulateTxDisplayData = {
   payloadHash: string;
   title: string;
-  from: AztecAddress | NoFrom;
+  from: AztecAddress | typeof NO_FROM;
   decoded: ReadableTxInformation;
   stats?: StoredStats;
   embeddedPaymentMethodFeePayer?: string;
@@ -97,14 +61,9 @@ type SimulateTxDisplayData = {
 /**
  * SimulateTx operation implementation.
  *
- * Handles transaction simulation with the following features:
- * - Fee options processing (gas estimation, payment methods)
- * - Fake account creation for simulation
- * - Transaction execution request creation
- * - Transaction decoding with call authorizations and execution traces
- * - Persistent authorization based on payload hash
- * - Storage of simulation results
- * - Support for existing interactions (e.g., from sendTx flow)
+ * Delegates simulation to the wallet's own simulateViaEntrypoint (injected as a
+ * callback), keeping the operation free of account/entrypoint plumbing.
+ * Public static calls are optimised via the node path before the private path runs.
  */
 export class SimulateTxOperation extends ExternalOperation<
   SimulateTxArgs,
@@ -121,31 +80,12 @@ export class SimulateTxOperation extends ExternalOperation<
     private decodingCache: DecodingCache,
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
-    private completeFeeOptionsForEstimation: (
-      from: AztecAddress | NoFrom,
-      feePayer: AztecAddress | undefined,
-      gasSettings?: Partial<FieldsOf<GasSettings>>,
-    ) => Promise<FeeOptions>,
-    private completeFeeOptions: (
-      from: AztecAddress | NoFrom,
-      feePayer: AztecAddress | undefined,
-      gasSettings?: Partial<FieldsOf<GasSettings>>,
-    ) => Promise<FeeOptions>,
-    private getFakeAccountDataFor: (
-      address: AztecAddress,
-    ) => Promise<FakeAccountData>,
-    private buildAccountOverrides: () => Promise<
-      Record<
-        string,
-        { instance: ContractInstanceWithAddress; artifact: ContractArtifact }
-      >
-    >,
+    private completeFeeOptions: (config: CompleteFeeOptionsConfig) => Promise<FeeOptions>,
+    private simulateViaEntrypoint: (
+      payload: ExecutionPayload,
+      opts: SimulateViaEntrypointOptions,
+    ) => Promise<TxSimulationResultWithAppOffset>,
     private getChainInfo: () => Promise<ChainInfo>,
-    private scopesFrom: (
-      from: AztecAddress | NoFrom,
-      additionalScopes?: AztecAddress[],
-    ) => AztecAddress[],
-    private cancellableTransactions: boolean,
     private log: Logger,
   ) {
     super();
@@ -156,21 +96,13 @@ export class SimulateTxOperation extends ExternalOperation<
     _executionPayload: ExecutionPayload,
     _opts: SimulateOptions,
   ): Promise<SimulateTxResult | undefined> {
-    // No early return checks for this operation
     return undefined;
   }
 
   async prepare(
     executionPayload: ExecutionPayload,
     opts: SimulateOptions,
-  ): Promise<
-    PrepareResult<
-      SimulateTxResult,
-      SimulateTxDisplayData,
-      SimulateTxExecutionData
-    >
-  > {
-    // Generate payload hash and detailed title
+  ): Promise<PrepareResult<SimulateTxDisplayData, SimulateTxExecutionData>> {
     const payloadHash = hashExecutionPayload(executionPayload);
     const title = await generateSimulationTitle(
       executionPayload,
@@ -179,44 +111,28 @@ export class SimulateTxOperation extends ExternalOperation<
       executionPayload.feePayer,
     );
 
-    // Process fee options
-    const feeOptions = opts.fee?.estimateGas
-      ? await this.completeFeeOptionsForEstimation(
-          opts.from,
-          executionPayload.feePayer,
-          opts.fee?.gasSettings,
-        )
-      : await this.completeFeeOptions(
-          opts.from,
-          executionPayload.feePayer,
-          opts.fee?.gasSettings,
-        );
+    const feeOptions = await this.completeFeeOptions({
+      from: opts.from,
+      feePayer: executionPayload.feePayer,
+      gasSettings: opts.fee?.gasSettings,
+      forEstimation: true,
+    });
 
-    const feeExecutionPayload =
-      await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
-    const executionOptions: DefaultAccountEntrypointOptions = {
-      txNonce: Fr.random(),
-      cancellable: this.cancellableTransactions,
-      feePaymentMethodOptions: feeOptions.accountFeePaymentMethodOptions,
-    };
-
-    // STEP 1: Separate calls into optimized (public static) and normal paths
+    // Split calls into the public-static fast path and the normal private path
     const { optimizableCalls, remainingCalls } =
       extractOptimizablePublicStaticCalls(executionPayload);
 
-    const chainInfo = await this.getChainInfo();
     let blockHeader: BlockHeader;
-    // PXE might not be synced yet, so we pull the latest header from the node
-    // To keep things consistent, we'll always try with PXE first
     try {
       blockHeader = await this.pxe.getSyncedBlockHeader();
     } catch {
       blockHeader = (await this.node.getBlockHeader())!;
     }
-    // STEP 2: Run both paths in parallel
-    const simulationOrigin =
-      opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;
+
+    const simulationOrigin = opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;
+    const chainInfo = await this.getChainInfo();
     const simulationStart = Date.now();
+
     const [optimizedResults, normalResult] = await Promise.all([
       optimizableCalls.length > 0
         ? simulateViaNode(
@@ -227,32 +143,25 @@ export class SimulateTxOperation extends ExternalOperation<
             feeOptions.gasSettings,
             blockHeader,
             opts.skipFeeEnforcement ?? true,
-            (address) => this.decodingCache.getAddressAlias(address),
+            (address: AztecAddress) => this.decodingCache.getAddressAlias(address),
           )
         : Promise.resolve([]),
-
       remainingCalls.length > 0
         ? this.simulateViaEntrypoint(
-            executionPayload,
-            remainingCalls,
-            feeExecutionPayload,
-            feeOptions.gasSettings,
-            chainInfo,
-            executionOptions,
-            opts.from,
-            opts.additionalScopes,
+            { ...executionPayload, calls: remainingCalls },
+            {
+              from: opts.from,
+              feeOptions,
+              additionalScopes: opts.additionalScopes,
+              skipTxValidation: opts.skipTxValidation,
+              skipFeeEnforcement: opts.skipFeeEnforcement ?? true,
+            },
           )
         : Promise.resolve(null),
     ]);
 
-    // STEP 3: Build the final merged TxSimulationResult
     const wallTime = Date.now() - simulationStart;
-    const simulationResult = buildMergedSimulationResult(
-      optimizedResults,
-      normalResult?.result ?? null,
-    );
-    // Build metadata stats: prefer the real stats from simulation, but for public-view-only
-    // simulations stats is null so inject a minimal object with the wall-clock total.
+    const simulationResult = buildMergedSimulationResult(optimizedResults, normalResult);
     const metadataStats: StoredStats = simulationResult.stats
       ? (simulationResult.stats as StoredStats)
       : {
@@ -271,15 +180,11 @@ export class SimulateTxOperation extends ExternalOperation<
       stats: metadataStats,
     });
 
-    // STEP 4: Decode the transaction (including optimized public calls if any)
     const decodingService = new TxDecodingService(this.decodingCache, this.log);
     const decoded = await decodingService.decodeTransaction(simulationResult);
 
-    // Create one storage key per function call for 1:1 mapping with capabilities
     const storageKeys =
-      executionPayload.calls?.map(
-        (call) => `simulateTx:${call.to.toString()}:${call.name}`,
-      ) || [];
+      executionPayload.calls?.map((call) => `simulateTx:${call.to.toString()}:${call.name}`) || [];
 
     return {
       displayData: {
@@ -302,72 +207,10 @@ export class SimulateTxOperation extends ExternalOperation<
     };
   }
 
-  /**
-   * Run the normal (non-optimized) simulation path for private/non-static calls.
-   */
-  private async simulateViaEntrypoint(
-    originalPayload: ExecutionPayload,
-    calls: FunctionCall[],
-    feeExecutionPayload: ExecutionPayload | undefined,
-    gasSettings: GasSettings,
-    chainInfo: ChainInfo,
-    executionOptions: DefaultAccountEntrypointOptions,
-    from: AztecAddress | NoFrom,
-    additionalScopes?: AztecAddress[],
-  ): Promise<{ result: TxSimulationResult; txReq: TxExecutionRequest }> {
-    const normalPayload = feeExecutionPayload
-      ? mergeExecutionPayloads([
-          feeExecutionPayload,
-          { ...originalPayload, calls },
-        ])
-      : { ...originalPayload, calls };
-
-    // Build overrides for all known accounts so kernelless simulation works
-    // for any call that touches account contracts (including sponsored calls)
-    const accountOverrides = await this.buildAccountOverrides();
-
-    let txReq: TxExecutionRequest;
-    if (from === NO_FROM) {
-      const entrypoint = new DefaultEntrypoint();
-      txReq = await entrypoint.createTxExecutionRequest(
-        normalPayload,
-        gasSettings,
-        chainInfo,
-      );
-    } else {
-      const { account, instance, artifact } =
-        await this.getFakeAccountDataFor(from);
-      // Ensure the from account's stub is in the overrides map
-      accountOverrides[from.toString()] = { instance, artifact };
-      txReq = await account.createTxExecutionRequest(
-        normalPayload,
-        gasSettings,
-        chainInfo,
-        executionOptions,
-      );
-    }
-
-    const overrides =
-      Object.keys(accountOverrides).length > 0
-        ? new SimulationOverrides(accountOverrides)
-        : undefined;
-
-    const result = await this.pxe.simulateTx(txReq, {
-      scopes: this.scopesFrom(from, additionalScopes),
-      simulatePublic: true,
-      skipFeeEnforcement: true,
-      skipTxValidation: true,
-      overrides,
-    });
-
-    return { result, txReq };
-  }
-
   async createInteraction(
     executionPayload: ExecutionPayload,
     opts: SimulateOptions,
   ): Promise<WalletInteraction<WalletInteractionType>> {
-    // Create interaction with simple title from args only
     const payloadHash = hashExecutionPayload(executionPayload);
     const title = await generateSimulationTitle(
       executionPayload,
@@ -386,7 +229,6 @@ export class SimulateTxOperation extends ExternalOperation<
     });
 
     await this.interactionManager.storeAndEmit(interaction);
-
     return interaction;
   }
 
@@ -394,12 +236,10 @@ export class SimulateTxOperation extends ExternalOperation<
     displayData: SimulateTxDisplayData,
     persistence?: PersistenceConfig,
   ): Promise<void> {
-    // Update interaction with detailed title and status
     await this.emitProgress("REQUESTING AUTHORIZATION", undefined, false, {
       title: displayData.title,
     });
 
-    // Request authorization with optional persistent caching
     await this.authorizationManager.requestAuthorization([
       {
         id: crypto.randomUUID(),
@@ -412,8 +252,7 @@ export class SimulateTxOperation extends ExternalOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
-          embeddedPaymentMethodFeePayer:
-            displayData.embeddedPaymentMethodFeePayer,
+          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer,
         },
         timestamp: Date.now(),
         persistence,
@@ -421,9 +260,7 @@ export class SimulateTxOperation extends ExternalOperation<
     ]);
   }
 
-  async execute(
-    executionData: SimulateTxExecutionData,
-  ): Promise<SimulateTxResult> {
+  async execute(executionData: SimulateTxExecutionData): Promise<SimulateTxResult> {
     await this.emitProgress("SUCCESS", undefined, true);
     return executionData.simulationResult;
   }

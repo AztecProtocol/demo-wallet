@@ -2,7 +2,6 @@ import { useContext, useEffect, useState, useCallback, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import List from "@mui/material/List";
-import Chip from "@mui/material/Chip";
 import Checkbox from "@mui/material/Checkbox";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
@@ -14,10 +13,7 @@ import type {
   AuthorizationItem,
   RequestCapabilitiesParams,
 } from "../../../wallet/types/authorization";
-import type {
-  Capability,
-  ContractFunctionPattern,
-} from "@aztec/aztec.js/wallet";
+import type { Capability, ContractFunctionPattern } from "@aztec/aztec.js/wallet";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import type { Aliased } from "@aztec/aztec.js/wallet";
 import { WalletContext } from "../../renderer";
@@ -40,6 +36,7 @@ import {
   TransactionCapabilityDetails,
   DataCapabilityDetails,
 } from "./capabilities";
+import { Chip } from "@mui/material";
 
 interface AuthorizeCapabilitiesContentProps {
   request: AuthorizationItem<RequestCapabilitiesParams>;
@@ -66,15 +63,11 @@ export function AuthorizeCapabilitiesContent({
   // Convert plain object back to Map (Maps don't serialize properly through IPC)
   // IMPORTANT: Wrap in useMemo to prevent creating new Map instances on every render
   const contractNames = useMemo(() => {
-    return new Map<string, string>(
-      Object.entries(request.params.contractNames),
-    );
+    return new Map<string, string>(Object.entries(request.params.contractNames));
   }, [request.params.contractNames]);
 
   const existingGrants = useMemo(() => {
-    return new Map<string, boolean>(
-      Object.entries(request.params.existingGrants),
-    );
+    return new Map<string, boolean>(Object.entries(request.params.existingGrants));
   }, [request.params.existingGrants]);
 
   const { walletAPI } = useContext(WalletContext);
@@ -94,25 +87,19 @@ export function AuthorizeCapabilitiesContent({
   >(new Map());
 
   // State for simulation capability - map of capIndex -> Set of storage keys (e.g., "simulateTx:addr:func")
-  const [simPermissions, setSimPermissions] = useState<
-    Map<number, Set<string>>
-  >(new Map());
+  const [simPermissions, setSimPermissions] = useState<Map<number, Set<string>>>(new Map());
 
   // State for transaction capability - map of capIndex -> Set of storage keys (e.g., "sendTx:addr:func")
-  const [txPermissions, setTxPermissions] = useState<Map<number, Set<string>>>(
-    new Map(),
-  );
+  const [txPermissions, setTxPermissions] = useState<Map<number, Set<string>>>(new Map());
 
-  const [selectedCapabilities, setSelectedCapabilities] = useState<Set<number>>(
+  const [selectedCapabilities] = useState<Set<number>>(
     new Set(manifest.capabilities.map((_, i) => i)),
   );
   // Only expand new capabilities by default, keep already granted ones collapsed
   const [expandedCapabilities, setExpandedCapabilities] = useState<Set<number>>(
     new Set(newCapabilityIndices),
   );
-  const [contractMetadata, setContractMetadata] = useState<Map<string, string>>(
-    new Map(),
-  );
+  const [contractMetadata, setContractMetadata] = useState<Map<string, string>>(new Map());
 
   // Behavior state
   const [mode, setMode] = useState<"strict" | "permissive">("permissive");
@@ -125,9 +112,9 @@ export function AuthorizeCapabilitiesContent({
       const allAccounts: InternalAccount[] = await walletAPI.getAccounts();
 
       // Check if manifest requests accounts capability
-      const accountsCap = manifest.capabilities.find(
-        (cap) => cap.type === "accounts",
-      ) as AccountsCapability | undefined;
+      const accountsCap = manifest.capabilities.find((cap) => cap.type === "accounts") as
+        | AccountsCapability
+        | undefined;
       // Build the set of previously-granted account addresses (from the capability's accounts list)
       const grantedAddresses = new Set<string>(
         (accountsCap as any)?.accounts?.map((a: Aliased<AztecAddress>) => a.item.toString()) ?? [],
@@ -160,29 +147,20 @@ export function AuthorizeCapabilitiesContent({
         const cap = manifest.capabilities[i];
 
         if (cap.type === "contracts" && Array.isArray(cap.contracts)) {
-          const perms = new Map<
-            string,
-            { register: boolean; metadata: boolean }
-          >();
+          const perms = new Map<string, { register: boolean; metadata: boolean }>();
 
           for (const addr of cap.contracts) {
             const addrStr = addr.toString();
 
             // Check existing grants for this contract
-            const hasRegisterGrant =
-              existingGrants.get(`registerContract:${addrStr}`) === true;
-            const hasMetadataGrant =
-              existingGrants.get(`getContractMetadata:${addrStr}`) === true;
+            const hasRegisterGrant = existingGrants.get(`registerContract:${addrStr}`) === true;
+            const hasMetadataGrant = existingGrants.get(`getContractMetadata:${addrStr}`) === true;
 
             // First time: check all requested
             // Returning: only check if already granted
             perms.set(addrStr, {
-              register: isAppFirstTime
-                ? (cap.canRegister ?? false)
-                : hasRegisterGrant,
-              metadata: isAppFirstTime
-                ? (cap.canGetMetadata ?? false)
-                : hasMetadataGrant,
+              register: isAppFirstTime ? (cap.canRegister ?? false) : hasRegisterGrant,
+              metadata: isAppFirstTime ? (cap.canGetMetadata ?? false) : hasMetadataGrant,
             });
           }
 
@@ -198,19 +176,14 @@ export function AuthorizeCapabilitiesContent({
       for (let i = 0; i < manifest.capabilities.length; i++) {
         const cap = manifest.capabilities[i];
 
-        if (
-          cap.type === "contractClasses" &&
-          Array.isArray((cap as any).classes)
-        ) {
+        if (cap.type === "contractClasses" && Array.isArray((cap as any).classes)) {
           const classes = new Set<string>();
 
           for (const classId of (cap as any).classes) {
             const classIdStr = classId.toString();
 
             // Check existing grant for this class ID
-            const hasGrant =
-              existingGrants.get(`getContractClassMetadata:${classIdStr}`) ===
-              true;
+            const hasGrant = existingGrants.get(`getContractClassMetadata:${classIdStr}`) === true;
 
             // First time: check all requested
             // Returning: only check if already granted
@@ -289,10 +262,7 @@ export function AuthorizeCapabilitiesContent({
               });
             }
 
-            if (
-              contractsWithMetadata.length > 0 &&
-              contractsCap.canGetMetadata
-            ) {
+            if (contractsWithMetadata.length > 0 && contractsCap.canGetMetadata) {
               granted.push({
                 type: "contracts",
                 contracts: contractsWithMetadata,
@@ -314,9 +284,7 @@ export function AuthorizeCapabilitiesContent({
         } else {
           // Filter to only selected class IDs
           const approvedClasses = Array.isArray(contractClassesCap.classes)
-            ? contractClassesCap.classes.filter((classId) =>
-                classSet.has(classId.toString()),
-              )
+            ? contractClassesCap.classes.filter((classId) => classSet.has(classId.toString()))
             : [];
 
           if (approvedClasses.length > 0) {
@@ -337,11 +305,9 @@ export function AuthorizeCapabilitiesContent({
           const grantedCap: SimulationCapability = { ...simCap };
 
           if (simCap.transactions && simCap.transactions.scope !== "*") {
-            const patterns = simCap.transactions
-              .scope as ContractFunctionPattern[];
+            const patterns = simCap.transactions.scope as ContractFunctionPattern[];
             const approved = patterns.filter((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               const storageKey = `simulateTx:${contractKey}:${pattern.function}`;
               return keySet.has(storageKey);
             });
@@ -354,11 +320,9 @@ export function AuthorizeCapabilitiesContent({
           }
 
           if (simCap.utilities && simCap.utilities.scope !== "*") {
-            const patterns = simCap.utilities
-              .scope as ContractFunctionPattern[];
+            const patterns = simCap.utilities.scope as ContractFunctionPattern[];
             const approved = patterns.filter((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               const storageKey = `simulateUtility:${contractKey}:${pattern.function}`;
               return keySet.has(storageKey);
             });
@@ -384,8 +348,7 @@ export function AuthorizeCapabilitiesContent({
           if (txCap.scope !== "*") {
             const patterns = txCap.scope as ContractFunctionPattern[];
             const approved = patterns.filter((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               const storageKey = `sendTx:${contractKey}:${pattern.function}`;
               return keySet.has(storageKey);
             });
@@ -444,7 +407,6 @@ export function AuthorizeCapabilitiesContent({
     capIndex: number,
   ): { checked: boolean; indeterminate: boolean } => {
     if (capability.type === "accounts") {
-      const accountsCap = capability as AccountsCapability;
       const selectedCount = accounts.filter((acc) => acc.selected).length;
 
       if (selectedCount === 0) {
@@ -484,10 +446,7 @@ export function AuthorizeCapabilitiesContent({
       const classes = contractClassPermissions.get(capIndex);
       const contractClassesCap = capability as ContractClassesCapability;
 
-      if (
-        contractClassesCap.classes === "*" ||
-        !Array.isArray(contractClassesCap.classes)
-      ) {
+      if (contractClassesCap.classes === "*" || !Array.isArray(contractClassesCap.classes)) {
         return { checked: true, indeterminate: false }; // Wildcard, use default
       }
 
@@ -507,13 +466,10 @@ export function AuthorizeCapabilitiesContent({
       // Count total patterns
       let totalPatterns = 0;
       if (simCap.transactions && simCap.transactions.scope !== "*") {
-        totalPatterns += (
-          simCap.transactions.scope as ContractFunctionPattern[]
-        ).length;
+        totalPatterns += (simCap.transactions.scope as ContractFunctionPattern[]).length;
       }
       if (simCap.utilities && simCap.utilities.scope !== "*") {
-        totalPatterns += (simCap.utilities.scope as ContractFunctionPattern[])
-          .length;
+        totalPatterns += (simCap.utilities.scope as ContractFunctionPattern[]).length;
       }
 
       if (totalPatterns === 0) {
@@ -609,22 +565,18 @@ export function AuthorizeCapabilitiesContent({
 
           // Add all transaction simulation keys
           if (simCap.transactions && simCap.transactions.scope !== "*") {
-            const patterns = simCap.transactions
-              .scope as ContractFunctionPattern[];
+            const patterns = simCap.transactions.scope as ContractFunctionPattern[];
             patterns.forEach((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               keys.add(`simulateTx:${contractKey}:${pattern.function}`);
             });
           }
 
           // Add all utility simulation keys
           if (simCap.utilities && simCap.utilities.scope !== "*") {
-            const patterns = simCap.utilities
-              .scope as ContractFunctionPattern[];
+            const patterns = simCap.utilities.scope as ContractFunctionPattern[];
             patterns.forEach((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               keys.add(`simulateUtility:${contractKey}:${pattern.function}`);
             });
           }
@@ -646,8 +598,7 @@ export function AuthorizeCapabilitiesContent({
             const keys = new Set<string>();
             const patterns = txCap.scope as ContractFunctionPattern[];
             patterns.forEach((pattern) => {
-              const contractKey =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
               keys.add(`sendTx:${contractKey}:${pattern.function}`);
             });
             next.set(index, keys);
@@ -675,17 +626,12 @@ export function AuthorizeCapabilitiesContent({
 
   const handleToggleAccount = (index: number) => {
     setAccounts((prev) =>
-      prev.map((acc, i) =>
-        i === index ? { ...acc, selected: !acc.selected } : acc,
-      ),
+      prev.map((acc, i) => (i === index ? { ...acc, selected: !acc.selected } : acc)),
     );
   };
 
-
   const handleAliasChange = (index: number, newAlias: string) => {
-    setAccounts((prev) =>
-      prev.map((acc, i) => (i === index ? { ...acc, alias: newAlias } : acc)),
-    );
+    setAccounts((prev) => prev.map((acc, i) => (i === index ? { ...acc, alias: newAlias } : acc)));
   };
 
   const handleContractPermissionToggle = (
@@ -761,8 +707,7 @@ export function AuthorizeCapabilitiesContent({
         if (cap.transactions && cap.transactions.scope !== "*") {
           const patterns = cap.transactions.scope as ContractFunctionPattern[];
           patterns.forEach((pattern) => {
-            const contractKey =
-              pattern.contract === "*" ? "*" : pattern.contract.toString();
+            const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
             const storageKey = `simulateTx:${contractKey}:${pattern.function}`;
 
             // First time: check all requested
@@ -777,8 +722,7 @@ export function AuthorizeCapabilitiesContent({
         if (cap.utilities && cap.utilities.scope !== "*") {
           const patterns = cap.utilities.scope as ContractFunctionPattern[];
           patterns.forEach((pattern) => {
-            const contractKey =
-              pattern.contract === "*" ? "*" : pattern.contract.toString();
+            const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
             const storageKey = `simulateUtility:${contractKey}:${pattern.function}`;
 
             if (isAppFirstTime || existingGrants.get(storageKey)) {
@@ -796,8 +740,7 @@ export function AuthorizeCapabilitiesContent({
         const patterns = cap.scope as ContractFunctionPattern[];
         const keys = new Set<string>();
         patterns.forEach((pattern) => {
-          const contractKey =
-            pattern.contract === "*" ? "*" : pattern.contract.toString();
+          const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
           const storageKey = `sendTx:${contractKey}:${pattern.function}`;
 
           if (isAppFirstTime || existingGrants.get(storageKey)) {
@@ -819,44 +762,45 @@ export function AuthorizeCapabilitiesContent({
   return (
     <>
       {/* App Metadata */}
-      <Box sx={{ mb: compact ? 1 : 2, p: compact ? 1 : 1.5, bgcolor: "action.hover", borderRadius: 1 }}>
+      <Box
+        sx={{ mb: compact ? 1 : 2, p: compact ? 1 : 1.5, bgcolor: "action.hover", borderRadius: 1 }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant={compact ? "body2" : "subtitle1"} fontWeight={600}>
             {manifest.metadata.name}
           </Typography>
           {manifest.metadata.version && (
-            <Chip label={`v${manifest.metadata.version}`} size="small" sx={compact ? { height: 16, fontSize: "0.65rem" } : undefined} />
+            <Chip
+              label={`v${manifest.metadata.version}`}
+              size="small"
+              sx={compact ? { height: 16, fontSize: "0.65rem" } : undefined}
+            />
           )}
         </Box>
         {!compact && manifest.metadata.description && (
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ mt: 0.5, display: "block" }}
-          >
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
             {manifest.metadata.description}
           </Typography>
         )}
       </Box>
 
-      {showAppId &&
-        newCapabilityIndices.length < manifest.capabilities.length && (
-          <Box
-            sx={{
-              mb: 1.5,
-              p: 1,
-              bgcolor: "success.main",
-              color: "success.contrastText",
-              borderRadius: 1,
-            }}
-          >
-            <Typography variant="caption" fontWeight={600}>
-              {newCapabilityIndices.length === 0
-                ? "✓ All capabilities already granted"
-                : `✓ ${manifest.capabilities.length - newCapabilityIndices.length} of ${manifest.capabilities.length} already granted`}
-            </Typography>
-          </Box>
-        )}
+      {showAppId && newCapabilityIndices.length < manifest.capabilities.length && (
+        <Box
+          sx={{
+            mb: 1.5,
+            p: 1,
+            bgcolor: "success.main",
+            color: "success.contrastText",
+            borderRadius: 1,
+          }}
+        >
+          <Typography variant="caption" fontWeight={600}>
+            {newCapabilityIndices.length === 0
+              ? "✓ All capabilities already granted"
+              : `✓ ${manifest.capabilities.length - newCapabilityIndices.length} of ${manifest.capabilities.length} already granted`}
+          </Typography>
+        </Box>
+      )}
 
       {/* Capabilities List - Compact */}
       <List sx={{ mt: 1, p: 0 }}>
@@ -888,7 +832,11 @@ export function AuthorizeCapabilitiesContent({
                   px: compact ? 1 : 1.5,
                   py: 0.5,
                   minHeight: "unset",
-                  "& .MuiAccordionSummary-content": { my: compact ? 0.25 : 0.5, minWidth: 0, overflow: "hidden" },
+                  "& .MuiAccordionSummary-content": {
+                    my: compact ? 0.25 : 0.5,
+                    minWidth: 0,
+                    overflow: "hidden",
+                  },
                 }}
               >
                 <Box
@@ -913,7 +861,16 @@ export function AuthorizeCapabilitiesContent({
                       {getCapabilityIcon(capability.type)}
                     </Box>
                   )}
-                  <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, overflow: "hidden" }}>
+                  <Box
+                    sx={{
+                      flexGrow: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      minWidth: 0,
+                      overflow: "hidden",
+                    }}
+                  >
                     <Typography
                       variant={compact ? "caption" : "body2"}
                       fontWeight={isNewCapability && !isTransactionCapability ? 600 : 400}
@@ -944,7 +901,9 @@ export function AuthorizeCapabilitiesContent({
                 </Box>
               </AccordionSummary>
 
-              <AccordionDetails sx={{ pt: 0, pb: 1, pl: compact ? 1 : { xs: 1, sm: 5 }, pr: compact ? 1 : 1.5 }}>
+              <AccordionDetails
+                sx={{ pt: 0, pb: 1, pl: compact ? 1 : { xs: 1, sm: 5 }, pr: compact ? 1 : 1.5 }}
+              >
                 {/* Accounts Capability */}
                 {isAccountsCapability && (
                   <AccountsCapabilityDetails
@@ -959,19 +918,10 @@ export function AuthorizeCapabilitiesContent({
                 {capability.type === "contracts" && (
                   <ContractsCapabilityDetails
                     capability={capability as ContractsCapability}
-                    contractPermissions={
-                      contractPermissions.get(index) ?? new Map()
-                    }
+                    contractPermissions={contractPermissions.get(index) ?? new Map()}
                     contractMetadata={contractMetadata}
-                    onPermissionToggle={(
-                      addressStr: string,
-                      permType: "register" | "metadata",
-                    ) =>
-                      handleContractPermissionToggle(
-                        index,
-                        addressStr,
-                        permType,
-                      )
+                    onPermissionToggle={(addressStr: string, permType: "register" | "metadata") =>
+                      handleContractPermissionToggle(index, addressStr, permType)
                     }
                   />
                 )}
@@ -980,24 +930,20 @@ export function AuthorizeCapabilitiesContent({
                 {capability.type === "contractClasses" && (
                   <ContractClassesCapabilityDetails
                     capability={capability as ContractClassesCapability}
-                    selectedClasses={
-                      contractClassPermissions.get(index) ?? new Set<string>()
-                    }
+                    selectedClasses={contractClassPermissions.get(index) ?? new Set<string>()}
                     onToggleClass={(classIdStr: string) => {
-                      setContractClassPermissions(
-                        (prev: Map<number, Set<string>>) => {
-                          const next = new Map(prev);
-                          const classes = next.get(index) ?? new Set<string>();
-                          const updated = new Set(classes);
-                          if (updated.has(classIdStr)) {
-                            updated.delete(classIdStr);
-                          } else {
-                            updated.add(classIdStr);
-                          }
-                          next.set(index, updated);
-                          return next;
-                        },
-                      );
+                      setContractClassPermissions((prev: Map<number, Set<string>>) => {
+                        const next = new Map(prev);
+                        const classes = next.get(index) ?? new Set<string>();
+                        const updated = new Set(classes);
+                        if (updated.has(classIdStr)) {
+                          updated.delete(classIdStr);
+                        } else {
+                          updated.add(classIdStr);
+                        }
+                        next.set(index, updated);
+                        return next;
+                      });
                     }}
                   />
                 )}
@@ -1006,9 +952,7 @@ export function AuthorizeCapabilitiesContent({
                 {capability.type === "simulation" && (
                   <SimulationCapabilityDetails
                     capability={capability as SimulationCapability}
-                    selectedKeys={
-                      simPermissions.get(index) ?? new Set<string>()
-                    }
+                    selectedKeys={simPermissions.get(index) ?? new Set<string>()}
                     contractMetadata={contractMetadata}
                     onTogglePattern={(storageKey: string) =>
                       handleSimPatternToggle(index, storageKey)
@@ -1020,9 +964,7 @@ export function AuthorizeCapabilitiesContent({
                 {capability.type === "transaction" && (
                   <TransactionCapabilityDetails
                     capability={capability as TransactionCapability}
-                    selectedKeys={
-                      txPermissions.get(index) ?? new Set<string>()
-                    }
+                    selectedKeys={txPermissions.get(index) ?? new Set<string>()}
                     contractMetadata={contractMetadata}
                     onTogglePattern={(storageKey: string) =>
                       handleTxPatternToggle(index, storageKey)
@@ -1032,9 +974,7 @@ export function AuthorizeCapabilitiesContent({
 
                 {/* Data Capability */}
                 {capability.type === "data" && (
-                  <DataCapabilityDetails
-                    capability={capability as DataCapability}
-                  />
+                  <DataCapabilityDetails capability={capability as DataCapability} />
                 )}
               </AccordionDetails>
             </Accordion>
@@ -1059,7 +999,14 @@ export function AuthorizeCapabilitiesContent({
           </Typography>
         )}
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: compact ? 0.5 : 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: compact ? 0.5 : 1,
+          }}
+        >
           {!compact && (
             <Typography variant="caption" color="text.secondary">
               {mode === "permissive" ? "Allow ad-hoc requests" : "Strict mode (only declared ops)"}
@@ -1104,7 +1051,11 @@ export function AuthorizeCapabilitiesContent({
       </Box>
 
       {!compact && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block", fontStyle: "italic" }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ mt: 1, display: "block", fontStyle: "italic" }}
+        >
           Permissions persist for {durationDays} days and can be revoked from settings.
         </Typography>
       )}

@@ -53,7 +53,7 @@ export function AccountsManager() {
         "ecdsasecp256r1",
         Fr.random(),
         Fr.random(),
-        randomBytes(32)
+        randomBytes(32),
       );
       await loadAccounts();
     } catch (err: any) {
@@ -72,7 +72,17 @@ export function AccountsManager() {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", gap: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "100%",
+          height: "100%",
+          gap: 2,
+        }}
+      >
         <CircularProgress size={32} />
         <Typography variant="body2" color="text.secondary">
           Loading accounts...
@@ -96,19 +106,10 @@ export function AccountsManager() {
               Create an account in the standalone wallet first.
             </Typography>
             <Box sx={{ display: "flex", gap: 2, justifyContent: "center", mt: 1 }}>
-              <Link
-                href={window.location.origin}
-                target="_blank"
-                rel="noopener"
-              >
+              <Link href={window.location.origin} target="_blank" rel="noopener">
                 Open wallet
               </Link>
-              <Button
-                variant="outlined"
-                size="small"
-                disabled={refreshing}
-                onClick={handleRefresh}
-              >
+              <Button variant="outlined" size="small" disabled={refreshing} onClick={handleRefresh}>
                 {refreshing ? "Refreshing..." : "Refresh"}
               </Button>
             </Box>
@@ -148,11 +149,7 @@ export function AccountsManager() {
         onClose={() => setError(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert
-          onClose={() => setError(null)}
-          severity="error"
-          sx={{ width: "100%" }}
-        >
+        <Alert onClose={() => setError(null)} severity="error" sx={{ width: "100%" }}>
           {error}
         </Alert>
       </Snackbar>

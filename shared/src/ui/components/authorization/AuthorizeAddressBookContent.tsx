@@ -39,7 +39,7 @@ export function AuthorizeAddressBookContent({
           alias: contact.alias,
           originalAlias: contact.alias,
           selected: false,
-        }))
+        })),
       );
     };
     loadContacts();
@@ -62,14 +62,14 @@ export function AuthorizeAddressBookContent({
   const handleToggleContact = (index: number) => {
     setContacts((prev) =>
       prev.map((contact, i) =>
-        i === index ? { ...contact, selected: !contact.selected } : contact
-      )
+        i === index ? { ...contact, selected: !contact.selected } : contact,
+      ),
     );
   };
 
   const handleAliasChange = (index: number, newAlias: string) => {
     setContacts((prev) =>
-      prev.map((contact, i) => (i === index ? { ...contact, alias: newAlias } : contact))
+      prev.map((contact, i) => (i === index ? { ...contact, alias: newAlias } : contact)),
     );
   };
 
@@ -78,12 +78,11 @@ export function AuthorizeAddressBookContent({
       {showAppId && (
         <>
           <Typography variant="body1" gutterBottom>
-            App <strong>{request.appId}</strong> is requesting access to your
-            address book.
+            App <strong>{request.appId}</strong> is requesting access to your address book.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Select which contacts to share. You can also customize the aliases
-            that will be visible to the app.
+            Select which contacts to share. You can also customize the aliases that will be visible
+            to the app.
           </Typography>
         </>
       )}
@@ -100,17 +99,12 @@ export function AuthorizeAddressBookContent({
               border: 1,
               borderColor: contact.selected ? "primary.main" : "divider",
               borderRadius: 1,
-              bgcolor: contact.selected
-                ? "action.hover"
-                : "background.paper",
+              bgcolor: contact.selected ? "action.hover" : "background.paper",
             }}
           >
             <FormControlLabel
               control={
-                <Checkbox
-                  checked={contact.selected}
-                  onChange={() => handleToggleContact(index)}
-                />
+                <Checkbox checked={contact.selected} onChange={() => handleToggleContact(index)} />
               }
               label=""
               sx={{ m: 0 }}
@@ -153,8 +147,8 @@ export function AuthorizeAddressBookContent({
       )}
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This authorization will be remembered. You can revoke it later from the
-        Authorized Apps settings.
+        This authorization will be remembered. You can revoke it later from the Authorized Apps
+        settings.
       </Typography>
     </>
   );

@@ -1,18 +1,10 @@
-import type {
-  TxSimulationResult,
-  NestedProcessReturnValues,
-} from "@aztec/stdlib/tx";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { Fr } from "@aztec/foundation/curves/bn254";
+import type { TxSimulationResult } from "@aztec/stdlib/tx";
 import type { DecodingCache } from "./decoding-cache";
 import {
   CallAuthorizationFormatter,
   type ReadableCallAuthorization,
 } from "./call-authorization-formatter";
-import {
-  TxCallStackDecoder,
-  type DecodedExecutionTrace,
-} from "./tx-callstack-decoder";
+import { TxCallStackDecoder, type DecodedExecutionTrace } from "./tx-callstack-decoder";
 import { collectOffchainEffects } from "@aztec/stdlib/tx";
 
 /**
@@ -39,28 +31,22 @@ export class TxDecodingService {
     callAuthorizations: ReadableCallAuthorization[];
     executionTrace: DecodedExecutionTrace;
   }> {
-    const offChainEffects = collectOffchainEffects(
-      simulationResult.privateExecutionResult,
-    );
+    const offChainEffects = collectOffchainEffects(simulationResult.privateExecutionResult);
 
     // Parse call authorizations from offchain effects
     const callAuthorizations = await Promise.all(
-      offChainEffects.map((effect) =>
-        this.formatter.parseCallAuthorizationFromEffect(effect),
-      ),
+      offChainEffects.map((effect) => this.formatter.parseCallAuthorizationFromEffect(effect)),
     );
 
     const filteredCallAuthorizations = callAuthorizations.filter(Boolean);
 
     // Format for display
-    const readableCallAuthorizations =
-      await this.formatter.formatCallAuthorizationsForDisplay(
-        filteredCallAuthorizations,
-      );
+    const readableCallAuthorizations = await this.formatter.formatCallAuthorizationsForDisplay(
+      filteredCallAuthorizations,
+    );
 
     // Decode execution call stack
-    const executionTrace =
-      await this.decoder.decodeSimulationResult(simulationResult);
+    const executionTrace = await this.decoder.decodeSimulationResult(simulationResult);
 
     return {
       callAuthorizations: readableCallAuthorizations,

@@ -55,10 +55,7 @@ export function getNetworkById(id: string): NetworkConfig | undefined {
   return NETWORKS.find((network) => network.id === id);
 }
 
-export function getNetworkByChainId(
-  chainId: number,
-  version?: number,
-): NetworkConfig | undefined {
+export function getNetworkByChainId(chainId: number, version?: number): NetworkConfig | undefined {
   return NETWORKS.find((network) => {
     if (network.version !== 0) {
       return network.chainId === chainId && network.version === version;

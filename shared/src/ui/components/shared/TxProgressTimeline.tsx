@@ -8,11 +8,7 @@ import type {
   WalletInteraction,
   WalletInteractionType,
 } from "../../../wallet/types/wallet-interaction";
-import {
-  PhaseTimeline,
-  extractPhasesFromStats,
-  type ExecutionStats,
-} from "./PhaseTimeline";
+import { PhaseTimeline, extractPhasesFromStats, type ExecutionStats } from "./PhaseTimeline";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,10 +33,10 @@ interface LivePhaseTiming {
 // The end of simulation is marked by "REQUESTING AUTHORIZATION" (prepare completes).
 // Auth wait time is intentionally excluded (not a phase).
 const SEND_TX_PHASE_DEFS: PhaseDef[] = [
-  { statusKey: "SIMULATING",  name: "Simulation", color: "#ff9800", nextStatusKey: "PROVING"  },
-  { statusKey: "PROVING",     name: "Proving",     color: "#f48fb1", nextStatusKey: "SENDING"  },
-  { statusKey: "SENDING",     name: "Sending",     color: "#2196f3", nextStatusKey: "SENT"     },
-  { statusKey: "SENT",        name: "Mining",      color: "#4caf50", nextStatusKey: null        },
+  { statusKey: "SIMULATING", name: "Simulation", color: "#ff9800", nextStatusKey: "PROVING" },
+  { statusKey: "PROVING", name: "Proving", color: "#f48fb1", nextStatusKey: "SENDING" },
+  { statusKey: "SENDING", name: "Sending", color: "#2196f3", nextStatusKey: "SENT" },
+  { statusKey: "SENT", name: "Mining", color: "#4caf50", nextStatusKey: null },
 ];
 
 // simulateTx / simulateUtility — the interaction is created at simulation start (timestamp),
@@ -78,7 +74,8 @@ const formatDurationLong = (ms: number): string => {
 };
 
 function getPhaseDefs(type: WalletInteractionType): PhaseDef[] {
-  if (type === "sendTx" || type === "createAccount" || type === "deployAccount") return SEND_TX_PHASE_DEFS;
+  if (type === "sendTx" || type === "createAccount" || type === "deployAccount")
+    return SEND_TX_PHASE_DEFS;
   return SIMULATE_TX_PHASE_DEFS;
 }
 
@@ -89,7 +86,13 @@ function getCurrentPhaseKey(status: string, type: WalletInteractionType): string
     if (status.includes("SIMULATING")) return "SIMULATING";
     if (status.includes("PROVING")) return "PROVING";
     if (status.includes("SENDING")) return "SENDING";
-    if (status.includes("MINING") || status.includes("SENT") || status.includes("MINED") || status.includes("DEPLOYED")) return "SENT";
+    if (
+      status.includes("MINING") ||
+      status.includes("SENT") ||
+      status.includes("MINED") ||
+      status.includes("DEPLOYED")
+    )
+      return "SENT";
     return null; // REQUESTING AUTHORIZATION — auth wait excluded from timeline
   }
   // simulateTx / simulateUtility: single SIMULATING phase, paused during auth wait
@@ -121,7 +124,8 @@ function PhaseTimelineBar({ phases }: { phases: LivePhaseTiming[] }) {
   const totalDuration = completedDuration + liveDuration;
 
   const miningDuration = useMemo(
-    () => completedPhases.filter((p) => p.name === "Mining").reduce((sum, p) => sum + p.duration, 0),
+    () =>
+      completedPhases.filter((p) => p.name === "Mining").reduce((sum, p) => sum + p.duration, 0),
     [completedPhases],
   );
 
@@ -140,12 +144,24 @@ function PhaseTimelineBar({ phases }: { phases: LivePhaseTiming[] }) {
             <Chip
               label={`Preparing: ${formatDuration(preparingDuration)}`}
               size="small"
-              sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600, bgcolor: "#1565c0", color: "white" }}
+              sx={{
+                height: 18,
+                fontSize: "0.6rem",
+                fontWeight: 600,
+                bgcolor: "#1565c0",
+                color: "white",
+              }}
             />
             <Chip
               label={`Mining: ${formatDuration(miningDuration)}`}
               size="small"
-              sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600, bgcolor: "#4caf50", color: "white" }}
+              sx={{
+                height: 18,
+                fontSize: "0.6rem",
+                fontWeight: 600,
+                bgcolor: "#4caf50",
+                color: "white",
+              }}
             />
             <Chip
               label={`Total: ${formatDuration(totalDuration)}`}
@@ -155,7 +171,11 @@ function PhaseTimelineBar({ phases }: { phases: LivePhaseTiming[] }) {
           </>
         ) : (
           <Chip
-            label={hasLive ? `Elapsed: ${formatDuration(totalDuration)}` : `Total: ${formatDuration(totalDuration)}`}
+            label={
+              hasLive
+                ? `Elapsed: ${formatDuration(totalDuration)}`
+                : `Total: ${formatDuration(totalDuration)}`
+            }
             size="small"
             sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600 }}
           />
@@ -256,7 +276,8 @@ function PhaseTimelineBar({ phases }: { phases: LivePhaseTiming[] }) {
               }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.6rem" }}>
-              {phase.name}{phase.isLive ? " ●" : ""}
+              {phase.name}
+              {phase.isLive ? " ●" : ""}
             </Typography>
           </Box>
         ))}
@@ -280,9 +301,7 @@ export function TxProgressTimeline({
   const currentPhaseKey = getCurrentPhaseKey(interaction.status, interaction.type);
 
   // The ref key for when the current phase started
-  const currentPhaseStartKey = currentPhaseKey
-    ? `${interaction.id}:${currentPhaseKey}`
-    : null;
+  const currentPhaseStartKey = currentPhaseKey ? `${interaction.id}:${currentPhaseKey}` : null;
 
   useEffect(() => {
     if (interaction.complete || !currentPhaseStartKey) return;
@@ -317,9 +336,10 @@ export function TxProgressTimeline({
   // During auth wait (REQUESTING AUTHORIZATION), currentPhaseKey is null.
   // Show the locked simulation segment so the user can see how long simulation took.
   if (!currentPhaseKey) {
-    const simStart = phaseStartsRef.current.get(`${interaction.id}:SIMULATING`)
-      ?? phaseStartsRef.current.get(`${interaction.id}:START`)
-      ?? Date.now();
+    const simStart =
+      phaseStartsRef.current.get(`${interaction.id}:SIMULATING`) ??
+      phaseStartsRef.current.get(`${interaction.id}:START`) ??
+      Date.now();
     const simEnd = phaseStartsRef.current.get(`${interaction.id}:REQUESTING AUTHORIZATION`);
     if (!simEnd) return null;
     const simulationSegment: LivePhaseTiming = {
@@ -343,12 +363,16 @@ export function TxProgressTimeline({
     const startKey = `${interaction.id}:${phaseDefs[i].statusKey}`;
     // Simulation ends when REQUESTING AUTHORIZATION fires (not when PROVING starts),
     // so use that as the boundary for the simulation→proving gap.
-    const endStatusKey = phaseDefs[i].statusKey === "SIMULATING"
-      ? "REQUESTING AUTHORIZATION"
-      : phaseDefs[i + 1].statusKey;
+    const endStatusKey =
+      phaseDefs[i].statusKey === "SIMULATING"
+        ? "REQUESTING AUTHORIZATION"
+        : phaseDefs[i + 1].statusKey;
     const endKey = `${interaction.id}:${endStatusKey}`;
-    const start = phaseStartsRef.current.get(startKey)
-      ?? (phaseDefs[i].statusKey === "SIMULATING" ? phaseStartsRef.current.get(`${interaction.id}:START`) : undefined);
+    const start =
+      phaseStartsRef.current.get(startKey) ??
+      (phaseDefs[i].statusKey === "SIMULATING"
+        ? phaseStartsRef.current.get(`${interaction.id}:START`)
+        : undefined);
     const end = phaseStartsRef.current.get(endKey);
     if (start && end) {
       completedSegments.push({
@@ -362,7 +386,12 @@ export function TxProgressTimeline({
   const liveDef = phaseDefs[currentIdx];
   const displayPhases: LivePhaseTiming[] = [
     ...completedSegments,
-    { name: liveDef.name, duration: phaseElapsed > 0 ? phaseElapsed : 100, color: liveDef.color, isLive: true },
+    {
+      name: liveDef.name,
+      duration: phaseElapsed > 0 ? phaseElapsed : 100,
+      color: liveDef.color,
+      isLive: true,
+    },
   ];
 
   return (

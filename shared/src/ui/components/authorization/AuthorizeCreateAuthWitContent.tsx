@@ -21,12 +21,11 @@ export function AuthorizeCreateAuthWitContent({
       {showAppId && (
         <>
           <Typography variant="body1" gutterBottom>
-            App <strong>{request.appId}</strong> is requesting to create an
-            authorization witness.
+            App <strong>{request.appId}</strong> is requesting to create an authorization witness.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This allows the app to gather a signed authorization that can be
-            used to perform actions on your behalf.
+            This allows the app to gather a signed authorization that can be used to perform actions
+            on your behalf.
           </Typography>
         </>
       )}
@@ -36,9 +35,9 @@ export function AuthorizeCreateAuthWitContent({
           Security Warning
         </Typography>
         <Typography variant="body2">
-          Creating an authorization witness gives the app permission to execute
-          specific actions on your behalf. Only approve if you trust this app
-          and understand what it will be authorized to do.
+          Creating an authorization witness gives the app permission to execute specific actions on
+          your behalf. Only approve if you trust this app and understand what it will be authorized
+          to do.
         </Typography>
       </Alert>
 
@@ -47,10 +46,7 @@ export function AuthorizeCreateAuthWitContent({
           <Typography variant="subtitle2" color="text.secondary">
             From Account
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
-          >
+          <Typography variant="body2" sx={{ fontFamily: "monospace", wordBreak: "break-all" }}>
             {displayData.from}
           </Typography>
         </Box>
@@ -163,8 +159,8 @@ export function AuthorizeCreateAuthWitContent({
 
       <Alert severity="info" sx={{ mt: 2 }}>
         <Typography variant="body2">
-          This authorization is <strong>NOT persistent</strong>. Each
-          authorization witness requires separate approval.
+          This authorization is <strong>NOT persistent</strong>. Each authorization witness requires
+          separate approval.
         </Typography>
       </Alert>
     </>

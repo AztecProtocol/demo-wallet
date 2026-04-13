@@ -36,9 +36,7 @@ function getPlatformArch() {
       } else if (arch === "arm64") {
         return "arm64-linux";
       }
-      console.error(
-        `✗ Unsupported Linux architecture: ${arch}. Only x64 and ARM64 are supported.`,
-      );
+      console.error(`✗ Unsupported Linux architecture: ${arch}. Only x64 and ARM64 are supported.`);
       process.exit(1);
     case "win32":
       console.error(`✗ Windows builds are not available for Barretenberg.`);
@@ -48,9 +46,7 @@ function getPlatformArch() {
       process.exit(1);
   }
 
-  console.error(
-    `✗ Unsupported architecture: ${arch} for platform: ${platform}`,
-  );
+  console.error(`✗ Unsupported architecture: ${arch} for platform: ${platform}`);
   process.exit(1);
 }
 
@@ -63,14 +59,8 @@ async function main() {
     BB_FOLDER,
     "dest/node/barretenberg_wasm/barretenberg-threads.wasm.gz",
   );
-  const BB_NAPI_SOURCE = path.join(
-    BB_FOLDER,
-    `build/${getPlatformArch()}/nodejs_module.node`,
-  );
-  const BB_BINARY_SOURCE = path.join(
-    BB_FOLDER,
-    `build/${getPlatformArch()}/bb`,
-  );
+  const BB_NAPI_SOURCE = path.join(BB_FOLDER, `build/${getPlatformArch()}/nodejs_module.node`);
+  const BB_BINARY_SOURCE = path.join(BB_FOLDER, `build/${getPlatformArch()}/bb`);
 
   // Destination directory - will be packaged with the app
   const RESOURCES_DIR = path.join(__dirname, "..");

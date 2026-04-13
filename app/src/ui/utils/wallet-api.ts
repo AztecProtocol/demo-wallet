@@ -9,8 +9,7 @@ export class WalletApi {
   private constructor(chainId: Fr, version: Fr) {
     const safeCallback = (callback: any) => (eventData: any) => {
       if (eventData.chainInfo) {
-        const { chainId: eventChainId, version: eventVersion } =
-          eventData.chainInfo;
+        const { chainId: eventChainId, version: eventVersion } = eventData.chainInfo;
         const currentChainId = chainId.toString();
         const currentVersion = version.toString();
 
@@ -38,9 +37,7 @@ export class WalletApi {
               args.unshift(chainId, version);
               const safeArgs = jsonStringify(args);
               const result = await window.walletAPI[prop](safeArgs);
-              return InternalWalletInterfaceSchema[
-                prop.toString() as keyof InternalWalletInterface
-              ]
+              return InternalWalletInterfaceSchema[prop.toString() as keyof InternalWalletInterface]
                 .returnType()
                 .parseAsync(result);
             };
@@ -50,9 +47,7 @@ export class WalletApi {
             };
           } else if (prop.toString() === "onAuthorizationRequest") {
             return (callback: any) => {
-              return window.walletAPI.onAuthorizationRequest(
-                safeCallback(callback)
-              );
+              return window.walletAPI.onAuthorizationRequest(safeCallback(callback));
             };
           } else if (prop.toString() === "onProofDebugExportRequest") {
             return (callback: any) => {
@@ -67,7 +62,7 @@ export class WalletApi {
             throw new Error(`Invalid method ${prop.toString()}`);
           }
         },
-      }
+      },
     ) as unknown as InternalWalletInterface;
   }
 

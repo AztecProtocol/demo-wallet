@@ -11,20 +11,12 @@ import {
 } from "@aztec/aztec.js/wallet";
 import { type Logger } from "@aztec/foundation/log";
 import { type AztecAsyncMap, type AztecAsyncKVStore } from "@aztec/kv-store";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import { TxSimulationResult } from "@aztec/stdlib/tx";
 
-export const AccountTypes = [
-  "schnorr",
-  "ecdsasecp256r1",
-  "ecdsasecp256k1",
-] as const;
+export const AccountTypes = ["schnorr", "ecdsasecp256r1", "ecdsasecp256k1"] as const;
 export type AccountType = (typeof AccountTypes)[number];
-
 
 /** Per-function timing from simulation/proving */
 interface FunctionTiming {
@@ -89,17 +81,12 @@ export class WalletDB {
     leafIndex: bigint,
   ) {
     let stackPointer =
-      (
-        await this.bridgedFeeJuice.getAsync(
-          `${recipient.toString()}:stackPointer`,
-        )
-      )?.readInt8() || 0;
+      (await this.bridgedFeeJuice.getAsync(`${recipient.toString()}:stackPointer`))?.readInt8() ||
+      0;
     stackPointer++;
     await this.bridgedFeeJuice.set(
       `${recipient.toString()}:${stackPointer}`,
-      Buffer.from(
-        `${amount.toString()}:${secret.toString()}:${leafIndex.toString()}`,
-      ),
+      Buffer.from(`${amount.toString()}:${secret.toString()}:${leafIndex.toString()}`),
     );
     await this.bridgedFeeJuice.set(
       `${recipient.toString()}:stackPointer`,
@@ -112,14 +99,9 @@ export class WalletDB {
 
   async popBridgedFeeJuice(recipient: AztecAddress) {
     let stackPointer =
-      (
-        await this.bridgedFeeJuice.getAsync(
-          `${recipient.toString()}:stackPointer`,
-        )
-      )?.readInt8() || 0;
-    const result = await this.bridgedFeeJuice.getAsync(
-      `${recipient.toString()}:${stackPointer}`,
-    );
+      (await this.bridgedFeeJuice.getAsync(`${recipient.toString()}:stackPointer`))?.readInt8() ||
+      0;
+    const result = await this.bridgedFeeJuice.getAsync(`${recipient.toString()}:${stackPointer}`);
     if (!result) {
       throw new Error(
         `No stored fee juice available for recipient ${recipient.toString()}. Please provide claim amount and secret. Stack pointer ${stackPointer}`,
@@ -157,10 +139,7 @@ export class WalletDB {
     },
   ) {
     if (alias) {
-      await this.aliases.set(
-        `accounts:${alias}`,
-        Buffer.from(address.toString()),
-      );
+      await this.aliases.set(`accounts:${alias}`, Buffer.from(address.toString()));
     }
     await this.accounts.set(`${address.toString()}:type`, Buffer.from(type));
     await this.accounts.set(`${address.toString()}:sk`, secretKey.toBuffer());
@@ -170,10 +149,7 @@ export class WalletDB {
       "toBuffer" in signingKey ? signingKey.toBuffer() : signingKey,
     );
     // New accounts are undeployed by default
-    await this.accounts.set(
-      `${address.toString()}:deployed`,
-      Buffer.from("false"),
-    );
+    await this.accounts.set(`${address.toString()}:deployed`, Buffer.from("false"));
     this.logger.info(
       `Account stored in database with alias${alias ? `es last & ${alias}` : " last"}`,
     );
@@ -193,14 +169,9 @@ export class WalletDB {
     await this.accounts.set(`${address.toString()}:${metadataKey}`, metadata);
   }
 
-  async retrieveAccountMetadata(
-    aliasOrAddress: AztecAddress | string,
-    metadataKey: string,
-  ) {
+  async retrieveAccountMetadata(aliasOrAddress: AztecAddress | string, metadataKey: string) {
     const { address } = await this.retrieveAccount(aliasOrAddress);
-    const result = await this.accounts.getAsync(
-      `${address.toString()}:${metadataKey}`,
-    );
+    const result = await this.accounts.getAsync(`${address.toString()}:${metadataKey}`);
     if (!result) {
       throw new Error(
         `Could not find metadata with key ${metadataKey} for account ${aliasOrAddress}`,
@@ -210,49 +181,34 @@ export class WalletDB {
   }
 
   async retrieveAccount(address: AztecAddress | string) {
-    const secretKeyBuffer = await this.accounts.getAsync(
-      `${address.toString()}:sk`,
-    );
+    const secretKeyBuffer = await this.accounts.getAsync(`${address.toString()}:sk`);
     if (!secretKeyBuffer) {
       throw new Error(
         `Could not find ${address}:sk. Account "${address.toString}" does not exist on this wallet.`,
       );
     }
     const secretKey = Fr.fromBuffer(secretKeyBuffer);
-    const salt = Fr.fromBuffer(
-      await this.accounts.getAsync(`${address.toString()}:salt`)!,
-    );
-    const type = (
-      await this.accounts.getAsync(`${address.toString()}:type`)!
-    ).toString("utf8") as AccountType;
-    const signingKey = await this.accounts.getAsync(
-      `${address.toString()}:signingKey`,
-    )!;
-    const deployedBuf = await this.accounts.getAsync(
-      `${address.toString()}:deployed`,
-    );
+    const salt = Fr.fromBuffer(await this.accounts.getAsync(`${address.toString()}:salt`)!);
+    const type = (await this.accounts.getAsync(`${address.toString()}:type`)!).toString(
+      "utf8",
+    ) as AccountType;
+    const signingKey = await this.accounts.getAsync(`${address.toString()}:signingKey`)!;
+    const deployedBuf = await this.accounts.getAsync(`${address.toString()}:deployed`);
     const deployed = deployedBuf?.toString("utf8") === "true";
     return { address, secretKey, salt, type, signingKey, deployed };
   }
 
   async markAccountDeployed(address: AztecAddress): Promise<void> {
-    await this.accounts.set(
-      `${address.toString()}:deployed`,
-      Buffer.from("true"),
-    );
+    await this.accounts.set(`${address.toString()}:deployed`, Buffer.from("true"));
     this.logger.info(`Account ${address.toString()} marked as deployed`);
   }
 
   async isAccountDeployed(address: AztecAddress): Promise<boolean> {
-    const buf = await this.accounts.getAsync(
-      `${address.toString()}:deployed`,
-    );
+    const buf = await this.accounts.getAsync(`${address.toString()}:deployed`);
     return buf?.toString("utf8") === "true";
   }
 
-  async listAccounts(opts?: {
-    deployedOnly?: boolean;
-  }): Promise<Aliased<AztecAddress>[]> {
+  async listAccounts(opts?: { deployedOnly?: boolean }): Promise<Aliased<AztecAddress>[]> {
     // Collect all account aliases first to avoid interleaving reads across
     // IndexedDB stores (which kills the cursor's transaction).
     const allAccounts: Aliased<AztecAddress>[] = [];
@@ -299,23 +255,17 @@ export class WalletDB {
     await this.aliases.delete(account?.alias);
   }
 
-  async storeInteraction<T extends WalletInteractionType>(
-    interaction: WalletInteraction<T>,
-  ) {
+  async storeInteraction<T extends WalletInteractionType>(interaction: WalletInteraction<T>) {
     await this.interactions.set(interaction.id, interaction.toBuffer());
   }
 
-  async createOrUpdateInteraction(
-    interaction: WalletInteraction<WalletInteractionType>,
-  ) {
+  async createOrUpdateInteraction(interaction: WalletInteraction<WalletInteractionType>) {
     const { id, status, complete } = interaction;
     const maybeInteractionBuffer = await this.interactions.getAsync(id);
     if (!maybeInteractionBuffer) {
       await this.storeInteraction(interaction);
     } else {
-      const storedInteraction = WalletInteraction.fromBuffer(
-        maybeInteractionBuffer,
-      );
+      const storedInteraction = WalletInteraction.fromBuffer(maybeInteractionBuffer);
       storedInteraction.status = status;
       storedInteraction.complete = complete;
       await this.storeInteraction(storedInteraction);
@@ -336,10 +286,7 @@ export class WalletDB {
     await this.authorizations.set(fullKey, Buffer.from(jsonStringify(data)));
   }
 
-  async retrievePersistentAuthorization(
-    appId: string,
-    key: string,
-  ): Promise<any | undefined> {
+  async retrievePersistentAuthorization(appId: string, key: string): Promise<any | undefined> {
     const fullKey = `${appId}:${key}`;
     const result = await this.authorizations.getAsync(fullKey);
     if (!result) {
@@ -393,9 +340,7 @@ export class WalletDB {
     // Track all requested capabilities (including denied ones) in __requested__
     // so the Apps tab can display them for future re-granting
     const toTrack = requestedCapabilities ?? granted;
-    const requestedKeys = toTrack.flatMap((cap) =>
-      this.capabilityToStorageKeys(cap),
-    );
+    const requestedKeys = toTrack.flatMap((cap) => this.capabilityToStorageKeys(cap));
     if (requestedKeys.length > 0) {
       await this.appendRequestedKeys(appId, requestedKeys);
     }
@@ -405,10 +350,7 @@ export class WalletDB {
    * Revoke a specific capability by deleting its authorization keys.
    * Does NOT remove from __requested__ — the capability remains visible for re-granting.
    */
-  async revokeCapability(
-    appId: string,
-    capability: GrantedCapability,
-  ): Promise<void> {
+  async revokeCapability(appId: string, capability: GrantedCapability): Promise<void> {
     const keys = this.capabilityToStorageKeys(capability);
     for (const key of keys) {
       const fullKey = `${appId}:${key}`;
@@ -424,17 +366,11 @@ export class WalletDB {
    * This tracks everything the app has ever requested, regardless of approval.
    * The set only grows — keys are never removed from __requested__.
    */
-  async appendRequestedKeys(
-    appId: string,
-    keys: string[],
-  ): Promise<void> {
+  async appendRequestedKeys(appId: string, keys: string[]): Promise<void> {
     const existing = await this.getRequestedKeys(appId);
     const merged = new Set([...existing, ...keys]);
     const fullKey = `${appId}:__requested__`;
-    await this.authorizations.set(
-      fullKey,
-      Buffer.from(JSON.stringify([...merged])),
-    );
+    await this.authorizations.set(fullKey, Buffer.from(JSON.stringify([...merged])));
   }
 
   /**
@@ -452,9 +388,7 @@ export class WalletDB {
    * Reconstruct capabilities from the __requested__ keys.
    * Returns everything the app has ever requested (for the Apps tab display).
    */
-  async getRequestedCapabilities(
-    appId: string,
-  ): Promise<GrantedCapability[]> {
+  async getRequestedCapabilities(appId: string): Promise<GrantedCapability[]> {
     const keys = await this.getRequestedKeys(appId);
     if (keys.length === 0) return [];
     return this.reconstructCapabilitiesFromKeyList(keys);
@@ -467,9 +401,7 @@ export class WalletDB {
    * @param capability - The granted capability
    * @returns Object with capability-specific data fields
    */
-  private extractCapabilityData(
-    capability: GrantedCapability,
-  ): Record<string, any> {
+  private extractCapabilityData(capability: GrantedCapability): Record<string, any> {
     switch (capability.type) {
       case "accounts": {
         const accountsCap = capability as GrantedAccountsCapability;
@@ -535,9 +467,7 @@ export class WalletDB {
         const classes =
           contractClassesCap.classes === "*"
             ? ["*"]
-            : contractClassesCap.classes.map((classId: any) =>
-                classId.toString(),
-              );
+            : contractClassesCap.classes.map((classId: any) => classId.toString());
 
         if (contractClassesCap.canGetMetadata) {
           keys.push(...classes.map((c) => `getContractClassMetadata:${c}`));
@@ -557,8 +487,7 @@ export class WalletDB {
             // Pattern-based scopes - only generate keys for simulateTx
             // (utilities use simulateUtility, not simulateTx)
             for (const pattern of simCap.transactions.scope) {
-              const contract =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contract = pattern.contract === "*" ? "*" : pattern.contract.toString();
               const func = pattern.function;
               keys.push(`simulateTx:${contract}:${func}`);
             }
@@ -571,8 +500,7 @@ export class WalletDB {
           } else {
             // Pattern-based scopes - only generate keys for simulateUtility
             for (const pattern of simCap.utilities.scope) {
-              const contract =
-                pattern.contract === "*" ? "*" : pattern.contract.toString();
+              const contract = pattern.contract === "*" ? "*" : pattern.contract.toString();
               const func = pattern.function;
               keys.push(`simulateUtility:${contract}:${func}`);
             }
@@ -589,8 +517,7 @@ export class WalletDB {
         } else {
           // Pattern-based scopes
           for (const pattern of txCap.scope) {
-            const contract =
-              pattern.contract === "*" ? "*" : pattern.contract.toString();
+            const contract = pattern.contract === "*" ? "*" : pattern.contract.toString();
             const func = pattern.function;
             keys.push(`sendTx:${contract}:${func}`);
           }
@@ -629,7 +556,10 @@ export class WalletDB {
     const keysToDelete: string[] = [];
     const prefix = `${appId}:`;
 
-    for await (const key of this.authorizations.keysAsync({ start: prefix, end: `${prefix}\uffff` })) {
+    for await (const key of this.authorizations.keysAsync({
+      start: prefix,
+      end: `${prefix}\uffff`,
+    })) {
       keysToDelete.push(key);
     }
 
@@ -638,9 +568,7 @@ export class WalletDB {
       await this.authorizations.delete(key);
     }
 
-    this.logger.info(
-      `Revoked ${keysToDelete.length} persistent authorizations for ${appId}`,
-    );
+    this.logger.info(`Revoked ${keysToDelete.length} persistent authorizations for ${appId}`);
   }
 
   /**
@@ -650,13 +578,14 @@ export class WalletDB {
    * @param appId - Application ID to get capabilities for
    * @returns Array of granted capabilities
    */
-  async reconstructCapabilitiesFromKeys(
-    appId: string,
-  ): Promise<GrantedCapability[]> {
+  async reconstructCapabilitiesFromKeys(appId: string): Promise<GrantedCapability[]> {
     // Collect all authorization keys for this app (excluding metadata)
     const prefix = `${appId}:`;
     const keys: string[] = [];
-    for await (const key of this.authorizations.keysAsync({ start: prefix, end: `${prefix}\uffff` })) {
+    for await (const key of this.authorizations.keysAsync({
+      start: prefix,
+      end: `${prefix}\uffff`,
+    })) {
       const storageKey = key.substring(prefix.length);
       if (!storageKey.startsWith("__")) {
         keys.push(storageKey);
@@ -674,10 +603,7 @@ export class WalletDB {
    * @param keys - Storage keys to reconstruct from
    * @param appId - Optional appId for fetching stored data (accounts, contacts). If omitted, data-dependent fields use defaults.
    */
-  reconstructCapabilitiesFromKeyList(
-    keys: string[],
-    appId?: string,
-  ): Promise<GrantedCapability[]> {
+  reconstructCapabilitiesFromKeyList(keys: string[], appId?: string): Promise<GrantedCapability[]> {
     return this._reconstructCapabilities(keys, appId);
   }
 
@@ -688,26 +614,16 @@ export class WalletDB {
     const capabilities: GrantedCapability[] = [];
 
     // Group keys by method to reconstruct capabilities
-    const accountKeys = keys.filter(
-      (k) => k === "getAccounts" || k === "createAuthWit",
-    );
+    const accountKeys = keys.filter((k) => k === "getAccounts" || k === "createAuthWit");
     const contractKeys = keys.filter(
-      (k) =>
-        k.startsWith("registerContract:") ||
-        k.startsWith("getContractMetadata:"),
+      (k) => k.startsWith("registerContract:") || k.startsWith("getContractMetadata:"),
     );
-    const contractClassKeys = keys.filter((k) =>
-      k.startsWith("getContractClassMetadata:"),
-    );
+    const contractClassKeys = keys.filter((k) => k.startsWith("getContractClassMetadata:"));
     const simulateTxKeys = keys.filter((k) => k.startsWith("simulateTx:"));
-    const simulateUtilityKeys = keys.filter((k) =>
-      k.startsWith("simulateUtility:"),
-    );
+    const simulateUtilityKeys = keys.filter((k) => k.startsWith("simulateUtility:"));
     const sendTxKeys = keys.filter((k) => k.startsWith("sendTx:"));
     const addressBookKeys = keys.filter((k) => k === "getAddressBook");
-    const privateEventsKeys = keys.filter((k) =>
-      k.startsWith("getPrivateEvents:"),
-    );
+    const privateEventsKeys = keys.filter((k) => k.startsWith("getPrivateEvents:"));
 
     // Reconstruct AccountsCapability
     if (accountKeys.length > 0) {
@@ -717,16 +633,10 @@ export class WalletDB {
       // Fetch accounts from stored data if appId available
       let accounts: Array<{ alias: string; item: AztecAddress }> = [];
       if (canGet && appId) {
-        const data = await this.retrievePersistentAuthorization(
-          appId,
-          "getAccounts",
-        );
+        const data = await this.retrievePersistentAuthorization(appId, "getAccounts");
         accounts = (data?.accounts || []).map((acc: any) => ({
           alias: acc.alias,
-          item:
-            typeof acc.item === "string"
-              ? AztecAddress.fromString(acc.item)
-              : acc.item,
+          item: typeof acc.item === "string" ? AztecAddress.fromString(acc.item) : acc.item,
         }));
       }
 
@@ -744,9 +654,7 @@ export class WalletDB {
     // register doesn't get a phantom metadata key).
     if (contractKeys.length > 0) {
       const registerAddrs = new Set(
-        contractKeys
-          .filter((k) => k.startsWith("registerContract:"))
-          .map((k) => k.split(":")[1]),
+        contractKeys.filter((k) => k.startsWith("registerContract:")).map((k) => k.split(":")[1]),
       );
       const metadataAddrs = new Set(
         contractKeys
@@ -834,10 +742,7 @@ export class WalletDB {
         } else {
           const patterns = simulateTxKeys.map((k) => {
             const parts = k.split(":");
-            const contract =
-              parts[1] === "*"
-                ? ("*" as const)
-                : AztecAddress.fromString(parts[1]);
+            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
             const func = parts[2] || "*";
             return { contract, function: func };
           });
@@ -846,18 +751,13 @@ export class WalletDB {
       }
 
       if (simulateUtilityKeys.length > 0) {
-        const hasWildcard = simulateUtilityKeys.some(
-          (k) => k === "simulateUtility:*",
-        );
+        const hasWildcard = simulateUtilityKeys.some((k) => k === "simulateUtility:*");
         if (hasWildcard) {
           simCap.utilities = { scope: "*" as const };
         } else {
           const patterns = simulateUtilityKeys.map((k) => {
             const parts = k.split(":");
-            const contract =
-              parts[1] === "*"
-                ? ("*" as const)
-                : AztecAddress.fromString(parts[1]);
+            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
             const func = parts[2] || "*";
             return { contract, function: func };
           });
@@ -879,10 +779,7 @@ export class WalletDB {
       } else {
         const patterns = sendTxKeys.map((k) => {
           const parts = k.split(":");
-          const contract =
-            parts[1] === "*"
-              ? ("*" as const)
-              : AztecAddress.fromString(parts[1]);
+          const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
           const func = parts[2] || "*";
           return { contract, function: func };
         });
@@ -900,10 +797,7 @@ export class WalletDB {
       if (addressBookKeys.length > 0) {
         // Fetch contacts from stored data if appId available
         if (appId) {
-          const data = await this.retrievePersistentAuthorization(
-            appId,
-            "getAddressBook",
-          );
+          const data = await this.retrievePersistentAuthorization(appId, "getAddressBook");
           const contacts = (data?.contacts || []).map((contact: any) => ({
             alias: contact.alias,
             item:
@@ -921,9 +815,7 @@ export class WalletDB {
         const contractAddrs = privateEventsKeys.map((k) => k.split(":")[1]);
         const contracts = contractAddrs.includes("*")
           ? ("*" as const)
-          : contractAddrs
-              .filter((c) => c !== "*")
-              .map((c) => AztecAddress.fromString(c));
+          : contractAddrs.filter((c) => c !== "*").map((c) => AztecAddress.fromString(c));
 
         dataCap.privateEvents = { contracts };
       }
@@ -955,20 +847,14 @@ export class WalletDB {
   /**
    * Update the getAccounts authorization for an app
    */
-  async updateAccountAuthorization(
-    appId: string,
-    accounts: Aliased<AztecAddress>[],
-  ) {
+  async updateAccountAuthorization(appId: string, accounts: Aliased<AztecAddress>[]) {
     await this.storePersistentAuthorization(appId, "getAccounts", { accounts });
   }
 
   /**
    * Update the getAddressBook authorization for an app
    */
-  async updateAddressBookAuthorization(
-    appId: string,
-    contacts: Aliased<AztecAddress>[],
-  ) {
+  async updateAddressBookAuthorization(appId: string, contacts: Aliased<AztecAddress>[]) {
     await this.storePersistentAuthorization(appId, "getAddressBook", {
       contacts,
     });
@@ -996,7 +882,10 @@ export class WalletDB {
   async revokeAppAuthorizations(appId: string) {
     const prefix = `${appId}:`;
     const keysToDelete: string[] = [];
-    for await (const key of this.authorizations.keysAsync({ start: prefix, end: `${prefix}\uffff` })) {
+    for await (const key of this.authorizations.keysAsync({
+      start: prefix,
+      end: `${prefix}\uffff`,
+    })) {
       keysToDelete.push(key);
     }
 
@@ -1023,9 +912,7 @@ export class WalletDB {
       metadata,
     });
     await this.txPayloadData.set(payloadHash, data);
-    this.logger.info(
-      `Transaction simulation stored for payload hash ${payloadHash}`,
-    );
+    this.logger.info(`Transaction simulation stored for payload hash ${payloadHash}`);
   }
 
   async getTxPayloadData(payloadHash: string): Promise<
@@ -1051,10 +938,7 @@ export class WalletDB {
    * Works for txs that went through simulation (upserts the metadata.stats field)
    * and for txs that didn't simulate (e.g. createAccount — stores stats-only record).
    */
-  async updateTxPayloadStats(
-    payloadHash: string,
-    stats: StoredStats,
-  ): Promise<void> {
+  async updateTxPayloadStats(payloadHash: string, stats: StoredStats): Promise<void> {
     const existing = await this.getTxPayloadData(payloadHash);
     const metadata = existing?.metadata ?? {};
     metadata.stats = stats;
@@ -1076,9 +960,7 @@ export class WalletDB {
     this.logger.info(`Utility trace stored for payload hash ${payloadHash}`);
   }
 
-  async getUtilityTrace(
-    payloadHash: string,
-  ): Promise<{ trace: any; stats?: any } | undefined> {
+  async getUtilityTrace(payloadHash: string): Promise<{ trace: any; stats?: any } | undefined> {
     const result = await this.txPayloadData.getAsync(payloadHash);
     if (!result) {
       return undefined;
@@ -1097,7 +979,10 @@ export class WalletDB {
   async getAllAuthorizationKeys(appId: string): Promise<string[]> {
     const prefix = `${appId}:`;
     const keys: string[] = [];
-    for await (const key of this.authorizations.keysAsync({ start: prefix, end: `${prefix}\uffff` })) {
+    for await (const key of this.authorizations.keysAsync({
+      start: prefix,
+      end: `${prefix}\uffff`,
+    })) {
       keys.push(key.substring(prefix.length));
     }
     return keys;
@@ -1113,8 +998,7 @@ export class WalletDB {
   ): Promise<Map<string, boolean>> {
     const results = new Map<string, boolean>();
     for (const key of storageKeys) {
-      const exists =
-        (await this.retrievePersistentAuthorization(appId, key)) !== undefined;
+      const exists = (await this.retrievePersistentAuthorization(appId, key)) !== undefined;
       results.set(key, exists);
     }
     return results;
@@ -1131,10 +1015,7 @@ export class WalletDB {
   ): Promise<void> {
     const key = `${appId}:__behavior__`;
     const expiresAt = Date.now() + duration;
-    await this.authorizations.set(
-      key,
-      Buffer.from(jsonStringify({ mode, expiresAt })),
-    );
+    await this.authorizations.set(key, Buffer.from(jsonStringify({ mode, expiresAt })));
     this.logger.info(
       `Authorization behavior stored for ${appId}: mode=${mode}, expiresAt=${new Date(expiresAt).toISOString()}`,
     );
@@ -1181,7 +1062,10 @@ export class WalletDB {
       const prefix = `${appId}:`;
       const entries: Record<string, unknown> = {};
 
-      for await (const [key, value] of this.authorizations.entriesAsync({ start: prefix, end: `${prefix}\uffff` })) {
+      for await (const [key, value] of this.authorizations.entriesAsync({
+        start: prefix,
+        end: `${prefix}\uffff`,
+      })) {
         const storageKey = key.substring(prefix.length);
         try {
           entries[storageKey] = JSON.parse(value.toString());
@@ -1215,17 +1099,17 @@ export class WalletDB {
 
       // Collect existing keys for this app so we can delete stale ones
       const existingKeys = new Set<string>();
-      for await (const key of this.authorizations.keysAsync({ start: prefix, end: `${prefix}\uffff` })) {
+      for await (const key of this.authorizations.keysAsync({
+        start: prefix,
+        end: `${prefix}\uffff`,
+      })) {
         existingKeys.add(key);
       }
 
       // Write all entries from the cookie
       for (const [storageKey, value] of Object.entries(entries)) {
         const fullKey = `${appId}:${storageKey}`;
-        await this.authorizations.set(
-          fullKey,
-          Buffer.from(jsonStringify(value)),
-        );
+        await this.authorizations.set(fullKey, Buffer.from(jsonStringify(value)));
         existingKeys.delete(fullKey); // Mark as seen
         updated++;
       }

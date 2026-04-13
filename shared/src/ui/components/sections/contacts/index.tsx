@@ -73,12 +73,7 @@ export function ContactsManager() {
       <DraggableFab onClick={() => setAddDialogOpen(true)} />
 
       {/* Add Contact Dialog */}
-      <Dialog
-        open={addDialogOpen}
-        onClose={() => setAddDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add New Contact</DialogTitle>
         <DialogContent>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>

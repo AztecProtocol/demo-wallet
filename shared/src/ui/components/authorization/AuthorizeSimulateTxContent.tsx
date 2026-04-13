@@ -35,7 +35,9 @@ export function AuthorizeSimulateTxContent({
   const from = params.from;
   const embeddedPaymentMethodFeePayer = params.embeddedPaymentMethodFeePayer;
 
-  const isNoFrom = from === "NO_FROM" || (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
+  const isNoFrom =
+    from === "NO_FROM" ||
+    (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
@@ -43,14 +45,14 @@ export function AuthorizeSimulateTxContent({
       {showAppId && (
         <Typography variant="body1" gutterBottom>
           App <strong>{request.appId}</strong> wants to simulate a{" "}
-          {isUtility ? "utility function" : "transaction"} and receive the
-          execution details.
+          {isUtility ? "utility function" : "transaction"} and receive the execution details.
         </Typography>
       )}
 
       {isNoFrom && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          This simulation uses an external entrypoint and does not execute from any of your accounts.
+          This simulation uses an external entrypoint and does not execute from any of your
+          accounts.
         </Alert>
       )}
 

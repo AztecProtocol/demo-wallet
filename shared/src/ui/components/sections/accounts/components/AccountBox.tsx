@@ -96,11 +96,7 @@ export function AccountBox({ account, QRButton = false, onDeploy }: AccountBoxPr
         </Box>
         {!account.deployed && onDeploy && (
           <Tooltip title="Deploy account">
-            <IconButton
-              size="small"
-              onClick={() => onDeploy(account.item)}
-              color="primary"
-            >
+            <IconButton size="small" onClick={() => onDeploy(account.item)} color="primary">
               <RocketLaunchIcon fontSize="small" />
             </IconButton>
           </Tooltip>

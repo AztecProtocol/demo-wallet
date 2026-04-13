@@ -76,7 +76,9 @@ export class StdioTransport {
       chunks.push(json.slice(i, i + effectiveChunkSize));
     }
 
-    console.error(`Chunking message: ${json.length} bytes into ${chunks.length} chunks (id: ${chunkId})`);
+    console.error(
+      `Chunking message: ${json.length} bytes into ${chunks.length} chunks (id: ${chunkId})`,
+    );
 
     // Send each chunk
     for (let i = 0; i < chunks.length; i++) {

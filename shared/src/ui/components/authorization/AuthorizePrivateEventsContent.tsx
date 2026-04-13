@@ -21,8 +21,7 @@ export function AuthorizePrivateEventsContent({
       {showAppId && (
         <>
           <Typography variant="body1" gutterBottom>
-            App <strong>{request.appId}</strong> is requesting access to your
-            private events.
+            App <strong>{request.appId}</strong> is requesting access to your private events.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This allows the app to query private events that you have received.
@@ -35,9 +34,8 @@ export function AuthorizePrivateEventsContent({
           Privacy Notice
         </Typography>
         <Typography variant="body2">
-          Private events can contain sensitive information about your
-          interactions with contracts. Only grant this permission to apps you
-          trust.
+          Private events can contain sensitive information about your interactions with contracts.
+          Only grant this permission to apps you trust.
         </Typography>
       </Alert>
 
@@ -49,11 +47,7 @@ export function AuthorizePrivateEventsContent({
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
             <Chip label={`${displayData.eventCount || 0} events found`} size="small" />
             {displayData.contract && (
-              <Chip
-                label={displayData.contract}
-                size="small"
-                variant="outlined"
-              />
+              <Chip label={displayData.contract} size="small" variant="outlined" />
             )}
           </Box>
         </Box>
@@ -95,16 +89,15 @@ export function AuthorizePrivateEventsContent({
             </Typography>
             <Typography variant="body2">
               From block: {displayData.fromBlock || "genesis"}
-              {displayData.toBlock !== undefined &&
-                ` to ${displayData.toBlock}`}
+              {displayData.toBlock !== undefined && ` to ${displayData.toBlock}`}
             </Typography>
           </Box>
         )}
       </Box>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This authorization can be made persistent for this specific event type.
-        You can revoke it later from the Authorized Apps settings.
+        This authorization can be made persistent for this specific event type. You can revoke it
+        later from the Authorized Apps settings.
       </Typography>
     </>
   );

@@ -1,7 +1,4 @@
-import type {
-  TxSimulationResult,
-  PrivateCallExecutionResult,
-} from "@aztec/stdlib/tx";
+import type { TxSimulationResult, PrivateCallExecutionResult } from "@aztec/stdlib/tx";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   getFunctionArtifact,
@@ -88,7 +85,7 @@ export class TxCallStackDecoder {
         const addr = AztecAddress.fromString(valueStr);
         const alias = await this.cache.getAddressAlias(addr);
         formatted = `${alias} (${formatted.slice(0, 10)}...${formatted.slice(-8)})`;
-      } catch (error) {
+      } catch {
         // Not a valid address, use original formatted value
       }
     }
@@ -158,9 +155,7 @@ export class TxCallStackDecoder {
     const startCounter = call.publicInputs.startSideEffectCounter.toNumber();
     const endCounter = call.publicInputs.endSideEffectCounter.toNumber();
 
-    const contractName = await this.cache.getAddressAlias(
-      callContext.contractAddress,
-    );
+    const contractName = await this.cache.getAddressAlias(callContext.contractAddress);
     const callerName = await this.cache.getAddressAlias(callContext.msgSender);
 
     let functionName = `0x${callContext.functionSelector.toString().slice(2, 10)}`;
@@ -168,41 +163,28 @@ export class TxCallStackDecoder {
     let returnValues: Array<{ name: string; value: string }> = [];
 
     try {
-      const instance = await this.cache.getContractInstance(
-        callContext.contractAddress,
-      );
-      const artifact = await this.cache.getContractArtifact(
-        instance.currentContractClassId,
-      );
-      const functionAbi = await getFunctionArtifact(
-        artifact,
-        callContext.functionSelector,
-      );
+      const instance = await this.cache.getContractInstance(callContext.contractAddress);
+      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      const functionAbi = await getFunctionArtifact(artifact, callContext.functionSelector);
       functionName = functionAbi.name;
 
       // Extract arguments from partialWitness
       if (functionAbi.parameters.length > 0 && call.partialWitness) {
         try {
-          const argsValues = this.extractArgsFromWitness(
-            call.partialWitness,
-            functionAbi,
-          );
+          const argsValues = this.extractArgsFromWitness(call.partialWitness, functionAbi);
 
           // Reuse the generic argument decoding helper
           args = await this.decodeAndFormatArguments(functionAbi, argsValues);
-        } catch (error) {
+        } catch {
           // Silently fail - args will remain empty
         }
       }
 
       // Decode return values - reuse the generic return value decoding helper
       if (functionAbi.returnTypes.length > 0) {
-        returnValues = await this.decodeAndFormatReturnValues(
-          functionAbi,
-          call.returnValues,
-        );
+        returnValues = await this.decodeAndFormatReturnValues(functionAbi, call.returnValues);
       }
-    } catch (error) {
+    } catch {
       // If we can't decode, use raw values with consistent naming
       const rvCount = call.returnValues.length;
       returnValues = await Promise.all(
@@ -222,10 +204,9 @@ export class TxCallStackDecoder {
       }));
 
     // Combine with parent's public enqueues for proper ordering
-    const allPublicEnqueues = [
-      ...parentPublicEnqueues,
-      ...thisCallPublicEnqueues,
-    ].sort((a, b) => a.counter - b.counter);
+    const allPublicEnqueues = [...parentPublicEnqueues, ...thisCallPublicEnqueues].sort(
+      (a, b) => a.counter - b.counter,
+    );
 
     // Build nested events with interleaved public enqueues
     const nestedEvents: ExecutionEvent[] = [];
@@ -237,8 +218,7 @@ export class TxCallStackDecoder {
     if (call.nestedExecutionResults && call.nestedExecutionResults.length > 0) {
       for (let i = 0; i < call.nestedExecutionResults.length; i++) {
         const nestedCall = call.nestedExecutionResults[i];
-        const nestedStartCounter =
-          nestedCall.publicInputs.startSideEffectCounter.toNumber();
+        const nestedStartCounter = nestedCall.publicInputs.startSideEffectCounter.toNumber();
 
         // Add public enqueues that happened before this nested call starts
         const enqueuedBefore = allPublicEnqueues.filter(
@@ -249,39 +229,24 @@ export class TxCallStackDecoder {
         );
 
         for (const enq of enqueuedBefore) {
-          const event = await this.decodePublicCall(
-            enq.request,
-            depth + 1,
-            enq.counter,
-          );
+          const event = await this.decodePublicCall(enq.request, depth + 1, enq.counter);
           nestedEvents.push(event);
           addedEnqueues.add(enq.counter);
         }
 
         // Recursively decode nested call
-        const nestedEvent = await this.decodePrivateCall(
-          nestedCall,
-          depth + 1,
-          allPublicEnqueues,
-        );
+        const nestedEvent = await this.decodePrivateCall(nestedCall, depth + 1, allPublicEnqueues);
         nestedEvents.push(nestedEvent);
       }
     }
 
     // Add any remaining public enqueues after all nested calls
     const enqueuedAfter = allPublicEnqueues.filter(
-      (e) =>
-        e.counter >= startCounter &&
-        e.counter < endCounter &&
-        !addedEnqueues.has(e.counter),
+      (e) => e.counter >= startCounter && e.counter < endCounter && !addedEnqueues.has(e.counter),
     );
 
     for (const enq of enqueuedAfter) {
-      const event = await this.decodePublicCall(
-        enq.request,
-        depth + 1,
-        enq.counter,
-      );
+      const event = await this.decodePublicCall(enq.request, depth + 1, enq.counter);
       nestedEvents.push(event);
       addedEnqueues.add(enq.counter);
     }
@@ -311,9 +276,7 @@ export class TxCallStackDecoder {
     depth: number,
     counter: number,
   ): Promise<PublicCallEvent> {
-    const contractName = await this.cache.getAddressAlias(
-      request.contractAddress,
-    );
+    const contractName = await this.cache.getAddressAlias(request.contractAddress);
     const callerName = await this.cache.getAddressAlias(request.msgSender);
 
     // Get calldata using the calldataHash
@@ -328,25 +291,16 @@ export class TxCallStackDecoder {
 
       // Try to resolve function name and decode arguments from contract ABI
       try {
-        const instance = await this.cache.getContractInstance(
-          request.contractAddress,
-        );
-        const artifact = await this.cache.getContractArtifact(
-          instance.currentContractClassId,
-        );
+        const instance = await this.cache.getContractInstance(request.contractAddress);
+        const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
         const allAbis = await getAllFunctionAbis(artifact);
         const abisWithSelector = await Promise.all(
           allAbis.map(async (abi) => ({
             ...abi,
-            selector: await FunctionSelector.fromNameAndParameters(
-              abi.name,
-              abi.parameters,
-            ),
+            selector: await FunctionSelector.fromNameAndParameters(abi.name, abi.parameters),
           })),
         );
-        const functionAbi = abisWithSelector.find((abi) =>
-          abi.selector.equals(functionSelector),
-        );
+        const functionAbi = abisWithSelector.find((abi) => abi.selector.equals(functionSelector));
 
         if (functionAbi) {
           functionName = functionAbi.name;
@@ -388,12 +342,8 @@ export class TxCallStackDecoder {
     // Build calldata map from publicFunctionCalldata
     this.calldataMap.clear();
     if (simulationResult.privateExecutionResult.publicFunctionCalldata) {
-      for (const hashedCalldata of simulationResult.privateExecutionResult
-        .publicFunctionCalldata) {
-        this.calldataMap.set(
-          hashedCalldata.hash.toString(),
-          hashedCalldata.values,
-        );
+      for (const hashedCalldata of simulationResult.privateExecutionResult.publicFunctionCalldata) {
+        this.calldataMap.set(hashedCalldata.hash.toString(), hashedCalldata.values);
       }
     }
 
@@ -403,7 +353,7 @@ export class TxCallStackDecoder {
     const privateExecution = await this.decodePrivateCall(entrypoint, 0, []);
 
     // Collect all public calls in execution order (by counter)
-    let allPublicCalls: PublicCallEvent[] = [];
+    const allPublicCalls: PublicCallEvent[] = [];
 
     const collectPublicCalls = (event: ExecutionEvent) => {
       if (event.type === "public-call") {
@@ -419,14 +369,9 @@ export class TxCallStackDecoder {
     allPublicCalls.sort((a, b) => a.counter - b.counter);
 
     // Populate return values from publicOutput.publicReturnValues
-    const publicReturnValues =
-      simulationResult.publicOutput?.publicReturnValues ?? [];
+    const publicReturnValues = simulationResult.publicOutput?.publicReturnValues ?? [];
 
-    for (
-      let i = 0;
-      i < allPublicCalls.length && i < publicReturnValues.length;
-      i++
-    ) {
+    for (let i = 0; i < allPublicCalls.length && i < publicReturnValues.length; i++) {
       const returnValue = publicReturnValues[i];
       const publicCall = allPublicCalls[i];
 
@@ -461,9 +406,7 @@ export class TxCallStackDecoder {
 
     try {
       const instance = await this.cache.getContractInstance(contractAddress);
-      const artifact = await this.cache.getContractArtifact(
-        instance.currentContractClassId,
-      );
+      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
 
       // Use getAllFunctionAbis to get all functions including non-dispatch public functions
       const allAbis = getAllFunctionAbis(artifact);
@@ -570,21 +513,17 @@ export class TxCallStackDecoder {
       // Retrieve contract instance and artifact
       const instance = await this.cache.getContractInstance(contractAddress);
 
-      const artifact = await this.cache.getContractArtifact(
-        instance.currentContractClassId,
-      );
+      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
 
       // Find the function in the artifact
-      const functionAbi = artifact.functions.find(
-        (f) => f.name === functionName,
-      );
+      const functionAbi = artifact.functions.find((f) => f.name === functionName);
       if (!functionAbi) {
         throw new Error(`Function ${functionName} not found in artifact`);
       }
 
       // Reuse the generic argument decoding helper (same logic as transaction decoding)
       return await this.decodeAndFormatArguments(functionAbi, args);
-    } catch (error) {
+    } catch {
       // If formatting fails, return raw representation of Fr[] values
       return args.map((arg, i) => ({
         name: `arg_${i}`,
@@ -609,14 +548,10 @@ export class TxCallStackDecoder {
       // Retrieve contract instance and artifact
       const instance = await this.cache.getContractInstance(contractAddress);
 
-      const artifact = await this.cache.getContractArtifact(
-        instance.currentContractClassId,
-      );
+      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
 
       // Find the function in the artifact
-      const functionAbi = artifact.functions.find(
-        (f) => f.name === functionName,
-      );
+      const functionAbi = artifact.functions.find((f) => f.name === functionName);
       if (!functionAbi) {
         throw new Error(`Function ${functionName} not found in artifact`);
       }
@@ -627,10 +562,7 @@ export class TxCallStackDecoder {
       }
 
       // Reuse the generic return value decoding helper (same logic as transaction decoding)
-      const formattedReturns = await this.decodeAndFormatReturnValues(
-        functionAbi,
-        result,
-      );
+      const formattedReturns = await this.decodeAndFormatReturnValues(functionAbi, result);
 
       // For utility functions, we typically have a single return value
       // If there are multiple, join them with commas
@@ -641,7 +573,7 @@ export class TxCallStackDecoder {
       } else {
         return `[${formattedReturns.map((r) => r.value).join(", ")}]`;
       }
-    } catch (error) {
+    } catch {
       // If formatting fails, return raw representation of Fr[] values
       return `[${result.map((fr) => fr.toString()).join(", ")}]`;
     }

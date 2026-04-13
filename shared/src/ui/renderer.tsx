@@ -1,11 +1,6 @@
 import { StrictMode, createContext, useMemo } from "react";
 import "./index.css";
-import {
-  createTheme,
-  CssBaseline,
-  type ThemeOptions,
-  ThemeProvider,
-} from "@mui/material";
+import { createTheme, CssBaseline, type ThemeOptions, ThemeProvider } from "@mui/material";
 import { colors } from "./styles.ts";
 import { App } from "./App.tsx";
 import type { InternalWalletInterface } from "../ipc/wallet-internal-interface.ts";

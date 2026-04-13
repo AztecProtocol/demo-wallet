@@ -1,8 +1,5 @@
 import { BackgroundConnectionHandler } from "@aztec/wallet-sdk/extension/handlers";
-import {
-  WalletMessageType,
-  type WalletResponse,
-} from "@aztec/wallet-sdk/types";
+import { WalletMessageType, type WalletResponse } from "@aztec/wallet-sdk/types";
 import { ChunkReassembler } from "../utils/chunk_reassembler";
 
 // Wallet configuration
@@ -60,8 +57,7 @@ export default defineBackground(async () => {
       return [];
     }
     const result = await browser.storage.local.get(REMEMBERED_APPS_KEY);
-    const apps =
-      (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
+    const apps = (result[REMEMBERED_APPS_KEY] as RememberedApp[] | undefined) ?? [];
     // Filter out old format entries that don't have chainId/version
     return apps.filter((app) => app.chainId && app.version);
   }
@@ -134,8 +130,7 @@ export default defineBackground(async () => {
     },
     {
       sendToTab: (tabId, message) => browser.tabs.sendMessage(tabId, message),
-      addContentListener: (handler) =>
-        browser.runtime.onMessage.addListener(handler),
+      addContentListener: (handler) => browser.runtime.onMessage.addListener(handler),
     },
     {
       onPendingDiscovery: (discovery) => {
@@ -148,16 +143,9 @@ export default defineBackground(async () => {
         const version = discovery.chainInfo.version.toString();
 
         // Check if app is remembered for this specific network - if so, auto-approve
-        isAppRemembered(
-          discovery.appId,
-          discovery.origin,
-          chainId,
-          version,
-        ).then((remembered) => {
+        isAppRemembered(discovery.appId, discovery.origin, chainId, version).then((remembered) => {
           if (remembered) {
-            const success = sessionHandler.approveDiscovery(
-              discovery.requestId,
-            );
+            const success = sessionHandler.approveDiscovery(discovery.requestId);
             if (success) {
               console.log(
                 `Auto-approved discovery for remembered app: ${discovery.appId} @ ${discovery.origin} (chain: ${chainId})`,
@@ -382,11 +370,7 @@ export default defineBackground(async () => {
   // Handle messages from popup (content script messages are handled by SDK)
   browser.runtime.onMessage.addListener((event: any, _sender, sendResponse) => {
     if (event.origin === "popup") {
-      return handlePopupMessage(
-        event.type as PopupMessageType,
-        event,
-        sendResponse,
-      );
+      return handlePopupMessage(event.type as PopupMessageType, event, sendResponse);
     }
   });
 
@@ -412,9 +396,7 @@ export default defineBackground(async () => {
 
         const sessionId = pendingRequests.get(response.messageId);
         if (!sessionId) {
-          console.error(
-            `No pending request found for messageId ${response.messageId}`,
-          );
+          console.error(`No pending request found for messageId ${response.messageId}`);
           return;
         }
         pendingRequests.delete(response.messageId);
@@ -429,9 +411,7 @@ export default defineBackground(async () => {
       nativePort.onDisconnect.addListener(() => {
         const error = browser.runtime.lastError;
         if (error) {
-          console.error(
-            `Native host disconnected with error: ${error.message}`,
-          );
+          console.error(`Native host disconnected with error: ${error.message}`);
         } else {
           console.log("Native host disconnected");
         }

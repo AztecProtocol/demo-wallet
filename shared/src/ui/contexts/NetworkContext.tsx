@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   NETWORKS,
   DEFAULT_NETWORK,
@@ -65,9 +59,7 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
     isNetworkSwitching,
   };
 
-  return (
-    <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
-  );
+  return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>;
 }
 
 export function useNetwork(): NetworkContextType {

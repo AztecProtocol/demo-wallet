@@ -31,9 +31,7 @@ export class DecodingCache {
   /**
    * Get contract metadata (instance) for an address, with caching.
    */
-  async getContractInstance(
-    address: AztecAddress,
-  ): Promise<ContractInstanceWithAddress> {
+  async getContractInstance(address: AztecAddress): Promise<ContractInstanceWithAddress> {
     const key = address.toString();
 
     if (this.instanceCache.has(key)) {
@@ -42,9 +40,7 @@ export class DecodingCache {
 
     const instance = await this.pxe.getContractInstance(address);
     if (!instance) {
-      throw new Error(
-        `Contract instance not found for address ${address.toString()}`,
-      );
+      throw new Error(`Contract instance not found for address ${address.toString()}`);
     }
     this.instanceCache.set(key, instance);
     return instance;
@@ -70,10 +66,7 @@ export class DecodingCache {
    * This allows artifacts from earlier operations in a batch to be available
    * for decoding in later operations, without persisting to PXE.
    */
-  cacheArtifactForBatch(
-    contractClassId: any,
-    artifact: ContractArtifact,
-  ): void {
+  cacheArtifactForBatch(contractClassId: any, artifact: ContractArtifact): void {
     const key = contractClassId.toString();
     this.artifactCache.set(key, artifact);
   }
@@ -136,9 +129,7 @@ export class DecodingCache {
     // Try to get contract metadata for more info (PXE-only calls now, no wallet-db interleaving)
     try {
       const instance = await this.getContractInstance(address);
-      const artifact = await this.getContractArtifact(
-        instance.currentContractClassId,
-      );
+      const artifact = await this.getContractArtifact(instance.currentContractClassId);
       if (artifact) {
         this.addressAliasCache.set(key, artifact.name);
         return artifact.name;
@@ -167,24 +158,18 @@ export class DecodingCache {
     let contractName = artifact?.name;
 
     // Check if instanceData contains an artifact
-    if (
-      !contractName &&
-      typeof instance === "object" &&
-      "artifact" in instance
-    ) {
+    if (!contractName && typeof instance === "object" && "artifact" in instance) {
       contractName = (instance as any).artifact?.name;
     }
 
     // If we still don't have a name, try the artifact cache using the instance's contract class ID
     if (!contractName && instance?.currentContractClassId) {
       try {
-        const cachedArtifact = await this.getContractArtifact(
-          instance.currentContractClassId,
-        );
+        const cachedArtifact = await this.getContractArtifact(instance.currentContractClassId);
         if (cachedArtifact) {
           contractName = cachedArtifact.name;
         }
-      } catch (error) {
+      } catch {
         // Artifact not in cache or PXE, continue to next method
       }
     }
@@ -198,7 +183,7 @@ export class DecodingCache {
         if (!alias.includes("...")) {
           contractName = alias;
         }
-      } catch (error) {
+      } catch {
         // Ignore errors - we'll fall back to "Unknown Contract"
       }
     }

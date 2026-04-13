@@ -22,7 +22,7 @@ interface StatsTimings {
   sync: number;
   publicSimulation?: number;
   validation?: number;
-  proving?: number;    // circuit proof time
+  proving?: number; // circuit proof time
   perFunction: FunctionTiming[];
   unaccounted: number;
   total: number;
@@ -146,17 +146,10 @@ export function extractPhasesFromStats(
   return phases;
 }
 
-
 /**
  * Phase timeline tooltip content
  */
-function PhaseTooltipContent({
-  phase,
-  percentage,
-}: {
-  phase: PhaseTiming;
-  percentage: number;
-}) {
+function PhaseTooltipContent({ phase, percentage }: { phase: PhaseTiming; percentage: number }) {
   return (
     <Box sx={{ p: 0.5 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -166,9 +159,7 @@ function PhaseTooltipContent({
         {formatDurationLong(phase.duration)} ({percentage.toFixed(1)}%)
       </Typography>
       {phase.breakdown && phase.breakdown.length > 0 && (
-        <Box
-          sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}
-        >
+        <Box sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}>
           {phase.breakdown.map((item, idx) => (
             <Typography key={idx} variant="caption" sx={{ display: "block" }}>
               {item.label}: {formatDuration(item.duration)}
@@ -282,10 +273,7 @@ export function PhaseTimeline({
         {size === "detailed" && (
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", ml: "auto" }}>
             {phases.map((phase) => (
-              <Box
-                key={phase.name}
-                sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-              >
+              <Box key={phase.name} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Box
                   sx={{
                     width: 8,
@@ -317,16 +305,12 @@ export function PhaseTimeline({
         {phases.map((phase, index) => {
           const percentage = (phase.duration / totalDuration) * 100;
           const segmentWidth = `${percentage}%`;
-          const showLabel =
-            showSegmentLabels &&
-            percentage > (100 * minSegmentWidthForLabel) / 300;
+          const showLabel = showSegmentLabels && percentage > (100 * minSegmentWidthForLabel) / 300;
 
           return (
             <Tooltip
               key={phase.name}
-              title={
-                <PhaseTooltipContent phase={phase} percentage={percentage} />
-              }
+              title={<PhaseTooltipContent phase={phase} percentage={percentage} />}
               arrow
               placement="top"
             >
@@ -344,11 +328,8 @@ export function PhaseTimeline({
                   transition: "all 0.2s ease",
                   cursor: "pointer",
                   borderRight:
-                    index < phases.length - 1
-                      ? "1px solid rgba(255,255,255,0.3)"
-                      : undefined,
-                  transform:
-                    hoveredPhase === phase.name ? "scaleY(1.1)" : "scaleY(1)",
+                    index < phases.length - 1 ? "1px solid rgba(255,255,255,0.3)" : undefined,
+                  transform: hoveredPhase === phase.name ? "scaleY(1.1)" : "scaleY(1)",
                   zIndex: hoveredPhase === phase.name ? 1 : 0,
                   "&:hover": {
                     filter: "brightness(1.1)",
@@ -387,10 +368,7 @@ export function PhaseTimeline({
         }}
       >
         {phases.map((phase) => (
-          <Box
-            key={phase.name}
-            sx={{ display: "flex", alignItems: "center", gap: 0.3 }}
-          >
+          <Box key={phase.name} sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
             <Box
               sx={{
                 width: isCompact ? 6 : 8,
@@ -426,4 +404,3 @@ export function SimulationPhaseTimeline({
   const phases = useMemo(() => extractPhasesFromStats(stats), [stats]);
   return <PhaseTimeline phases={phases} size={size} />;
 }
-

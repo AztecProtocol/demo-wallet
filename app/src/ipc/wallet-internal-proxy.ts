@@ -1,7 +1,4 @@
-import {
-  promiseWithResolvers,
-  type PromiseWithResolvers,
-} from "@aztec/foundation/promise";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
 import { schemaHasMethod } from "@aztec/foundation/schemas";
 import type { MessagePortMain } from "electron/main";
 import {
@@ -13,7 +10,7 @@ import {
 } from "@demo-wallet/shared/core";
 
 type FunctionsOf<T> = {
-  [K in keyof T as T[K] extends Function ? K : never]: T[K];
+  [K in keyof T as T[K] extends (...args: unknown[]) => unknown ? K : never]: T[K];
 };
 
 export class WalletInternalProxy {
@@ -32,9 +29,7 @@ export class WalletInternalProxy {
     this.authRequestCallback = callback;
   }
 
-  public onProofDebugExportRequest(
-    callback: OnProofDebugExportRequestListener
-  ) {
+  public onProofDebugExportRequest(callback: OnProofDebugExportRequestListener) {
     this.proofDebugExportCallback = callback;
   }
 

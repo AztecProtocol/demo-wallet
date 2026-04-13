@@ -1,14 +1,7 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { ContractClassMetadata } from "@aztec/aztec.js/wallet";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 
@@ -61,16 +54,12 @@ export class GetContractClassMetadataOperation extends ExternalOperation<
     this.interactionManager = interactionManager;
   }
 
-  async check(
-    _id: Fr,
-  ): Promise<GetContractClassMetadataResult | undefined> {
+  async check(_id: Fr): Promise<GetContractClassMetadataResult | undefined> {
     // No early return - always requires authorization
     return undefined;
   }
 
-  async createInteraction(
-    id: Fr,
-  ): Promise<WalletInteraction<WalletInteractionType>> {
+  async createInteraction(id: Fr): Promise<WalletInteraction<WalletInteractionType>> {
     const interaction = WalletInteraction.from({
       type: "getContractClassMetadata",
       status: "PREPARING",
@@ -87,11 +76,7 @@ export class GetContractClassMetadataOperation extends ExternalOperation<
   async prepare(
     id: Fr,
   ): Promise<
-    PrepareResult<
-      GetContractClassMetadataResult,
-      GetContractClassMetadataDisplayData,
-      GetContractClassMetadataExecutionData
-    >
+    PrepareResult<GetContractClassMetadataDisplayData, GetContractClassMetadataExecutionData>
   > {
     // Query metadata
     const metadata = await this.getContractClassMetadata(id);

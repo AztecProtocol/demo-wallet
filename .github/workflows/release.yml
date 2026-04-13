@@ -9,8 +9,32 @@ on:
         type: string
 
 jobs:
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
   build:
-    uses: ./.github/workflows/build.yml
+    name: Build Artifacts
+    needs: lint
+    uses: ./.github/workflows/build-artifacts.yml
     with:
       release-mode: true
       retention-days: 30
@@ -28,9 +52,6 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Display structure of downloaded files
-        run: ls -R release-artifacts
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -38,7 +59,17 @@ jobs:
           name: Release ${{ inputs.version }}
           draft: true
           generate_release_notes: true
-          files: |
-            release-artifacts/**/*
+          files: release-artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-web:
+    name: Deploy Web Wallet
+    needs: build
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      production: true
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

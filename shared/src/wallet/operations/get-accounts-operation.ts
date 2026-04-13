@@ -1,14 +1,7 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { Aliased } from "@aztec/aztec.js/wallet";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -75,13 +68,7 @@ export class GetAccountsOperation extends ExternalOperation<
     return interaction;
   }
 
-  async prepare(): Promise<
-    PrepareResult<
-      GetAccountsResult,
-      GetAccountsDisplayData,
-      GetAccountsExecutionData
-    >
-  > {
+  async prepare(): Promise<PrepareResult<GetAccountsDisplayData, GetAccountsExecutionData>> {
     // Load all accounts from database
     const accounts = await this.db.listAccounts();
     const aliasedAccounts: Aliased<AztecAddress>[] = accounts.map((acc) => ({
@@ -139,9 +126,7 @@ export class GetAccountsOperation extends ExternalOperation<
     }
   }
 
-  async execute(
-    _executionData: GetAccountsExecutionData,
-  ): Promise<GetAccountsResult> {
+  async execute(_executionData: GetAccountsExecutionData): Promise<GetAccountsResult> {
     await this.emitProgress("SUCCESS", undefined, true);
 
     // Return the accounts selected by the user during authorization

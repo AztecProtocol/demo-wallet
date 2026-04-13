@@ -3,10 +3,7 @@ import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-au
 import { FunctionCallDisplay } from "./FunctionCallDisplay";
 import { PrivateCallDisplay } from "./PrivateCallDisplay";
 import { PublicCallDisplay } from "./PublicCallDisplay";
-import {
-  SimulationPhaseTimeline,
-  type ExecutionStats,
-} from "./PhaseTimeline";
+import { SimulationPhaseTimeline, type ExecutionStats } from "./PhaseTimeline";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -58,7 +55,8 @@ function ExecutionStatsDisplay({ stats, compact }: ExecutionStatsDisplayProps) {
   }
 
   const totalRpcTime = stats.nodeRPCCalls.roundTrips.roundTripDurations.reduce(
-    (sum, d) => sum + d, 0,
+    (sum, d) => sum + d,
+    0,
   );
   const tripCount = stats.nodeRPCCalls.roundTrips.roundTripDurations.length;
 
@@ -84,19 +82,12 @@ function ExecutionStatsDisplay({ stats, compact }: ExecutionStatsDisplayProps) {
           borderRadius: 1,
         }}
       >
-        <Typography
-          variant="subtitle2"
-          sx={{ fontWeight: 600, color: "text.secondary" }}
-        >
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "text.secondary" }}>
           RPC Round Trips ({tripCount})
         </Typography>
       </AccordionSummary>
       <AccordionDetails sx={{ pt: 1, pb: 2 }}>
-        <TableContainer
-          component={Paper}
-          variant="outlined"
-          sx={{ maxHeight: 300 }}
-        >
+        <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -106,27 +97,18 @@ function ExecutionStatsDisplay({ stats, compact }: ExecutionStatsDisplayProps) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {stats.nodeRPCCalls.roundTrips.roundTripDurations.map(
-                (duration, index) => {
-                  const methods =
-                    stats.nodeRPCCalls.roundTrips.roundTripMethods[index] || [];
-                  return (
-                    <TableRow key={index}>
-                      <TableCell sx={{ fontFamily: "monospace" }}>
-                        #{index + 1}
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}
-                      >
-                        {methods.join(", ")}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatTime(duration)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                },
-              )}
+              {stats.nodeRPCCalls.roundTrips.roundTripDurations.map((duration, index) => {
+                const methods = stats.nodeRPCCalls.roundTrips.roundTripMethods[index] || [];
+                return (
+                  <TableRow key={index}>
+                    <TableCell sx={{ fontFamily: "monospace" }}>#{index + 1}</TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                      {methods.join(", ")}
+                    </TableCell>
+                    <TableCell align="right">{formatTime(duration)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

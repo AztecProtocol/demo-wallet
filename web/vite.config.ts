@@ -14,12 +14,9 @@ const polyfillsPkgPath = resolve(
 const nodePolyfillsFix = (options?: PolyfillOptions): Plugin => {
   return {
     ...nodePolyfills(options),
-    /* @ts-ignore */
+    // @ts-expect-error - resolveId signature mismatch with vite-plugin-node-polyfills spread type
     resolveId(source: string) {
-      const m =
-        /^vite-plugin-node-polyfills\/shims\/(buffer|global|process)$/.exec(
-          source,
-        );
+      const m = /^vite-plugin-node-polyfills\/shims\/(buffer|global|process)$/.exec(source);
       if (m) {
         return resolve(polyfillsPkgPath, `shims/${m[1]}/dist/index.cjs`);
       }
@@ -38,8 +35,8 @@ export default defineConfig({
       "Cross-Origin-Resource-Policy": "cross-origin",
     },
     fs: {
-        allow: [searchForWorkspaceRoot(import.meta.dirname)],
-      },
+      allow: [searchForWorkspaceRoot(import.meta.dirname)],
+    },
   },
   optimizeDeps: {
     // These packages contain native WASM/binary assets - exclude from pre-bundling

@@ -22,7 +22,9 @@ export function AccountsCapabilityDetails({
   return (
     <Box>
       {canCreateAuthWit && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 1, color: "text.secondary" }}>
+        <Box
+          sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 1, color: "text.secondary" }}
+        >
           <InfoOutlinedIcon sx={{ fontSize: "1rem" }} />
           <Typography variant="caption">
             This app may request auth witnesses (each request will require approval)
@@ -51,10 +53,7 @@ export function AccountsCapabilityDetails({
             }
             label={
               <Box>
-                <Typography
-                  variant="body2"
-                  fontWeight={account.selected ? 600 : 400}
-                >
+                <Typography variant="body2" fontWeight={account.selected ? 600 : 400}>
                   {account.originalAlias}
                 </Typography>
                 <Typography

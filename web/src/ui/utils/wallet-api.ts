@@ -22,22 +22,25 @@ const proofDebugExportListeners = new Set<ProofDebugExportListener>();
 
 export function emitWalletUpdate(detail: unknown) {
   const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
-  walletUpdateListeners.forEach(cb => cb(parsed));
+  walletUpdateListeners.forEach((cb) => cb(parsed));
 }
 
 function emitAuthorizationRequest(detail: unknown) {
   // detail arrives as a JSON string (from AuthorizationRequestEvent which calls jsonStringify)
   const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
-  authorizationRequestListeners.forEach(cb => cb(parsed));
+  authorizationRequestListeners.forEach((cb) => cb(parsed));
 }
 
 function emitProofDebugExportRequest(detail: unknown) {
   const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
-  proofDebugExportListeners.forEach(cb => cb(parsed));
+  proofDebugExportListeners.forEach((cb) => cb(parsed));
 }
 
 // Cache: chainId-version → InternalWallet
-const walletCache = new Map<string, Promise<Awaited<ReturnType<typeof getOrCreateSession>>["internal"]>>();
+const walletCache = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof getOrCreateSession>>["internal"]>
+>();
 
 function getCacheKey(chainId: Fr, version: Fr): string {
   return `${chainId.toString()}-${version.toString()}`;
@@ -49,15 +52,11 @@ async function getInternalWallet(
 ): Promise<Awaited<ReturnType<typeof getOrCreateSession>>["internal"]> {
   const key = getCacheKey(chainId, version);
   if (!walletCache.has(key)) {
-    const p = getOrCreateSession(
-      { chainId, version },
-      "internal-ui",
-      (eventType, detail) => {
-        if (eventType === "wallet-update") emitWalletUpdate(detail);
-        else if (eventType === "authorization-request") emitAuthorizationRequest(detail);
-        else if (eventType === "proof-debug-export-request") emitProofDebugExportRequest(detail);
-      },
-    ).then(({ internal }) => internal);
+    const p = getOrCreateSession({ chainId, version }, "internal-ui", (eventType, detail) => {
+      if (eventType === "wallet-update") emitWalletUpdate(detail);
+      else if (eventType === "authorization-request") emitAuthorizationRequest(detail);
+      else if (eventType === "proof-debug-export-request") emitProofDebugExportRequest(detail);
+    }).then(({ internal }) => internal);
     walletCache.set(key, p);
   }
   return walletCache.get(key)!;
@@ -110,7 +109,7 @@ export class WalletApi {
           return async () => {
             throw new Error(
               "Account creation is not available in embedded mode. " +
-              "Please create accounts in the standalone wallet.",
+                "Please create accounts in the standalone wallet.",
             );
           };
         }

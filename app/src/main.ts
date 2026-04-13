@@ -8,10 +8,7 @@ import fs, { mkdirSync, writeFile } from "node:fs";
 import os from "node:os";
 import { createServer, type Socket, type Server } from "node:net";
 import { WALLET_DATA_DIR, getSocketPath } from "./shared/paths";
-import {
-  checkSystemWideManifest,
-  installNativeMessagingManifests,
-} from "./native-messaging";
+import { checkSystemWideManifest, installNativeMessagingManifests } from "./native-messaging";
 
 // Setup logging to file for debugging
 mkdirSync(WALLET_DATA_DIR, { recursive: true });
@@ -52,36 +49,34 @@ if (app.isPackaged) {
   if (process.env.BB_WASM_PATH?.includes("__RESOURCES_PATH__")) {
     process.env.BB_WASM_PATH = process.env.BB_WASM_PATH.replace(
       "__RESOURCES_PATH__",
-      resourcesPath
+      resourcesPath,
     );
   }
   if (process.env.BB_BINARY_PATH?.includes("__RESOURCES_PATH__")) {
     process.env.BB_BINARY_PATH = process.env.BB_BINARY_PATH.replace(
       "__RESOURCES_PATH__",
-      resourcesPath
+      resourcesPath,
     );
   }
 
   if (process.env.BB_NAPI_PATH?.includes("__RESOURCES_PATH__")) {
     process.env.BB_NAPI_PATH = process.env.BB_NAPI_PATH.replace(
       "__RESOURCES_PATH__",
-      resourcesPath
+      resourcesPath,
     );
   }
 
   if (process.env.NATIVE_HOST_PATH?.includes("__RESOURCES_PATH__")) {
     process.env.NATIVE_HOST_PATH = process.env.NATIVE_HOST_PATH.replace(
       "__RESOURCES_PATH__",
-      resourcesPath
+      resourcesPath,
     );
   }
 
   // Verify binary exists and is executable
   try {
     const stats = fs.statSync(process.env.BB_BINARY_PATH!);
-    console.log(
-      `BB binary found: ${stats.size} bytes, mode: ${stats.mode.toString(8)}`
-    );
+    console.log(`BB binary found: ${stats.size} bytes, mode: ${stats.mode.toString(8)}`);
   } catch (error: any) {
     console.error("BB binary check failed:", error.message);
   }
@@ -272,9 +267,7 @@ const createWindow = () => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
-      join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
-    );
+    mainWindow.loadFile(join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
   // Open the DevTools.
@@ -298,12 +291,9 @@ app.on("ready", async () => {
   installNativeMessagingManifests(nativeHostPath, chromeExtensionId);
 
   createWindow();
-  const { port1: externalPort1, port2: externalPort2 } =
-    new MessageChannelMain();
-  const { port1: internalPort1, port2: internalPort2 } =
-    new MessageChannelMain();
-  const { port1: walletLogPort1, port2: walletLogPort2 } =
-    new MessageChannelMain();
+  const { port1: externalPort1, port2: externalPort2 } = new MessageChannelMain();
+  const { port1: internalPort1, port2: internalPort2 } = new MessageChannelMain();
+  const { port1: walletLogPort1, port2: walletLogPort2 } = new MessageChannelMain();
 
   // Create IPC server for native messaging host communication
   const ipcServer = createIpcServer(externalPort1);
@@ -324,11 +314,7 @@ app.on("ready", async () => {
     env: filteredEnv,
   });
 
-  wallet.postMessage({ type: "ports" }, [
-    externalPort2,
-    internalPort1,
-    walletLogPort1,
-  ]);
+  wallet.postMessage({ type: "ports" }, [externalPort2, internalPort1, walletLogPort1]);
 
   wallet.on("exit", () => {
     console.error("wallet process died");

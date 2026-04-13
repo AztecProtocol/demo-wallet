@@ -26,8 +26,8 @@ export function hashExecutionPayload(payload: ExecutionPayload): string {
         call.hideMsgSender,
         call.isStatic,
         call.args.length,
-        ...call.args
-      )
+        ...call.args,
+      ),
     );
   }
 
@@ -63,7 +63,7 @@ export function hashUtilityCall(call: FunctionCall): string {
     call.hideMsgSender,
     call.isStatic,
     call.args.length,
-    ...call.args
+    ...call.args,
   );
   return sha256(buffer).toString("hex");
 }
@@ -77,7 +77,7 @@ export async function generateSimulationTitle(
   executionPayload: ExecutionPayload,
   cache: DecodingCache,
   fromAccount: AztecAddress | NoFrom,
-  embeddedPaymentMethodFeePayer?: AztecAddress
+  embeddedPaymentMethodFeePayer?: AztecAddress,
 ): Promise<string> {
   // Filter out wallet-added calls:
   // 1. Account entrypoint call (call to the account contract itself)

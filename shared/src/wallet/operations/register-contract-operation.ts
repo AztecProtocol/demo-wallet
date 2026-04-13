@@ -1,21 +1,11 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
-import {
-  computePartialAddress,
-  getContractClassFromArtifact,
-} from "@aztec/stdlib/contract";
+import { computePartialAddress, getContractClassFromArtifact } from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -79,10 +69,7 @@ export class RegisterContractOperation extends ExternalOperation<
     // Cache artifact early for batch operations
     // Uses instance.currentContractClassId as key (no expensive computation)
     if (artifact && instance.currentContractClassId) {
-      this.decodingCache.cacheArtifactForBatch(
-        instance.currentContractClassId,
-        artifact,
-      );
+      this.decodingCache.cacheArtifactForBatch(instance.currentContractClassId, artifact);
     }
 
     // Resolve contract address
@@ -128,13 +115,7 @@ export class RegisterContractOperation extends ExternalOperation<
     instance: ContractInstanceWithAddress,
     artifact?: ContractArtifact,
     secretKey?: Fr,
-  ): Promise<
-    PrepareResult<
-      RegisterContractResult,
-      RegisterContractDisplayData,
-      RegisterContractExecutionData
-    >
-  > {
+  ): Promise<PrepareResult<RegisterContractDisplayData, RegisterContractExecutionData>> {
     // Resolve contract address
     const contractAddress = instance.address;
 
@@ -182,21 +163,15 @@ export class RegisterContractOperation extends ExternalOperation<
     ]);
   }
 
-  async execute(
-    executionData: RegisterContractExecutionData,
-  ): Promise<RegisterContractResult> {
-    let { instance, artifact, secretKey } = executionData;
-    const existingInstance = await this.pxe.getContractInstance(
-      instance.address,
-    );
+  async execute(executionData: RegisterContractExecutionData): Promise<RegisterContractResult> {
+    const { instance, artifact, secretKey } = executionData;
+    const existingInstance = await this.pxe.getContractInstance(instance.address);
 
     if (existingInstance) {
       // Instance already registered in the wallet
       if (artifact) {
         const thisContractClass = await getContractClassFromArtifact(artifact);
-        if (
-          !thisContractClass.id.equals(existingInstance.currentContractClassId)
-        ) {
+        if (!thisContractClass.id.equals(existingInstance.currentContractClassId)) {
           // wallet holds an outdated version of this contract
           await this.pxe.updateContract(instance.address, artifact);
           instance.currentContractClassId = thisContractClass.id;
@@ -221,10 +196,7 @@ export class RegisterContractOperation extends ExternalOperation<
     }
 
     if (secretKey) {
-      await this.pxe.registerAccount(
-        secretKey,
-        await computePartialAddress(instance),
-      );
+      await this.pxe.registerAccount(secretKey, await computePartialAddress(instance));
     }
 
     // Automatically grant persistent authorizations for metadata queries

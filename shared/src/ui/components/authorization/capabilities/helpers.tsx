@@ -1,15 +1,7 @@
 import type { Capability, ContractFunctionPattern } from "@aztec/aztec.js/wallet";
 import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import React from "react";
-import {
-  CheckCircle,
-  Lock,
-  Storage,
-  PlayArrow,
-  Send,
-  DataObject,
-  Code,
-} from "@mui/icons-material";
+import { CheckCircle, Lock, Storage, PlayArrow, Send, DataObject, Code } from "@mui/icons-material";
 
 // Helper to format contract address
 export function formatContractAddress(
@@ -68,8 +60,7 @@ export function groupPatternsByContract(
 ): Map<string, Set<number>> {
   const grouped = new Map<string, Set<number>>();
   patterns.forEach((pattern, idx) => {
-    const key =
-      pattern.contract === "*" ? "*" : pattern.contract.toString();
+    const key = pattern.contract === "*" ? "*" : pattern.contract.toString();
     if (!grouped.has(key)) {
       grouped.set(key, new Set());
     }

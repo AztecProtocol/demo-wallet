@@ -237,7 +237,7 @@ const handleEvent = async (
   try {
     const method = (wallet as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
       type
-    ];
+    ].bind(wallet);
     result = await method(...sanitizedArgs);
   } catch (err: any) {
     userLog.error(`Error handling ${type}: ${err.message}`);

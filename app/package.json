@@ -3,7 +3,6 @@
   "productName": "app",
   "version": "1.0.0",
   "description": "My Electron application description",
-  "type": "module",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "yarn run prebuild && electron-forge start",

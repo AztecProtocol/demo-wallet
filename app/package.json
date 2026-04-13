@@ -7,15 +7,15 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "yarn run prebuild && electron-forge start",
-    "prebuild": "node scripts/copyBB.js",
+    "prebuild": "node scripts/copyBB.cjs",
     "package": "yarn run prebuild && yarn run build:native-host && NODE_ENV=production electron-forge package",
     "package:test": "yarn run package && ./out/app-darwin-arm64/app.app/Contents/MacOS/app",
     "make": "yarn run prebuild && yarn run build:native-host && NODE_ENV=production electron-forge make",
     "publish": "electron-forge publish",
     "lint": "yarn exec eslint .",
     "typecheck": "yarn exec tsc --noEmit",
-    "build:native-host": "node scripts/buildNativeHost.js",
-    "build:native-host:all": "node scripts/buildNativeHost.js --all"
+    "build:native-host": "node scripts/buildNativeHost.cjs",
+    "build:native-host:all": "node scripts/buildNativeHost.cjs --all"
   },
   "keywords": [],
   "author": {

@@ -666,6 +666,8 @@ export function App() {
             interactions={interactions}
             selectedTypes={selectedInteractionTypes}
             onTypeFilterChange={setSelectedInteractionTypes}
+            onDismiss={handleDismissInteraction}
+            onClearCompleted={handleClearCompleted}
             phaseStartsRef={phaseStartsRef}
           />
         </Box>

@@ -65,7 +65,7 @@ export function ExecutionTraceDialog({
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ px: { xs: 1, sm: 3 }, overflow: "hidden auto", minWidth: 0 }}>
+      <DialogContent dividers sx={{ px: { xs: 1, sm: 3 }, overflow: "auto", minWidth: 0 }}>
         {isFromZero && (
           <Alert severity="info" sx={{ mb: 1 }}>
             This transaction uses an external entrypoint and does not execute from any of your

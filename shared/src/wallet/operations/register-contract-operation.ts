@@ -164,7 +164,8 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async execute(executionData: RegisterContractExecutionData): Promise<RegisterContractResult> {
-    const { instance, artifact, secretKey } = executionData;
+    const { instance, secretKey } = executionData;
+    let { artifact } = executionData;
     const existingInstance = await this.pxe.getContractInstance(instance.address);
 
     if (existingInstance) {

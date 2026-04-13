@@ -175,10 +175,9 @@ export class ExternalWallet extends DemoWallet {
   private async createAuthWitForOperation(
     from: AztecAddress,
     messageHashOrIntent: IntentInnerHash | CallIntent,
-    chainInfo: ChainInfo,
   ): Promise<AuthWitness> {
     const account = await this.getAccountFromAddress(from);
-    return account.createAuthWit(messageHashOrIntent, chainInfo);
+    return account.createAuthWit(messageHashOrIntent, this.chainInfo);
   }
 
   /**

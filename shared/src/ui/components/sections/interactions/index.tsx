@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState, type MutableRefObject } from "react";
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -19,7 +20,12 @@ import {
   IconButton,
   Tooltip,
 } from "@mui/material";
-import { CheckCircle, Error as ErrorIcon, ContentCopy as CopyIcon } from "@mui/icons-material";
+import {
+  CheckCircle,
+  Error as ErrorIcon,
+  ContentCopy as CopyIcon,
+  Close as CloseIcon,
+} from "@mui/icons-material";
 import type {
   WalletInteraction,
   WalletInteractionType,
@@ -42,6 +48,8 @@ interface InteractionsListProps {
   interactions: WalletInteraction<WalletInteractionType>[];
   selectedTypes: WalletInteractionType[];
   onTypeFilterChange: (types: WalletInteractionType[]) => void;
+  onDismiss: (id: string) => void;
+  onClearCompleted: () => void;
   phaseStartsRef: MutableRefObject<Map<string, number>>;
 }
 
@@ -152,6 +160,8 @@ export function InteractionsList({
   interactions,
   selectedTypes,
   onTypeFilterChange,
+  onDismiss,
+  onClearCompleted,
   phaseStartsRef,
 }: InteractionsListProps) {
   const { walletAPI } = useContext(WalletContext);
@@ -344,6 +354,18 @@ export function InteractionsList({
                           sx={{ fontSize: "0.7rem", height: 20 }}
                         />
                       )}
+                      <Tooltip title="Dismiss">
+                        <IconButton
+                          size="small"
+                          sx={{ ml: "auto", p: 0.25, opacity: 0.5, "&:hover": { opacity: 1 } }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDismiss(interaction.id);
+                          }}
+                        >
+                          <CloseIcon sx={{ fontSize: "0.9rem" }} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                     <Typography
                       variant="body2"
@@ -426,8 +448,8 @@ export function InteractionsList({
       </Box>
 
       {/* Filter Controls at Bottom */}
-      <Box sx={{ p: 2, borderTop: 1, borderColor: "divider" }}>
-        <FormControl fullWidth size="small">
+      <Box sx={{ p: 2, borderTop: 1, borderColor: "divider", display: "flex", gap: 1 }}>
+        <FormControl size="small" sx={{ flex: 1 }}>
           <InputLabel id="interaction-type-filter-label">Filter by Type</InputLabel>
           <Select
             labelId="interaction-type-filter-label"
@@ -450,6 +472,16 @@ export function InteractionsList({
             ))}
           </Select>
         </FormControl>
+        <Button
+          size="small"
+          variant="outlined"
+          color="inherit"
+          disabled={interactions.every((i) => !i.complete)}
+          onClick={onClearCompleted}
+          sx={{ whiteSpace: "nowrap", fontSize: "0.7rem" }}
+        >
+          Clear done
+        </Button>
       </Box>
 
       <ExecutionTraceDialog

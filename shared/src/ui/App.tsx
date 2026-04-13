@@ -154,6 +154,17 @@ export function App() {
     };
   }, [currentNetwork.id, walletAPI]);
 
+  const handleDismissInteraction = (id: string) => {
+    walletAPI.deleteInteraction(id);
+    setInteractions((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleClearCompleted = () => {
+    const completedIds = interactions.filter((i) => i.complete).map((i) => i.id);
+    walletAPI.clearInteractions();
+    setInteractions((prev) => prev.filter((i) => !completedIds.includes(i.id)));
+  };
+
   const handleMenuToggle = () => {
     setMenuOpen(!menuOpen);
   };
@@ -358,6 +369,8 @@ export function App() {
               interactions={interactions}
               selectedTypes={selectedInteractionTypes}
               onTypeFilterChange={setSelectedInteractionTypes}
+              onDismiss={handleDismissInteraction}
+              onClearCompleted={handleClearCompleted}
               phaseStartsRef={phaseStartsRef}
             />
           ) : (

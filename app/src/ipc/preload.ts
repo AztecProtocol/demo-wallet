@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld("walletAPI", {
   getInteractions(stringifiedArgs: string): Promise<WalletInteraction<WalletInteractionType>[]> {
     return ipcRenderer.invoke("getInteractions", stringifiedArgs);
   },
+  deleteInteraction(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("deleteInteraction", stringifiedArgs);
+  },
+  clearInteractions(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("clearInteractions", stringifiedArgs);
+  },
   getExecutionTrace(stringifiedArgs: string): Promise<any> {
     return ipcRenderer.invoke("getExecutionTrace", stringifiedArgs);
   },

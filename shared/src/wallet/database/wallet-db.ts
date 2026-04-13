@@ -281,6 +281,16 @@ export class WalletDB {
     return result.sort((a, b) => b.timestamp - a.timestamp);
   }
 
+  async deleteInteraction(id: string) {
+    await this.interactions.delete(id);
+  }
+
+  async clearInteractions() {
+    for await (const [id] of this.interactions.entriesAsync()) {
+      await this.interactions.delete(id);
+    }
+  }
+
   async storePersistentAuthorization(appId: string, key: string, data: any) {
     const fullKey = `${appId}:${key}`;
     await this.authorizations.set(fullKey, Buffer.from(jsonStringify(data)));

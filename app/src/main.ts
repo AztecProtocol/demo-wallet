@@ -358,6 +358,8 @@ app.on("ready", async () => {
     "createAccount",
     "deployAccount",
     "getInteractions",
+    "deleteInteraction",
+    "clearInteractions",
     "getExecutionTrace",
     "resolveAuthorization",
     "listAuthorizedApps",

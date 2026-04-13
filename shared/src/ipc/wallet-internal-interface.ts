@@ -123,6 +123,8 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   deployAccount(address: AztecAddress): Promise<void>;
   getAccounts(): Promise<InternalAccount[]>; // Override with enriched type
   getInteractions(): Promise<WalletInteraction<WalletInteractionType>[]>;
+  deleteInteraction(id: string): Promise<void>;
+  clearInteractions(): Promise<void>;
   getExecutionTrace(interactionId: string): Promise<
     | {
         trace?: DecodedExecutionTrace;
@@ -185,6 +187,9 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       ),
     ),
   getInteractions: z.function().args().returns(z.array(WalletInteractionSchema)),
+  // @ts-expect-error - zod type inference
+  deleteInteraction: z.function().args(z.string()).returns(z.void()),
+  clearInteractions: z.function().args().returns(z.void()),
   // @ts-expect-error - zod type inference
   getExecutionTrace: z
     .function()

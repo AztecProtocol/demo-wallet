@@ -284,7 +284,7 @@ export class SendTxOperation<
         const profileResult = await this.pxe.profileTx(executionData.txRequest, {
           profileMode: "execution-steps",
           skipProofGeneration: true,
-          scopes: this.scopesFrom(from),
+          scopes: this.scopesFrom(from, executionData.additionalScopes),
         });
 
         // Serialize the execution steps to msgpack format

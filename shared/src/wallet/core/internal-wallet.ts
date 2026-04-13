@@ -169,7 +169,7 @@ export class InternalWallet extends DemoWallet {
       const simulationResult = await this.simulateViaEntrypoint(executionPayload, {
         from: opts.from,
         feeOptions,
-        additionalScopes: opts.additionalScopes,
+        additionalScopes: [address],
         skipTxValidation: true,
       });
 
@@ -210,6 +210,7 @@ export class InternalWallet extends DemoWallet {
       });
       const sendOptions = {
         ...(await toSendOptions(opts)),
+        additionalScopes: [address],
         fee: { ...opts.fee, gasSettings },
       };
       await this.sendTx(executionPayload, sendOptions, interaction);
@@ -259,7 +260,10 @@ export class InternalWallet extends DemoWallet {
         status: "PROVING",
       }),
     );
-    const provenTx = await this.pxe.proveTx(txRequest, this.scopesFrom(opts.from));
+    const provenTx = await this.pxe.proveTx(
+      txRequest,
+      this.scopesFrom(opts.from, opts.additionalScopes),
+    );
     const provingTime = Date.now() - provingStartTime;
 
     const offchainOutput = extractOffchainOutput(
@@ -337,6 +341,14 @@ export class InternalWallet extends DemoWallet {
   // Internal-only: Get all interactions (unfiltered)
   getInteractions() {
     return this.db.listInteractions();
+  }
+
+  deleteInteraction(id: string) {
+    return this.db.deleteInteraction(id);
+  }
+
+  clearInteractions() {
+    return this.db.clearInteractions();
   }
 
   async getExecutionTrace(interactionId: string): Promise<

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState, type MutableRefObject } from "react";
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -19,7 +20,12 @@ import {
   IconButton,
   Tooltip,
 } from "@mui/material";
-import { CheckCircle, Error as ErrorIcon, ContentCopy as CopyIcon } from "@mui/icons-material";
+import {
+  CheckCircle,
+  Error as ErrorIcon,
+  ContentCopy as CopyIcon,
+  Close as CloseIcon,
+} from "@mui/icons-material";
 import type {
   WalletInteraction,
   WalletInteractionType,
@@ -30,12 +36,20 @@ import type { ExecutionStats } from "../../shared/PhaseTimeline";
 import { TxProgressTimeline } from "../../shared/TxProgressTimeline";
 import { WalletContext } from "../../../renderer";
 
-const TX_TYPES: WalletInteractionType[] = ["sendTx", "simulateTx", "simulateUtility", "createAccount", "deployAccount"];
+const TX_TYPES: WalletInteractionType[] = [
+  "sendTx",
+  "simulateTx",
+  "simulateUtility",
+  "createAccount",
+  "deployAccount",
+];
 
 interface InteractionsListProps {
   interactions: WalletInteraction<WalletInteractionType>[];
   selectedTypes: WalletInteractionType[];
   onTypeFilterChange: (types: WalletInteractionType[]) => void;
+  onDismiss: (id: string) => void;
+  onClearCompleted: () => void;
   phaseStartsRef: MutableRefObject<Map<string, number>>;
 }
 
@@ -64,8 +78,7 @@ const shimmer = keyframes`
 `;
 
 const getStatusIcon = (status: string, complete: boolean) => {
-  if (status.includes("ERROR") || status.includes("FAIL"))
-    return <ErrorIcon fontSize="small" />;
+  if (status.includes("ERROR") || status.includes("FAIL")) return <ErrorIcon fontSize="small" />;
   if (complete) return <CheckCircle fontSize="small" />;
   return <CircularProgress size={14} thickness={5} />;
 };
@@ -147,20 +160,21 @@ export function InteractionsList({
   interactions,
   selectedTypes,
   onTypeFilterChange,
+  onDismiss,
+  onClearCompleted,
   phaseStartsRef,
 }: InteractionsListProps) {
   const { walletAPI } = useContext(WalletContext);
-  const [selectedTrace, setSelectedTrace] =
-    useState<DecodedExecutionTrace | null>(null);
+  const [selectedTrace, setSelectedTrace] = useState<DecodedExecutionTrace | null>(null);
   const [selectedStats, setSelectedStats] = useState<ExecutionStats | null>(null);
   const [selectedFrom, setSelectedFrom] = useState<string | null>(null);
   const [selectedFeePayer, setSelectedFeePayer] = useState<string | null>(null);
   const [traceDialogOpen, setTraceDialogOpen] = useState(false);
 
   // Lazy-loaded stats for completed tx interactions (for the inline timeline)
-  const [completedTimings, setCompletedTimings] = useState<
-    Map<string, { stats?: ExecutionStats }>
-  >(new Map());
+  const [completedTimings, setCompletedTimings] = useState<Map<string, { stats?: ExecutionStats }>>(
+    new Map(),
+  );
 
   // Evict completed timings for interactions that are running again (same id, re-run).
   useEffect(() => {
@@ -179,37 +193,36 @@ export function InteractionsList({
   // Guard: don't fire while any TX interaction is still active — concurrent PXE DB
   // reads (via decodeTransaction → decodingCache) can corrupt in-flight IDB transactions.
   useEffect(() => {
-    const hasActiveTx = interactions.some(
-      (i) => !i.complete && TX_TYPES.includes(i.type)
-    );
+    const hasActiveTx = interactions.some((i) => !i.complete && TX_TYPES.includes(i.type));
     if (hasActiveTx) return;
 
     const completedTxInteractions = interactions.filter(
-      (i) => i.complete && TX_TYPES.includes(i.type) && !completedTimings.has(i.id)
+      (i) => i.complete && TX_TYPES.includes(i.type) && !completedTimings.has(i.id),
     );
     if (completedTxInteractions.length === 0) return;
 
     for (const interaction of completedTxInteractions) {
-      walletAPI.getExecutionTrace(interaction.id).then((result) => {
-        setCompletedTimings((prev) => {
-          const next = new Map(prev);
-          next.set(interaction.id, { stats: result?.stats as ExecutionStats | undefined });
-          return next;
+      walletAPI
+        .getExecutionTrace(interaction.id)
+        .then((result) => {
+          setCompletedTimings((prev) => {
+            const next = new Map(prev);
+            next.set(interaction.id, { stats: result?.stats as ExecutionStats | undefined });
+            return next;
+          });
+        })
+        .catch(() => {
+          // Mark as attempted so we don't retry
+          setCompletedTimings((prev) => {
+            const next = new Map(prev);
+            next.set(interaction.id, {});
+            return next;
+          });
         });
-      }).catch(() => {
-        // Mark as attempted so we don't retry
-        setCompletedTimings((prev) => {
-          const next = new Map(prev);
-          next.set(interaction.id, {});
-          return next;
-        });
-      });
     }
   }, [interactions]);
 
-  const handleInteractionClick = async (
-    interaction: WalletInteraction<WalletInteractionType>
-  ) => {
+  const handleInteractionClick = async (interaction: WalletInteraction<WalletInteractionType>) => {
     // Only show trace for simulateTx, simulateUtility, and sendTx interactions
     if (
       interaction.type === "simulateTx" ||
@@ -238,12 +251,9 @@ export function InteractionsList({
 
   // Filter interactions based on selected types
   const filteredInteractions =
-    selectedTypes.length === 0 ||
-    selectedTypes.length === allInteractionTypes.length
+    selectedTypes.length === 0 || selectedTypes.length === allInteractionTypes.length
       ? interactions
-      : interactions.filter((interaction) =>
-          selectedTypes.includes(interaction.type)
-        );
+      : interactions.filter((interaction) => selectedTypes.includes(interaction.type));
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -304,9 +314,7 @@ export function InteractionsList({
                   }}
                   onClick={() => handleInteractionClick(interaction)}
                 >
-                  <CardContent
-                    sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}
-                  >
+                  <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
                     <Box
                       sx={{
                         display: "flex",
@@ -330,16 +338,10 @@ export function InteractionsList({
                         }}
                       />
                       <Chip
-                        icon={getStatusIcon(
-                          interaction.status,
-                          interaction.complete
-                        )}
+                        icon={getStatusIcon(interaction.status, interaction.complete)}
                         label={interaction.status}
                         size="small"
-                        color={getStatusColor(
-                          interaction.status,
-                          interaction.complete
-                        )}
+                        color={getStatusColor(interaction.status, interaction.complete)}
                         sx={{ fontSize: "0.7rem", height: 20 }}
                       />
                       {isProvenTx(interaction.type, interaction.status) && (
@@ -352,6 +354,18 @@ export function InteractionsList({
                           sx={{ fontSize: "0.7rem", height: 20 }}
                         />
                       )}
+                      <Tooltip title="Dismiss">
+                        <IconButton
+                          size="small"
+                          sx={{ ml: "auto", p: 0.25, opacity: 0.5, "&:hover": { opacity: 1 } }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDismiss(interaction.id);
+                          }}
+                        >
+                          <CloseIcon sx={{ fontSize: "0.9rem" }} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                     <Typography
                       variant="body2"
@@ -382,7 +396,9 @@ export function InteractionsList({
                             sx={{ p: 0.25 }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigator.clipboard.writeText(extractTxHash(interaction.description)!);
+                              navigator.clipboard.writeText(
+                                extractTxHash(interaction.description)!,
+                              );
                             }}
                           >
                             <CopyIcon sx={{ fontSize: "0.8rem" }} />
@@ -432,11 +448,9 @@ export function InteractionsList({
       </Box>
 
       {/* Filter Controls at Bottom */}
-      <Box sx={{ p: 2, borderTop: 1, borderColor: "divider" }}>
-        <FormControl fullWidth size="small">
-          <InputLabel id="interaction-type-filter-label">
-            Filter by Type
-          </InputLabel>
+      <Box sx={{ p: 2, borderTop: 1, borderColor: "divider", display: "flex", gap: 1 }}>
+        <FormControl size="small" sx={{ flex: 1 }}>
+          <InputLabel id="interaction-type-filter-label">Filter by Type</InputLabel>
           <Select
             labelId="interaction-type-filter-label"
             id="interaction-type-filter"
@@ -445,8 +459,7 @@ export function InteractionsList({
             onChange={handleTypeFilterChange}
             input={<OutlinedInput label="Filter by Type" />}
             renderValue={(selected) =>
-              selected.length === 0 ||
-              selected.length === allInteractionTypes.length
+              selected.length === 0 || selected.length === allInteractionTypes.length
                 ? "All Types"
                 : `${selected.length} type${selected.length > 1 ? "s" : ""}`
             }
@@ -459,6 +472,16 @@ export function InteractionsList({
             ))}
           </Select>
         </FormControl>
+        <Button
+          size="small"
+          variant="outlined"
+          color="inherit"
+          disabled={interactions.every((i) => !i.complete)}
+          onClick={onClearCompleted}
+          sx={{ whiteSpace: "nowrap", fontSize: "0.7rem" }}
+        >
+          Clear done
+        </Button>
       </Box>
 
       <ExecutionTraceDialog

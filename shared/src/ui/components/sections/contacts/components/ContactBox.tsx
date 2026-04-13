@@ -1,12 +1,9 @@
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
-import ArrowDropDown from "@mui/icons-material/ArrowDropDown";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 
-import { addressToShortStr, keyToShortStr } from "../../../../utils/format";
 import IconButton from "@mui/material/IconButton";
 import { useState } from "react";
 import QrCode from "@mui/icons-material/QrCode";

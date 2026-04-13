@@ -132,10 +132,7 @@ function installDependencies() {
 }
 
 function updateRollupVersion(networkId, rollupVersion) {
-  log(
-    COLORS.yellow,
-    `[5/5] Updating ${networkId} rollup version to ${rollupVersion}...`,
-  );
+  log(COLORS.yellow, `[5/5] Updating ${networkId} rollup version to ${rollupVersion}...`);
   const networksFile = resolve(ROOT, "shared/src/config/networks.ts");
   let content = readFileSync(networksFile, "utf-8");
 
@@ -147,19 +144,13 @@ function updateRollupVersion(networkId, rollupVersion) {
       inBlock = true;
     }
     if (inBlock && lines[i].match(/version:\s*\d+/)) {
-      lines[i] = lines[i].replace(
-        /version:\s*\d+/,
-        `version: ${rollupVersion}`,
-      );
+      lines[i] = lines[i].replace(/version:\s*\d+/, `version: ${rollupVersion}`);
       break;
     }
   }
 
   writeFileSync(networksFile, lines.join("\n"), "utf-8");
-  log(
-    COLORS.green,
-    `✓ Rollup version updated for ${networkId} in networks.ts\n`,
-  );
+  log(COLORS.green, `✓ Rollup version updated for ${networkId} in networks.ts\n`);
 }
 
 async function main() {
@@ -187,9 +178,7 @@ async function main() {
       console.log(
         "  --version VERSION              Specify nightly version (e.g., 4.0.0-nightly.20260206)",
       );
-      console.log(
-        "  --rollup-version VERSION       Specify rollup version manually",
-      );
+      console.log("  --rollup-version VERSION       Specify rollup version manually");
       console.log(
         "  --network ID                   Network ID to update in networks.ts (default: nextnet)",
       );

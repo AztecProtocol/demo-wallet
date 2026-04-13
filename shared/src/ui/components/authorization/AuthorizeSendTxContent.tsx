@@ -33,20 +33,22 @@ export function AuthorizeSendTxContent({
   const from = params.from;
   const embeddedPaymentMethodFeePayer = params.embeddedPaymentMethodFeePayer;
 
-  const isNoFrom = from === "NO_FROM" || (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
+  const isNoFrom =
+    from === "NO_FROM" ||
+    (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
     <>
       {showAppId && (
         <Typography variant={compact ? "body2" : "body1"} gutterBottom>
-          App <strong>{request.appId}</strong> wants to execute a transaction
-          that requires your authorization.
+          App <strong>{request.appId}</strong> wants to execute a transaction that requires your
+          authorization.
         </Typography>
       )}
 
-      {(isNoFrom || hasEmbeddedFeePayer) && (
-        compact ? (
+      {(isNoFrom || hasEmbeddedFeePayer) &&
+        (compact ? (
           <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mb: 1 }}>
             {isNoFrom && (
               <Chip
@@ -71,7 +73,8 @@ export function AuthorizeSendTxContent({
           <>
             {isNoFrom && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                This transaction uses an external entrypoint and does not execute from any of your accounts.
+                This transaction uses an external entrypoint and does not execute from any of your
+                accounts.
               </Alert>
             )}
             {hasEmbeddedFeePayer && (
@@ -80,8 +83,7 @@ export function AuthorizeSendTxContent({
               </Alert>
             )}
           </>
-        )
-      )}
+        ))}
 
       {executionTrace && (
         <ExecutionTraceDisplay
@@ -94,8 +96,7 @@ export function AuthorizeSendTxContent({
 
       {!compact && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          By approving, you authorize the app to execute these function calls on
-          your behalf.
+          By approving, you authorize the app to execute these function calls on your behalf.
         </Typography>
       )}
     </>

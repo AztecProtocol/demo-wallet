@@ -92,12 +92,8 @@ export async function writeAccountsCookie(
  * Returns empty array if cookie is missing or decryption fails (wrong passphrase).
  * Throws on wrong passphrase so the caller can prompt again.
  */
-export async function readAccountsCookie(
-  passphrase: string,
-): Promise<PortableAccount[]> {
-  const match = document.cookie
-    .split("; ")
-    .find((c) => c.startsWith(`${COOKIE_NAME}=`));
+export async function readAccountsCookie(passphrase: string): Promise<PortableAccount[]> {
+  const match = document.cookie.split("; ").find((c) => c.startsWith(`${COOKIE_NAME}=`));
 
   if (!match) return [];
 
@@ -114,9 +110,7 @@ export async function readAccountsCookie(
  * Check whether the accounts cookie exists (without decrypting).
  */
 export function hasAccountsCookie(): boolean {
-  return document.cookie
-    .split("; ")
-    .some((c) => c.startsWith(`${COOKIE_NAME}=`));
+  return document.cookie.split("; ").some((c) => c.startsWith(`${COOKIE_NAME}=`));
 }
 
 /**
@@ -238,9 +232,7 @@ export async function writeContactsCookies(
  * Read and decrypt contacts from all numbered cookies.
  * Throws on wrong passphrase.
  */
-export async function readContactsCookies(
-  passphrase: string,
-): Promise<PortableContact[]> {
+export async function readContactsCookies(passphrase: string): Promise<PortableContact[]> {
   const allCookies = document.cookie.split("; ");
   const chunks: Uint8Array[] = [];
 
@@ -271,9 +263,7 @@ export async function readContactsCookies(
  * Check whether any contacts cookies exist (without decrypting).
  */
 export function hasContactsCookies(): boolean {
-  return document.cookie
-    .split("; ")
-    .some((c) => c.startsWith(`${CONTACTS_COOKIE_PREFIX}0=`));
+  return document.cookie.split("; ").some((c) => c.startsWith(`${CONTACTS_COOKIE_PREFIX}0=`));
 }
 
 /**
@@ -378,9 +368,7 @@ export async function readCapabilitiesCookies(
  * Check whether any capabilities cookies exist (without decrypting).
  */
 export function hasCapabilitiesCookies(): boolean {
-  return document.cookie
-    .split("; ")
-    .some((c) => c.startsWith(`${CAPS_COOKIE_PREFIX}0=`));
+  return document.cookie.split("; ").some((c) => c.startsWith(`${CAPS_COOKIE_PREFIX}0=`));
 }
 
 /**

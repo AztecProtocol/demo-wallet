@@ -5,10 +5,7 @@ import type {
   AuthorizationItemResponse,
 } from "../types/authorization";
 import { AuthorizationRequestEvent } from "../types/authorization";
-import {
-  promiseWithResolvers,
-  type PromiseWithResolvers,
-} from "@aztec/foundation/promise";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
 import type { WalletDB } from "../database/wallet-db";
 
 /**
@@ -41,9 +38,7 @@ export class AuthorizationManager {
    * @param items - Array of authorization items (with optional persistence config)
    * @returns Authorization response with approved items
    */
-  async requestAuthorization(
-    items: AuthorizationItem[],
-  ): Promise<AuthorizationResponse> {
+  async requestAuthorization(items: AuthorizationItem[]): Promise<AuthorizationResponse> {
     // Check for existing persistent authorizations
     const itemsNeedingAuth: AuthorizationItem[] = [];
     const autoApprovedItems: Record<string, AuthorizationItemResponse> = {};
@@ -61,10 +56,7 @@ export class AuthorizationManager {
 
         for (const key of keys) {
           // Try exact match first
-          let auth = await this.db.retrievePersistentAuthorization(
-            this.appId,
-            key,
-          );
+          let auth = await this.db.retrievePersistentAuthorization(this.appId, key);
 
           // If no exact match, try wildcard patterns
           if (auth === undefined) {
@@ -172,11 +164,7 @@ export class AuthorizationManager {
 
         // Store authorization for each key
         for (const key of keys) {
-          await this.db.storePersistentAuthorization(
-            this.appId,
-            key,
-            dataToStore,
-          );
+          await this.db.storePersistentAuthorization(this.appId, key, dataToStore);
         }
       }
     }
@@ -238,9 +226,7 @@ export class AuthorizationManager {
    * @param storageKey - Storage key to check for wildcard matches
    * @returns Existing authorization data if wildcard match found, undefined otherwise
    */
-  private async checkWildcardAuthorization(
-    storageKey: string,
-  ): Promise<any | undefined> {
+  private async checkWildcardAuthorization(storageKey: string): Promise<any | undefined> {
     const parts = storageKey.split(":");
     if (parts.length === 1) {
       // No pattern to match (simple method like "getAccounts")
@@ -258,10 +244,7 @@ export class AuthorizationManager {
     if (remaining.length === 2) {
       // Try contract-specific wildcard: "method:contract:*"
       const contractWildcard = `${method}:${remaining[0]}:*`;
-      const auth = await this.db.retrievePersistentAuthorization(
-        this.appId,
-        contractWildcard,
-      );
+      const auth = await this.db.retrievePersistentAuthorization(this.appId, contractWildcard);
       if (auth !== undefined) {
         return auth;
       }
@@ -269,9 +252,6 @@ export class AuthorizationManager {
 
     // Try full wildcard: "method:*"
     const fullWildcard = `${method}:*`;
-    return await this.db.retrievePersistentAuthorization(
-      this.appId,
-      fullWildcard,
-    );
+    return await this.db.retrievePersistentAuthorization(this.appId, fullWildcard);
   }
 }

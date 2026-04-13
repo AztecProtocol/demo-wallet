@@ -1,18 +1,11 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type {
   AppCapabilities,
   WalletCapabilities,
   GrantedCapability,
   CAPABILITY_VERSION,
 } from "@aztec/aztec.js/wallet";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { RequestCapabilitiesParams } from "../types/authorization";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
@@ -62,9 +55,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
     this.interactionManager = interactionManager;
   }
 
-  async check(
-    manifest: AppCapabilities,
-  ): Promise<RequestCapabilitiesResult | undefined> {
+  async check(manifest: AppCapabilities): Promise<RequestCapabilitiesResult | undefined> {
     // Calculate all storage keys that would be needed for the requested capabilities
     const allKeys: string[] = [];
     const capabilityKeys = new Map<number, string[]>(); // Map capability index to its keys
@@ -106,7 +97,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
                 // Contract is registered in PXE, treat as granted even if no persistent auth
                 continue; // Skip counting this as missing
               }
-            } catch (e) {
+            } catch {
               // Contract not found in PXE, count as missing
             }
           }
@@ -135,12 +126,12 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
           // For accounts capability, we need to extract the accounts list from stored data
           if (requestedCap.type === "accounts" && storedData?.accounts) {
             // Convert stored accounts (with string items) back to AztecAddress objects
-            const accounts = (
-              storedData.accounts as Array<{ alias: string; item: string }>
-            ).map((acc) => ({
-              alias: acc.alias,
-              item: AztecAddress.fromString(acc.item),
-            }));
+            const accounts = (storedData.accounts as Array<{ alias: string; item: string }>).map(
+              (acc) => ({
+                alias: acc.alias,
+                item: AztecAddress.fromString(acc.item),
+              }),
+            );
 
             granted.push({
               type: "accounts",
@@ -186,13 +177,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
 
   async prepare(
     manifest: AppCapabilities,
-  ): Promise<
-    PrepareResult<
-      RequestCapabilitiesResult,
-      RequestCapabilitiesParams,
-      RequestCapabilitiesExecutionData
-    >
-  > {
+  ): Promise<PrepareResult<RequestCapabilitiesParams, RequestCapabilitiesExecutionData>> {
     // Calculate which capabilities are new (not already granted)
     const newCapabilityIndices: number[] = [];
     // Track which storage keys already exist
@@ -205,10 +190,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
       let keyStatus: Map<string, boolean>;
 
       // For simulation and transaction capabilities, check if ad-hoc authorizations cover them
-      if (
-        capability.type === "simulation" ||
-        capability.type === "transaction"
-      ) {
+      if (capability.type === "simulation" || capability.type === "transaction") {
         // Build pattern array for checking against stored function calls
         const patterns: Array<{
           contract: string;
@@ -221,8 +203,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
           if (simCap.transactions?.scope !== "*") {
             for (const pattern of simCap.transactions?.scope || []) {
               patterns.push({
-                contract:
-                  pattern.contract === "*" ? "*" : pattern.contract.toString(),
+                contract: pattern.contract === "*" ? "*" : pattern.contract.toString(),
                 function: pattern.function,
                 method: "simulateTx",
               });
@@ -231,8 +212,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
           if (simCap.utilities?.scope !== "*") {
             for (const pattern of simCap.utilities?.scope || []) {
               patterns.push({
-                contract:
-                  pattern.contract === "*" ? "*" : pattern.contract.toString(),
+                contract: pattern.contract === "*" ? "*" : pattern.contract.toString(),
                 function: pattern.function,
                 method: "simulateUtility",
               });
@@ -243,8 +223,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
           if (txCap.scope !== "*") {
             for (const pattern of txCap.scope) {
               patterns.push({
-                contract:
-                  pattern.contract === "*" ? "*" : pattern.contract.toString(),
+                contract: pattern.contract === "*" ? "*" : pattern.contract.toString(),
                 function: pattern.function,
                 method: "sendTx",
               });
@@ -253,19 +232,14 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
         }
 
         // Build storage keys from patterns: method:contract:function
-        const patternKeys = patterns.map(
-          (p) => `${p.method}:${p.contract}:${p.function}`,
-        );
+        const patternKeys = patterns.map((p) => `${p.method}:${p.contract}:${p.function}`);
         keyStatus = await this.db.checkAuthorizationKeys(
           this.authorizationManager.appId,
           patternKeys,
         );
       } else {
         // For other capabilities, use simple key existence check
-        keyStatus = await this.db.checkAuthorizationKeys(
-          this.authorizationManager.appId,
-          keys,
-        );
+        keyStatus = await this.db.checkAuthorizationKeys(this.authorizationManager.appId, keys);
 
         // Special handling for registerContract: check if contracts are already registered in PXE
         if (capability.type === "contracts") {
@@ -280,7 +254,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
                   // Contract is registered in PXE, treat as granted
                   keyStatus.set(key, true);
                 }
-              } catch (e) {
+              } catch {
                 // Contract not found in PXE, keep as missing
               }
             }
@@ -288,9 +262,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
         }
       }
 
-      const hasMissingKeys = Array.from(keyStatus.values()).some(
-        (exists) => !exists,
-      );
+      const hasMissingKeys = Array.from(keyStatus.values()).some((exists) => !exists);
 
       // Store all key statuses in existingGrants map
       for (const [key, exists] of keyStatus.entries()) {
@@ -363,9 +335,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
 
     // Check if app has been seen before (has any stored authorization records)
     // This is separate from existingGrants which includes PXE-registered contracts
-    const storedKeys = await this.db.getAllAuthorizationKeys(
-      this.authorizationManager.appId,
-    );
+    const storedKeys = await this.db.getAllAuthorizationKeys(this.authorizationManager.appId);
     const isAppFirstTime = storedKeys.length === 0;
 
     // Display data shows the full manifest plus which capabilities are new
@@ -407,9 +377,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
     const authData = itemResponse?.data as any;
 
     if (!authData || !authData.granted) {
-      throw new Error(
-        "Authorization response missing granted capabilities data",
-      );
+      throw new Error("Authorization response missing granted capabilities data");
     }
 
     // Store the capabilities granted by the user
@@ -418,11 +386,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
     // Store the authorization behavior (mode and expiration)
     const mode = authData.mode || "permissive";
     const duration = authData.duration || 86400000 * 30;
-    await this.db.storeAppAuthorizationBehavior(
-      this.authorizationManager.appId,
-      mode,
-      duration,
-    );
+    await this.db.storeAppAuthorizationBehavior(this.authorizationManager.appId, mode, duration);
   }
 
   async execute(

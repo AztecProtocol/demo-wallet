@@ -24,9 +24,7 @@ export function formatAbiValue(value: AbiDecoded): string {
     }
 
     // For plain objects or objects with useless toString, use JSON
-    return JSON.stringify(value, (_, v) =>
-      typeof v === "bigint" ? v.toString() : v
-    );
+    return JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v));
   }
 
   return String(value);

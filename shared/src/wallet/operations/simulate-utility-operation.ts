@@ -1,20 +1,8 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import type {
-  UtilityExecutionResult,
-  SimulationStats,
-} from "@aztec/stdlib/tx";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
+import type { UtilityExecutionResult, SimulationStats } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import type { ExecuteUtilityOptions } from "@aztec/aztec.js/wallet";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -119,18 +107,15 @@ export class SimulateUtilityOperation extends ExternalOperation<
   async prepare(
     call: FunctionCall,
     opts: ExecuteUtilityOptions,
-  ): Promise<
-    PrepareResult<
-      SimulateUtilityResult,
-      SimulateUtilityDisplayData,
-      SimulateUtilityExecutionData
-    >
-  > {
+  ): Promise<PrepareResult<SimulateUtilityDisplayData, SimulateUtilityExecutionData>> {
     // Generate hash for deduplication
     const payloadHash = hashUtilityCall(call);
 
     // Simulate the utility function
-    const simulationResult = await this.pxe.executeUtility(call, { authwits: opts.authWitnesses, scopes: opts.scopes });
+    const simulationResult = await this.pxe.executeUtility(call, {
+      authwits: opts.authWitnesses,
+      scopes: opts.scopes,
+    });
 
     // Get contract name for better display
     const contractName = await this.decodingCache.getAddressAlias(call.to);
@@ -141,11 +126,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
     const decoder = new TxCallStackDecoder(this.decodingCache, this.log);
 
     // Format the input arguments (these come from FunctionCall.args which are already typed)
-    const decodedArgs = await decoder.formatUtilityArguments(
-      call.to,
-      call.name,
-      call.args,
-    );
+    const decodedArgs = await decoder.formatUtilityArguments(call.to, call.name, call.args);
 
     // Format the result (now an array of Fr that needs decoding based on return type)
     const formattedResult = await decoder.formatUtilityResult(
@@ -214,9 +195,7 @@ export class SimulateUtilityOperation extends ExternalOperation<
     ]);
   }
 
-  async execute(
-    executionData: SimulateUtilityExecutionData,
-  ): Promise<SimulateUtilityResult> {
+  async execute(executionData: SimulateUtilityExecutionData): Promise<SimulateUtilityResult> {
     // Execution is just returning the simulation result
     // The actual simulation happened in prepare phase
     await this.emitProgress("SUCCESS", undefined, true);

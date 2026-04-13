@@ -29,7 +29,13 @@ const SAVED_PATH_FILE = resolve(ROOT, ".local-aztec-path");
 // Package.json files to modify (relative to repo root)
 // Root package.json is required for Yarn 4 workspaces (resolutions in workspace packages are ignored).
 // Workspace package.json files are also modified so `extension/` (standalone, outside workspaces) works.
-const PACKAGE_FILES = ["package.json", "app/package.json", "web/package.json", "shared/package.json", "extension/package.json"];
+const PACKAGE_FILES = [
+  "package.json",
+  "app/package.json",
+  "web/package.json",
+  "shared/package.json",
+  "extension/package.json",
+];
 
 // Directories containing package.json files (for yarn install)
 const PACKAGE_DIRS = ["app", "web", "shared", "extension"];
@@ -70,8 +76,7 @@ const PACKAGE_MAPPINGS = {
   "@aztec/noir-contracts.js": "yarn-project/noir-contracts.js",
   "@aztec/noir-noir_codegen": "noir/packages/noir_codegen",
   "@aztec/noir-noirc_abi": "noir/packages/noirc_abi",
-  "@aztec/noir-protocol-circuits-types":
-    "yarn-project/noir-protocol-circuits-types",
+  "@aztec/noir-protocol-circuits-types": "yarn-project/noir-protocol-circuits-types",
   "@aztec/noir-types": "noir/packages/types",
   "@aztec/node-keystore": "yarn-project/node-keystore",
   "@aztec/node-lib": "yarn-project/node-lib",
@@ -132,9 +137,9 @@ function updateViteConfigs(aztecPath) {
 
     let content = readFileSync(viteConfigPath, "utf-8");
 
-    const fsAllowPaths = VITE_FS_ALLOW_PATHS.map(
-      (p) => `          '${aztecPath}/${p}',`
-    ).join("\n");
+    const fsAllowPaths = VITE_FS_ALLOW_PATHS.map((p) => `          '${aztecPath}/${p}',`).join(
+      "\n",
+    );
 
     const newFsAllowBlock = `fs: {
         allow: [
@@ -190,7 +195,9 @@ function getViteFsAllowStatus() {
 
     const content = readFileSync(viteConfigPath, "utf-8");
 
-    const match = content.match(/allow:\s*\[[\s\S]*?'(\/[^']+\/(?:yarn-project|barretenberg|noir))/);
+    const match = content.match(
+      /allow:\s*\[[\s\S]*?'(\/[^']+\/(?:yarn-project|barretenberg|noir))/,
+    );
     if (match) {
       const fullPath = match[1];
       const baseMatch = fullPath.match(/^(.+?)\/(?:yarn-project|barretenberg|noir)/);
@@ -256,8 +263,7 @@ function cleanupBrokenAztecSymlinks(dir) {
           // Check if directory is essentially empty or only contains node_modules
           const contents = readdirSync(entryPath);
           const hasOnlyNodeModules =
-            contents.length === 0 ||
-            (contents.length === 1 && contents[0] === "node_modules");
+            contents.length === 0 || (contents.length === 1 && contents[0] === "node_modules");
           if (hasOnlyNodeModules) {
             console.log(`  Removing broken package dir: ${entryPath}`);
             rmSync(entryPath, { recursive: true, force: true });
@@ -358,9 +364,7 @@ function enable(aztecPath) {
   }
 
   if (!existsSync(resolve(resolvedPath, "yarn-project"))) {
-    console.error(
-      `Error: Path does not appear to be aztec-packages: ${resolvedPath}`
-    );
+    console.error(`Error: Path does not appear to be aztec-packages: ${resolvedPath}`);
     process.exit(1);
   }
 
@@ -428,9 +432,7 @@ function status() {
 
     if (pkg.resolutions && Object.keys(pkg.resolutions).length > 0) {
       const firstResolution = Object.values(pkg.resolutions)[0];
-      const match = firstResolution.match(
-        /^link:(.+?)\/(?:yarn-project|barretenberg|noir)/
-      );
+      const match = firstResolution.match(/^link:(.+?)\/(?:yarn-project|barretenberg|noir)/);
       const path = match ? match[1] : "unknown";
       console.log(`${file}: ENABLED (${path})`);
     } else {
@@ -475,14 +477,10 @@ switch (command) {
     status();
     break;
   default:
-    console.log(
-      "Toggle local aztec-packages resolutions in package.json files."
-    );
+    console.log("Toggle local aztec-packages resolutions in package.json files.");
     console.log("");
     console.log("Usage:");
-    console.log(
-      "  node scripts/toggle-local-aztec.js enable /path/to/aztec-packages"
-    );
+    console.log("  node scripts/toggle-local-aztec.js enable /path/to/aztec-packages");
     console.log("  node scripts/toggle-local-aztec.js disable");
     console.log("  node scripts/toggle-local-aztec.js status");
     process.exit(1);

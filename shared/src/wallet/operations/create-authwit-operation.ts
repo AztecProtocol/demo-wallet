@@ -1,29 +1,16 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import type {
-  IntentInnerHash,
-  CallIntent,
-} from "@aztec/aztec.js/authorization";
+import type { IntentInnerHash, CallIntent } from "@aztec/aztec.js/authorization";
 import type { ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
 
 // Arguments tuple for the operation
-type CreateAuthWitArgs = [
-  from: AztecAddress,
-  messageHashOrIntent: IntentInnerHash | CallIntent,
-];
+type CreateAuthWitArgs = [from: AztecAddress, messageHashOrIntent: IntentInnerHash | CallIntent];
 
 // Result type for the operation
 type CreateAuthWitResult = AuthWitness;
@@ -92,7 +79,7 @@ export class CreateAuthWitOperation extends ExternalOperation<
 
   async createInteraction(
     from: AztecAddress,
-    messageHashOrIntent: IntentInnerHash | CallIntent,
+    _messageHashOrIntent: IntentInnerHash | CallIntent,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     const interaction = WalletInteraction.from({
       type: "createAuthWit",
@@ -110,13 +97,7 @@ export class CreateAuthWitOperation extends ExternalOperation<
   async prepare(
     from: AztecAddress,
     messageHashOrIntent: IntentInnerHash | CallIntent,
-  ): Promise<
-    PrepareResult<
-      CreateAuthWitResult,
-      CreateAuthWitDisplayData,
-      CreateAuthWitExecutionData
-    >
-  > {
+  ): Promise<PrepareResult<CreateAuthWitDisplayData, CreateAuthWitExecutionData>> {
     const displayData: CreateAuthWitDisplayData = {
       from: from.toString(),
       type: "hash",
@@ -133,12 +114,8 @@ export class CreateAuthWitOperation extends ExternalOperation<
       displayData.type = "call";
 
       // Decode call information
-      const callerAlias = await this.decodingCache.getAddressAlias(
-        intent.caller,
-      );
-      const contractName = await this.decodingCache.getAddressAlias(
-        intent.call.to,
-      );
+      const callerAlias = await this.decodingCache.getAddressAlias(intent.caller);
+      const contractName = await this.decodingCache.getAddressAlias(intent.call.to);
 
       displayData.call = {
         caller: intent.caller.toString(),
@@ -179,9 +156,7 @@ export class CreateAuthWitOperation extends ExternalOperation<
     ]);
   }
 
-  async execute(
-    executionData: CreateAuthWitExecutionData,
-  ): Promise<CreateAuthWitResult> {
+  async execute(executionData: CreateAuthWitExecutionData): Promise<CreateAuthWitResult> {
     const result = await this.createAuthWitInternal(
       executionData.from,
       executionData.messageHashOrIntent,

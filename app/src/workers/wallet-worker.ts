@@ -13,10 +13,7 @@ import {
   getNetworkByChainId,
 } from "@demo-wallet/shared/core";
 import { createProxyLogger } from "../utils/logger.ts";
-import type {
-  AuthorizationRequest,
-  AuthorizationResponse,
-} from "@demo-wallet/shared/core";
+import type { AuthorizationRequest, AuthorizationResponse } from "@demo-wallet/shared/core";
 import {
   createPXE,
   getPXEConfig,
@@ -48,10 +45,7 @@ type SessionData = {
     db: any;
     pendingAuthorizations: Map<string, any>;
   }>;
-  wallets: Map<
-    string,
-    Promise<{ external: ExternalWallet; internal: InternalWallet }>
-  >;
+  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -62,10 +56,7 @@ async function init(
   internalPort: MessagePortMain,
   logPort: MessagePortMain,
 ) {
-  const network = getNetworkByChainId(
-    chainInfo.chainId.toNumber(),
-    chainInfo.version.toNumber(),
-  );
+  const network = getNetworkByChainId(chainInfo.chainId.toNumber(), chainInfo.version.toNumber());
   if (!network) {
     throw new Error(
       `Unknown network: chainId=${chainInfo.chainId.toNumber()}, version=${chainInfo.version.toNumber()}`,
@@ -126,11 +117,7 @@ async function init(
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
 
-      const pxe = await createPXE(
-        node,
-        { ...getPXEConfig(), ...configOverrides },
-        options,
-      );
+      const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
 
       const pendingAuthorizations = new Map<
         string,
@@ -156,14 +143,8 @@ async function init(
   // Now create wallet instances for this specific appId if they don't exist
   if (!walletExists) {
     const internalInit = async () => {
-      const externalWalletLogger = createProxyLogger(
-        `wallet:external:${appId}`,
-        logPort,
-      );
-      const internalWalletLogger = createProxyLogger(
-        `wallet:internal:${appId}`,
-        logPort,
-      );
+      const externalWalletLogger = createProxyLogger(`wallet:external:${appId}`, logPort);
+      const internalWalletLogger = createProxyLogger(`wallet:internal:${appId}`, logPort);
 
       // Create both wallet instances sharing the same db, pxe and authorization logic
       const externalWallet = new ExternalWallet(
@@ -199,35 +180,29 @@ async function init(
           });
         });
 
-        wallet.addEventListener(
-          "authorization-request",
-          (event: CustomEvent) => {
-            internalPort.postMessage({
-              origin: "wallet",
-              type: "authorization-request",
-              content: event.detail,
-              chainInfo: {
-                chainId: chainInfo.chainId.toString(),
-                version: chainInfo.version.toString(),
-              },
-            });
-          },
-        );
+        wallet.addEventListener("authorization-request", (event: CustomEvent) => {
+          internalPort.postMessage({
+            origin: "wallet",
+            type: "authorization-request",
+            content: event.detail,
+            chainInfo: {
+              chainId: chainInfo.chainId.toString(),
+              version: chainInfo.version.toString(),
+            },
+          });
+        });
 
-        wallet.addEventListener(
-          "proof-debug-export-request",
-          (event: CustomEvent) => {
-            internalPort.postMessage({
-              origin: "wallet",
-              type: "proof-debug-export-request",
-              content: event.detail,
-              chainInfo: {
-                chainId: chainInfo.chainId.toString(),
-                version: chainInfo.version.toString(),
-              },
-            });
-          },
-        );
+        wallet.addEventListener("proof-debug-export-request", (event: CustomEvent) => {
+          internalPort.postMessage({
+            origin: "wallet",
+            type: "proof-debug-export-request",
+            content: event.detail,
+            chainInfo: {
+              chainId: chainInfo.chainId.toString(),
+              version: chainInfo.version.toString(),
+            },
+          });
+        });
       };
 
       setupWalletEvents(externalWallet);
@@ -256,14 +231,14 @@ const handleEvent = async (
   if (!schemaHasMethod(schema, type)) {
     throw new Error(`Unknown method: ${type}`);
   }
-  const sanitizedArgs = await parseWithOptionals(
-    args,
-    schema[type].parameters(),
-  );
+  const sanitizedArgs = await parseWithOptionals(args, schema[type].parameters());
   let result;
   let error;
   try {
-    result = await wallet[type](...sanitizedArgs);
+    const method = (wallet as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
+      type
+    ].bind(wallet);
+    result = await method(...sanitizedArgs);
   } catch (err: any) {
     userLog.error(`Error handling ${type}: ${err.message}`);
     if (err.stack) {
@@ -311,7 +286,7 @@ async function main() {
         let messageContent;
         try {
           messageContent = JSON.parse(content);
-        } catch (err) {
+        } catch {
           userLog.debug(`Unable to parse message ${content}`);
           return;
         }
@@ -328,24 +303,10 @@ async function main() {
           logPort,
         );
         // Use external wallet for external requests
-        handleEvent(
-          externalPort,
-          wallets.external,
-          WalletSchema,
-          type,
-          messageId,
-          args,
-          userLog,
-        );
+        handleEvent(externalPort, wallets.external, WalletSchema, type, messageId, args, userLog);
       });
       internalPort.on("message", async (event) => {
-        const {
-          type,
-          messageId,
-          args,
-          appId: originalAppId,
-          chainInfo,
-        } = event.data;
+        const { type, messageId, args, appId: originalAppId, chainInfo } = event.data;
         if (!messageId) {
           return;
         }
@@ -376,9 +337,7 @@ async function main() {
         // Use internal wallet for internal requests, except when handling
         // resolveAuthorization (which was always originated by the external one)
         const wallet =
-          type === "resolveAuthorization" && appId !== "this"
-            ? wallets.external
-            : wallets.internal;
+          type === "resolveAuthorization" && appId !== "this" ? wallets.external : wallets.internal;
         handleEvent(
           internalPort,
           wallet,

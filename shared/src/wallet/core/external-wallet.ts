@@ -9,10 +9,7 @@ import {
   type PrivateEvent,
   type PrivateEventFilter,
 } from "@aztec/aztec.js/wallet";
-import {
-  type IntentInnerHash,
-  type CallIntent,
-} from "@aztec/aztec.js/authorization";
+import { type IntentInnerHash, type CallIntent } from "@aztec/aztec.js/authorization";
 import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
 
 import type {
@@ -28,12 +25,12 @@ import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
-  type TxSimulationResult,
   type UtilityExecutionResult,
   ExecutionPayload,
   TxHash,
   type TxReceipt,
 } from "@aztec/stdlib/tx";
+import { TxSimulationResultWithAppOffset } from "@aztec/aztec.js/wallet";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import { WalletDB } from "../database/wallet-db";
 import { type PromiseWithResolvers } from "@aztec/foundation/promise";
@@ -42,7 +39,7 @@ import {
   type AuthorizationResponse,
   type AuthorizationItem,
 } from "../types/authorization";
-import { BaseNativeWallet } from "./base-native-wallet";
+import { DemoWallet } from "./demo-wallet";
 import { ExternalOperation } from "../operations/base-operation";
 import { RegisterContractOperation } from "../operations/register-contract-operation";
 import { RegisterSenderOperation } from "../operations/register-sender-operation";
@@ -56,12 +53,9 @@ import { GetPrivateEventsOperation } from "../operations/get-private-events-oper
 import { GetContractMetadataOperation } from "../operations/get-contract-metadata-operation";
 import { GetContractClassMetadataOperation } from "../operations/get-contract-class-metadata-operation";
 import { RequestCapabilitiesOperation } from "../operations/request-capabilities-operation";
-import type {
-  InteractionWaitOptions,
-  SendReturn,
-} from "@aztec/aztec.js/contracts";
+import type { InteractionWaitOptions, SendReturn } from "@aztec/aztec.js/contracts";
 
-export class ExternalWallet extends BaseNativeWallet {
+export class ExternalWallet extends DemoWallet {
   constructor(
     pxe: PXE,
     node: AztecNode,
@@ -130,13 +124,9 @@ export class ExternalWallet extends BaseNativeWallet {
       this.decodingCache,
       this.interactionManager,
       this.authorizationManager,
-      this.completeFeeOptionsForEstimation.bind(this),
       this.completeFeeOptions.bind(this),
-      this.getFakeAccountDataFor.bind(this),
-      this.buildAccountOverrides.bind(this),
+      this.simulateViaEntrypoint.bind(this),
       this.getChainInfo.bind(this),
-      this.scopesFrom.bind(this),
-      this.cancellableTransactions,
       this.log,
     );
   }
@@ -156,7 +146,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.interactionManager,
       this.authorizationManager,
       simulateTxOp,
-      this.createAuthWitForSendTx.bind(this),
+      this.createAuthWitForOperation.bind(this),
       this.createTxExecutionRequestFromPayloadAndFee.bind(this),
       this.completeFeeOptions.bind(this),
       this.contextualizeError.bind(this),
@@ -168,49 +158,26 @@ export class ExternalWallet extends BaseNativeWallet {
    * Factory method to create a fresh GetAccountsOperation instance.
    */
   private createGetAccountsOperation(): GetAccountsOperation {
-    return new GetAccountsOperation(
-      this.db,
-      this.interactionManager,
-      this.authorizationManager,
-    );
+    return new GetAccountsOperation(this.db, this.interactionManager, this.authorizationManager);
   }
 
   /**
    * Factory method to create a fresh GetAddressBookOperation instance.
    */
   private createGetAddressBookOperation(): GetAddressBookOperation {
-    return new GetAddressBookOperation(
-      this.db,
-      this.interactionManager,
-      this.authorizationManager,
-    );
+    return new GetAddressBookOperation(this.db, this.interactionManager, this.authorizationManager);
   }
 
   /**
    * Internal helper to create authwit without authorization.
    * Used by CreateAuthWitOperation after user has approved.
    */
-  private async createAuthWitInternal(
+  private async createAuthWitForOperation(
     from: AztecAddress,
     messageHashOrIntent: IntentInnerHash | CallIntent,
-    chainInfo: ChainInfo,
   ): Promise<AuthWitness> {
     const account = await this.getAccountFromAddress(from);
-    return account.createAuthWit(messageHashOrIntent, chainInfo);
-  }
-
-  /**
-   * Internal helper for SendTxOperation to create auth witnesses without external authorization.
-   * This is used when sendTx internally needs to create auth witnesses for call authorizations.
-   * These are implicit authorizations that don't require user approval since the user already
-   * approved the transaction itself.
-   */
-  private async createAuthWitForSendTx(
-    from: AztecAddress,
-    auth: CallIntent,
-  ): Promise<AuthWitness> {
-    const account = await this.getAccountFromAddress(from);
-    return account.createAuthWit(auth, this.chainInfo);
+    return account.createAuthWit(messageHashOrIntent, this.chainInfo);
   }
 
   /**
@@ -221,7 +188,7 @@ export class ExternalWallet extends BaseNativeWallet {
       this.decodingCache,
       this.interactionManager,
       this.authorizationManager,
-      this.createAuthWitInternal.bind(this),
+      this.createAuthWitForOperation.bind(this),
       this.chainInfo,
     );
   }
@@ -285,14 +252,9 @@ export class ExternalWallet extends BaseNativeWallet {
    * @returns Account instance for the given address
    * @throws Error if app doesn't have authorization for this account
    */
-  protected async getAccountFromAddress(
-    address: AztecAddress,
-  ): Promise<Account> {
+  protected async getAccountFromAddress(address: AztecAddress): Promise<Account> {
     // Check if there's a persistent getAccounts authorization
-    const authData = await this.db.retrievePersistentAuthorization(
-      this.appId,
-      "getAccounts",
-    );
+    const authData = await this.db.retrievePersistentAuthorization(this.appId, "getAccounts");
 
     if (!authData || !authData.accounts) {
       throw new Error(
@@ -301,9 +263,7 @@ export class ExternalWallet extends BaseNativeWallet {
     }
 
     // Check if the specific account is in the authorized list
-    const authorizedAddresses = authData.accounts.map((acc: any) =>
-      acc.item.toString(),
-    );
+    const authorizedAddresses = authData.accounts.map((acc: any) => acc.item.toString());
     const requestedAddress = address.toString();
 
     if (!authorizedAddresses.includes(requestedAddress)) {
@@ -336,10 +296,7 @@ export class ExternalWallet extends BaseNativeWallet {
     return await op.executeStandalone(instance, artifact, secretKey);
   }
 
-  override async registerSender(
-    address: AztecAddress,
-    alias: string,
-  ): Promise<AztecAddress> {
+  override async registerSender(address: AztecAddress, alias: string): Promise<AztecAddress> {
     const op = this.createRegisterSenderOperation();
     return await op.executeStandalone(address, alias);
   }
@@ -371,16 +328,12 @@ export class ExternalWallet extends BaseNativeWallet {
     return (await op.executeStandalone(address)) as any;
   }
 
-  override async getContractClassMetadata(
-    id: Fr,
-  ): Promise<ContractClassMetadata> {
+  override async getContractClassMetadata(id: Fr): Promise<ContractClassMetadata> {
     const op = this.createGetContractClassMetadataOperation();
     return await op.executeStandalone(id);
   }
 
-  override async requestCapabilities(
-    manifest: AppCapabilities,
-  ): Promise<WalletCapabilities> {
+  override async requestCapabilities(manifest: AppCapabilities): Promise<WalletCapabilities> {
     const op = this.createRequestCapabilitiesOperation();
     return await op.executeStandalone(manifest);
   }
@@ -403,7 +356,7 @@ export class ExternalWallet extends BaseNativeWallet {
       | TxReceipt
       | AztecAddress
       | UtilityExecutionResult
-      | TxSimulationResult;
+      | TxSimulationResultWithAppOffset;
 
     interface BatchItem {
       operation: ExternalOperation<any, any, any>;
@@ -440,11 +393,12 @@ export class ExternalWallet extends BaseNativeWallet {
         case "simulateTx":
           operation = this.createSimulateTxOperation();
           break;
-        case "sendTx":
+        case "sendTx": {
           // Only create simulateTxOp when needed for sendTx operations
           const simulateTxOp = this.createSimulateTxOperation();
           operation = this.createSendTxOperation(simulateTxOp);
           break;
+        }
         case "getAccounts":
           operation = this.createGetAccountsOperation();
           break;
@@ -515,9 +469,7 @@ export class ExternalWallet extends BaseNativeWallet {
       }
 
       try {
-        const interaction = await (item.operation as any).createInteraction(
-          ...item.args,
-        );
+        const interaction = await (item.operation as any).createInteraction(...item.args);
         item.operation.setCurrentInteraction(interaction);
       } catch (error) {
         item.error = error;
@@ -539,8 +491,7 @@ export class ExternalWallet extends BaseNativeWallet {
         item.executionData = result.executionData;
         item.persistence = result.persistence;
       } catch (error) {
-        const description =
-          error instanceof Error ? error.message : String(error);
+        const description = error instanceof Error ? error.message : String(error);
         await item.operation.emitProgress("ERROR", description, true);
         item.error = error;
       }
@@ -595,17 +546,12 @@ export class ExternalWallet extends BaseNativeWallet {
       }
 
       try {
-        response =
-          await this.authorizationManager.requestAuthorization(authItems);
+        response = await this.authorizationManager.requestAuthorization(authItems);
       } catch (error) {
         // Authorization was denied - mark all pending items as ERROR
         for (const item of items) {
           if (item.earlyReturn === undefined && !item.error) {
-            await item.operation.emitProgress(
-              "ERROR",
-              "Authorization denied",
-              true,
-            );
+            await item.operation.emitProgress("ERROR", "Authorization denied", true);
           }
         }
         throw error;
@@ -640,11 +586,7 @@ export class ExternalWallet extends BaseNativeWallet {
         if (itemId && response) {
           const itemResponse = response.itemResponses[itemId];
           if (!itemResponse || !itemResponse.approved) {
-            await item.operation.emitProgress(
-              "ERROR",
-              "Authorization denied",
-              true,
-            );
+            await item.operation.emitProgress("ERROR", "Authorization denied", true);
             throw new Error(`Authorization denied for ${item.originalName}`);
           }
         }
@@ -653,8 +595,7 @@ export class ExternalWallet extends BaseNativeWallet {
         try {
           result = await item.operation.execute(item.executionData!);
         } catch (error) {
-          const description =
-            error instanceof Error ? error.message : String(error);
+          const description = error instanceof Error ? error.message : String(error);
           await item.operation.emitProgress("ERROR", description, true);
           throw error;
         }
@@ -672,9 +613,9 @@ export class ExternalWallet extends BaseNativeWallet {
   override async simulateTx(
     executionPayload: ExecutionPayload,
     opts: SimulateOptions,
-  ): Promise<TxSimulationResult> {
+  ): Promise<TxSimulationResultWithAppOffset> {
     const op = this.createSimulateTxOperation();
-    return await op.executeStandalone(executionPayload, opts);
+    return op.executeStandalone(executionPayload, opts);
   }
 
   /**

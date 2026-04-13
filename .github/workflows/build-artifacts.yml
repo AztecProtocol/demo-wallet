@@ -1,4 +1,4 @@
-name: Build
+name: Build Artifacts
 
 on:
   workflow_call:
@@ -22,50 +22,45 @@ jobs:
       chrome-extension-id: ${{ steps.get-chrome-id.outputs.extension-id }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Corepack enable
-        run: corepack enable
+      - run: corepack enable
 
-      - name: Install dependencies
+      # Extension has its own lockfile and package manager — install separately
+      - name: Install extension dependencies
         working-directory: ./extension
         run: yarn install --immutable
 
       - name: Build Chrome extension (development)
         if: ${{ !inputs.release-mode }}
         working-directory: ./extension
-        run: yarn run build
+        run: yarn build
 
       - name: Build Firefox extension (development)
         if: ${{ !inputs.release-mode }}
         working-directory: ./extension
-        run: yarn run build:firefox
+        run: yarn build:firefox
 
-      - name: Zip Chrome extension (release mode)
+      - name: Zip Chrome extension (release)
         if: ${{ inputs.release-mode }}
         working-directory: ./extension
-        run: yarn run zip
+        run: yarn zip
 
-      - name: Zip Firefox extension (release mode)
+      - name: Zip Firefox extension (release)
         if: ${{ inputs.release-mode }}
         working-directory: ./extension
-        run: yarn run zip:firefox
+        run: yarn zip:firefox
 
       - name: Get Chrome extension ID
         id: get-chrome-id
         working-directory: ./extension
         run: |
-          # Read the extension key from manifest.json and compute the ID
-          # Chrome extension ID is derived from the "key" field in manifest.json
           MANIFEST_PATH=".output/chrome-mv3/manifest.json"
           if [ -f "$MANIFEST_PATH" ]; then
-            # Extract the key and compute the extension ID
             KEY=$(jq -r '.key // empty' "$MANIFEST_PATH")
             if [ -n "$KEY" ]; then
               # Decode base64 key, hash with SHA256, take first 32 chars, map to a-p
@@ -73,11 +68,9 @@ jobs:
               echo "extension-id=$EXTENSION_ID" >> $GITHUB_OUTPUT
               echo "Chrome extension ID: $EXTENSION_ID"
             else
-              echo "No key found in manifest, extension ID will be empty"
               echo "extension-id=" >> $GITHUB_OUTPUT
             fi
           else
-            echo "Manifest not found at $MANIFEST_PATH"
             echo "extension-id=" >> $GITHUB_OUTPUT
           fi
 
@@ -114,7 +107,7 @@ jobs:
           retention-days: ${{ inputs.retention-days }}
 
   build-electron:
-    name: Build Electron App
+    name: Build Electron App (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: build-extension
 
@@ -123,25 +116,22 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Corepack enable
-        run: corepack enable
+      - run: corepack enable
 
+      # Install from root so the shared workspace package is available to the app
       - name: Install dependencies
-        working-directory: ./app
         run: yarn install --immutable
 
       - name: Build Electron app (development)
         if: ${{ !inputs.release-mode }}
         working-directory: ./app
-        run: yarn run package
+        run: yarn package
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
@@ -151,7 +141,7 @@ jobs:
       - name: Build Electron app (release)
         if: ${{ inputs.release-mode }}
         working-directory: ./app
-        run: yarn run make
+        run: yarn make
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=4096
@@ -171,6 +161,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: electron-release-${{ matrix.os }}
-          path: |
-            app/out/make/**/*
+          path: app/out/make/**/*
           retention-days: ${{ inputs.retention-days }}

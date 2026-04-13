@@ -26,11 +26,19 @@ export class InteractionManager implements EventTarget {
   }
 
   // EventTarget implementation - delegate to internal eventEmitter
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void {
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
     this.eventEmitter.addEventListener(type, listener, options);
   }
 
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void {
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void {
     this.eventEmitter.removeEventListener(type, listener, options);
   }
 

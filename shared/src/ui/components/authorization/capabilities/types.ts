@@ -5,10 +5,7 @@ import type { AztecAddress } from "@aztec/aztec.js/addresses";
 // Extract specific capability types from the Capability union
 export type AccountsCapability = Extract<Capability, { type: "accounts" }>;
 export type ContractsCapability = Extract<Capability, { type: "contracts" }>;
-export type ContractClassesCapability = Extract<
-  Capability,
-  { type: "contractClasses" }
->;
+export type ContractClassesCapability = Extract<Capability, { type: "contractClasses" }>;
 export type SimulationCapability = Extract<Capability, { type: "simulation" }>;
 export type TransactionCapability = Extract<Capability, { type: "transaction" }>;
 export type DataCapability = Extract<Capability, { type: "data" }>;

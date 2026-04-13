@@ -1,31 +1,16 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { TxHash, TxStatus } from "@aztec/stdlib/tx";
+import { TxStatus } from "@aztec/stdlib/tx";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import type {
-  ExecutionPayload,
-  TxExecutionRequest,
-  TxProvingResult,
-} from "@aztec/stdlib/tx";
+import type { ExecutionPayload, TxExecutionRequest, TxProvingResult } from "@aztec/stdlib/tx";
 import { waitForTx, type AztecNode } from "@aztec/aztec.js/node";
-import { inspect } from "util";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import type { ReadableCallAuthorization } from "../decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
-import {
-  hashExecutionPayload,
-  generateSimulationTitle,
-} from "../utils/simulation-utils";
+import { hashExecutionPayload, generateSimulationTitle } from "../utils/simulation-utils";
 import type { SendOptions } from "@aztec/aztec.js/wallet";
 import { type NoFrom, NO_FROM } from "@aztec/aztec.js/account";
 import {
@@ -107,10 +92,7 @@ export class SendTxOperation<
     interactionManager: InteractionManager,
     private authorizationManager: AuthorizationManager,
     private simulateTxOp: SimulateTxOperation,
-    private createAuthWit: (
-      from: AztecAddress,
-      auth: CallIntent,
-    ) => Promise<AuthWitness>,
+    private createAuthWit: (from: AztecAddress, auth: CallIntent) => Promise<AuthWitness>,
     private createTxExecutionRequestFromPayloadAndFee: (
       exec: ExecutionPayload,
       from: AztecAddress | NoFrom,
@@ -169,9 +151,7 @@ export class SendTxOperation<
   async prepare(
     executionPayload: ExecutionPayload,
     opts: SendOptions<W>,
-  ): Promise<
-    PrepareResult<SendTxResult<W>, SendTxDisplayData, SendTxExecutionData<W>>
-  > {
+  ): Promise<PrepareResult<SendTxDisplayData, SendTxExecutionData<W>>> {
     const payloadHash = hashExecutionPayload(executionPayload);
 
     // Use simulateTx operation's prepare method (will throw if simulation fails).
@@ -185,8 +165,7 @@ export class SendTxOperation<
     });
 
     // Decode simulation results
-    const { callAuthorizations, executionTrace } =
-      prepared.executionData!.decoded;
+    const { callAuthorizations, executionTrace } = prepared.executionData!.decoded;
 
     // Create auth witnesses for call authorizations
     if (callAuthorizations.length > 0) {
@@ -214,8 +193,7 @@ export class SendTxOperation<
       maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,
       maxPriorityFeesPerGas: feeOptions.gasSettings.maxPriorityFeesPerGas,
       gasLimits: opts.fee?.gasSettings?.gasLimits ?? estimated.gasLimits,
-      teardownGasLimits:
-        opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
+      teardownGasLimits: opts.fee?.gasSettings?.teardownGasLimits ?? estimated.teardownGasLimits,
     });
 
     // Create transaction request with estimated gas settings
@@ -274,27 +252,19 @@ export class SendTxOperation<
           title: displayData.title,
           from: displayData.from.toString(),
           stats: displayData.stats,
-          embeddedPaymentMethodFeePayer:
-            displayData.embeddedPaymentMethodFeePayer?.toString(),
+          embeddedPaymentMethodFeePayer: displayData.embeddedPaymentMethodFeePayer?.toString(),
         },
         timestamp: Date.now(),
       },
     ]);
   }
 
-  async execute(
-    executionData: SendTxExecutionData<W>,
-  ): Promise<SendTxResult<W>> {
-    // Track phase timings
-    const provingStartTime = Date.now();
-
+  async execute(executionData: SendTxExecutionData<W>): Promise<SendTxResult<W>> {
     // Report proving stage
     await this.emitProgress("PROVING");
 
     const from =
-      executionData.from === NO_FROM
-        ? NO_FROM
-        : AztecAddress.fromString(executionData.from!);
+      executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromString(executionData.from!);
 
     let provenTx: TxProvingResult;
     try {
@@ -305,27 +275,20 @@ export class SendTxOperation<
     } catch (provingError: unknown) {
       // Proving failed - offer to export debug data
       const errorMessage =
-        provingError instanceof Error
-          ? provingError.message
-          : String(provingError);
+        provingError instanceof Error ? provingError.message : String(provingError);
 
       await this.emitProgress("PROVING FAILED", errorMessage);
 
       // Generate profile data for debugging
       try {
-        const profileResult = await this.pxe.profileTx(
-          executionData.txRequest,
-          {
-            profileMode: "execution-steps",
-            skipProofGeneration: true,
-            scopes: this.scopesFrom(from),
-          },
-        );
+        const profileResult = await this.pxe.profileTx(executionData.txRequest, {
+          profileMode: "execution-steps",
+          skipProofGeneration: true,
+          scopes: this.scopesFrom(from, executionData.additionalScopes),
+        });
 
         // Serialize the execution steps to msgpack format
-        const serializedData = serializePrivateExecutionSteps(
-          profileResult.executionSteps,
-        );
+        const serializedData = serializePrivateExecutionSteps(profileResult.executionSteps);
 
         // Emit event for UI to show the debug export dialog
         this.interactionManager.dispatchEvent(
@@ -341,10 +304,7 @@ export class SendTxOperation<
         );
       } catch (profileError) {
         // If profiling also fails, just log and continue with original error
-        console.error(
-          "Failed to generate profile for debug export:",
-          profileError,
-        );
+        console.error("Failed to generate profile for debug export:", profileError);
       }
 
       // Re-throw the original proving error
@@ -355,17 +315,14 @@ export class SendTxOperation<
     const rawStats = provenTx.stats;
     const offchainOutput = extractOffchainOutput(
       provenTx.getOffchainEffects(),
-      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables
-        .timestamp,
+      provenTx.publicInputs.constants.anchorBlockHeader.globalVariables.timestamp,
     );
 
     const tx = await provenTx.toTx();
     const txHash = tx.getTxHash();
 
     if (await this.aztecNode.getTxEffect(txHash)) {
-      throw new Error(
-        `A settled tx with equal hash ${txHash.toString()} exists.`,
-      );
+      throw new Error(`A settled tx with equal hash ${txHash.toString()} exists.`);
     }
 
     // Report sending stage
@@ -389,18 +346,14 @@ export class SendTxOperation<
           sending: sendingTime,
         },
       };
-      await this.db.updateTxPayloadStats(
-        executionData.payloadHash,
-        enrichedStats,
-      );
+      await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
       return { txHash, ...offchainOutput } as SendTxResult<W>;
     }
 
     // Otherwise, wait for the full receipt (default behavior on wait: undefined)
     await this.emitProgress("MINING", `TxHash: ${txHash.toString()}`);
     const miningStartTime = Date.now();
-    const waitOpts =
-      typeof executionData.wait === "object" ? executionData.wait : undefined;
+    const waitOpts = typeof executionData.wait === "object" ? executionData.wait : undefined;
     const receipt = await waitForTx(this.aztecNode, txHash, {
       ...waitOpts,
       waitForStatus: TxStatus.PROPOSED,
@@ -418,10 +371,7 @@ export class SendTxOperation<
         mining: miningTime,
       },
     };
-    await this.db.updateTxPayloadStats(
-      executionData.payloadHash,
-      enrichedStats,
-    );
+    await this.db.updateTxPayloadStats(executionData.payloadHash, enrichedStats);
 
     return { receipt, ...offchainOutput } as SendTxResult<W>;
   }

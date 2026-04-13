@@ -1,6 +1,4 @@
-import type {
-  ExecutionEvent,
-} from "../../../wallet/decoding/tx-callstack-decoder";
+import type { ExecutionEvent } from "../../../wallet/decoding/tx-callstack-decoder";
 import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-authorization-formatter";
 import { PrivateCallDisplay } from "./PrivateCallDisplay";
 import { PublicCallDisplay } from "./PublicCallDisplay";
@@ -28,12 +26,6 @@ export function ExecutionEventDisplay({
       />
     );
   } else {
-    return (
-      <PublicCallDisplay
-        call={event}
-        accordionBgColor={accordionBgColor}
-        compact={compact}
-      />
-    );
+    return <PublicCallDisplay call={event} accordionBgColor={accordionBgColor} compact={compact} />;
   }
 }

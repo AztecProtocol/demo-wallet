@@ -13,14 +13,7 @@
  * bootstrapping accounts from the cookie.
  */
 
-import {
-  StrictMode,
-  useMemo,
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
+import { StrictMode, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Button,
@@ -57,10 +50,7 @@ import {
   setCookiePassphrase,
   hasCookiePassphrase,
 } from "../wallet/wallet-service.ts";
-import {
-  hasAccountsCookie,
-  readAccountsCookie,
-} from "../wallet/sync-cookies.ts";
+import { hasAccountsCookie, readAccountsCookie } from "../wallet/sync-cookies.ts";
 import { EmojiVerification } from "./components/EmojiVerification.tsx";
 import { PinDialog } from "./components/PinDialog.tsx";
 import { Fr } from "@aztec/aztec.js/fields";
@@ -218,8 +208,8 @@ function StorageAccessGate({
       ) : (
         <>
           <Typography variant="body2" color="text.secondary">
-            Your browser requires you to visit the wallet site directly before
-            it can be used in an iframe.
+            Your browser requires you to visit the wallet site directly before it can be used in an
+            iframe.
           </Typography>
           <Link href={window.location.origin} target="_blank" rel="noopener">
             Open wallet in a new tab
@@ -249,8 +239,7 @@ function NoCookieGate({ onRetry }: { onRetry: () => void }) {
     >
       <Typography variant="h6">Aztec Web Demo Wallet</Typography>
       <Typography variant="body2" color="text.secondary">
-        No wallet accounts found. Create an account in the standalone wallet
-        first.
+        No wallet accounts found. Create an account in the standalone wallet first.
       </Typography>
       <Link href={window.location.origin} target="_blank" rel="noopener">
         Open wallet
@@ -267,7 +256,9 @@ function NoCookieGate({ onRetry }: { onRetry: () => void }) {
 function IframeContent() {
   const { currentNetwork, switchNetwork } = useNetwork();
   const switchNetworkRef = useRef(switchNetwork);
-  useEffect(() => { switchNetworkRef.current = switchNetwork; }, [switchNetwork]);
+  useEffect(() => {
+    switchNetworkRef.current = switchNetwork;
+  }, [switchNetwork]);
 
   // Gate states:
   //   checking → needs-storage → needs-pin → ready
@@ -286,10 +277,7 @@ function IframeContent() {
   // Wallet state (only used after gate === "ready")
   const [authQueue, setAuthQueue] = useState<AuthorizationRequest[]>([]);
   const [verificationHash, setVerificationHash] = useState<string | null>(null);
-  const clearVerificationHash = useCallback(
-    () => setVerificationHash(null),
-    [],
-  );
+  const clearVerificationHash = useCallback(() => setVerificationHash(null), []);
 
   const clearVerificationHashRef = useRef(clearVerificationHash);
   useEffect(() => {
@@ -310,9 +298,7 @@ function IframeContent() {
   // ─── PIN gate promise ───
   // getWallet awaits this before bootstrapping accounts from cookie.
   // Resolved when the PIN is verified or passphrase is already set.
-  const pinGateRef = useRef<{ resolve: () => void; promise: Promise<void> }>(
-    null!,
-  );
+  const pinGateRef = useRef<{ resolve: () => void; promise: Promise<void> }>(null!);
   if (!pinGateRef.current) {
     let resolve: () => void;
     const promise = new Promise<void>((r) => {
@@ -355,7 +341,7 @@ function IframeContent() {
       } else {
         setGate("no-cookie");
       }
-    } catch (err) {
+    } catch (_err) {
       setGate("needs-visit");
     }
   }, []);
@@ -420,22 +406,13 @@ function IframeContent() {
           clearVerificationHashRef.current();
           const rawChainId = (chainInfo as any).chainId;
           const rawVersion = (chainInfo as any).version;
-          const chainId =
-            rawChainId instanceof Fr
-              ? rawChainId
-              : Fr.fromString(String(rawChainId));
-          const version =
-            rawVersion instanceof Fr
-              ? rawVersion
-              : Fr.fromString(String(rawVersion));
+          const chainId = rawChainId instanceof Fr ? rawChainId : Fr.fromString(String(rawChainId));
+          const version = rawVersion instanceof Fr ? rawVersion : Fr.fromString(String(rawVersion));
 
           // Lock the iframe to the dApp's network on first wallet request
           if (!networkLocked) {
             networkLocked = true;
-            const dAppNetwork = getNetworkByChainId(
-              chainId.toNumber(),
-              version.toNumber(),
-            );
+            const dAppNetwork = getNetworkByChainId(chainId.toNumber(), version.toNumber());
             if (dAppNetwork) {
               switchNetworkRef.current(dAppNetwork.id);
             }

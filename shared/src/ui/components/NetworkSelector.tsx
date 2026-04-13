@@ -1,21 +1,8 @@
-import {
-  Select,
-  MenuItem,
-  Box,
-  CircularProgress,
-  Chip,
-  Tooltip,
-  type SelectChangeEvent,
-} from "@mui/material";
+import { Select, MenuItem, Box, CircularProgress, type SelectChangeEvent } from "@mui/material";
 import { useNetwork } from "../contexts/NetworkContext";
 
 export function NetworkSelector() {
-  const {
-    currentNetwork,
-    availableNetworks,
-    switchNetwork,
-    isNetworkSwitching,
-  } = useNetwork();
+  const { currentNetwork, availableNetworks, switchNetwork, isNetworkSwitching } = useNetwork();
 
   const handleNetworkChange = (event: SelectChangeEvent) => {
     switchNetwork(event.target.value);
@@ -54,9 +41,7 @@ export function NetworkSelector() {
           </MenuItem>
         ))}
       </Select>
-      {isNetworkSwitching && (
-        <CircularProgress size={20} sx={{ color: "primary.main" }} />
-      )}
+      {isNetworkSwitching && <CircularProgress size={20} sx={{ color: "primary.main" }} />}
     </Box>
   );
 }

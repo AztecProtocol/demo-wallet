@@ -1,26 +1,22 @@
 import { useContext, useEffect, useState, useRef, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  Typography,
-  Box,
-  IconButton,
-  Tooltip,
-  Alert,
-} from "@mui/material";
-import {
-  Apps as AppsIcon,
-  Block as RevokeIcon,
-} from "@mui/icons-material";
+import { Card, CardContent, Typography, Box, IconButton, Tooltip, Alert } from "@mui/material";
+import { Apps as AppsIcon, Block as RevokeIcon } from "@mui/icons-material";
 import { WalletContext } from "../../../../renderer";
-import type { GrantedCapability, AppCapabilities, CAPABILITY_VERSION, Capability } from "@aztec/aztec.js/wallet";
-import type { AuthorizationItem, RequestCapabilitiesParams } from "../../../../../wallet/types/authorization";
+import type {
+  GrantedCapability,
+  AppCapabilities,
+  CAPABILITY_VERSION,
+  Capability,
+} from "@aztec/aztec.js/wallet";
+import type {
+  AuthorizationItem,
+  RequestCapabilitiesParams,
+} from "../../../../../wallet/types/authorization";
 import { AuthorizeCapabilitiesContent } from "../../../authorization/AuthorizeCapabilitiesContent";
 
 interface AppAuthorizationCardProps {
   appId: string;
   onRevoke: (appId: string) => Promise<void>;
-  onUpdate: () => Promise<void>;
 }
 
 /**
@@ -55,16 +51,13 @@ function extractContractAddresses(caps: GrantedCapability[]): string[] {
   return [...addresses];
 }
 
-export function AppAuthorizationCard({
-  appId,
-  onRevoke,
-  onUpdate,
-}: AppAuthorizationCardProps) {
+export function AppAuthorizationCard({ appId, onRevoke }: AppAuthorizationCardProps) {
   const { walletAPI } = useContext(WalletContext);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [fakeRequest, setFakeRequest] = useState<AuthorizationItem<RequestCapabilitiesParams> | null>(null);
+  const [fakeRequest, setFakeRequest] =
+    useState<AuthorizationItem<RequestCapabilitiesParams> | null>(null);
   // Track granted capabilities for diffing in handleCapabilitiesChange, but don't
   // use as a useEffect dependency to avoid re-render loops.
   const grantedRef = useRef<GrantedCapability[]>([]);
@@ -87,9 +80,8 @@ export function AppAuthorizationCard({
 
       // Resolve contract names from all requested capabilities
       const addresses = extractContractAddresses(result.requested);
-      const resolvedNames = addresses.length > 0
-        ? await walletAPI.resolveContractNames(addresses)
-        : {};
+      const resolvedNames =
+        addresses.length > 0 ? await walletAPI.resolveContractNames(addresses) : {};
 
       // Build existingGrants from currently-granted capabilities
       const existingGrants: Record<string, boolean> = {};
@@ -105,9 +97,9 @@ export function AppAuthorizationCard({
         // Merge granted account data into the requested capabilities so the
         // UI initialises checkboxes from the *currently granted* accounts
         // rather than from the (cumulative) requested list.
-        const grantedAccountsCap = result.granted.find(
-          (c) => c.type === "accounts",
-        ) as GrantedCapability & { accounts?: unknown[] } | undefined;
+        const grantedAccountsCap = result.granted.find((c) => c.type === "accounts") as
+          | (GrantedCapability & { accounts?: unknown[] })
+          | undefined;
 
         const mergedCapabilities = result.requested.map((cap) => {
           if (cap.type === "accounts" && grantedAccountsCap) {
@@ -164,57 +156,56 @@ export function AppAuthorizationCard({
     }
   };
 
-  const handleCapabilitiesChange = useCallback((data: {
-    granted: GrantedCapability[];
-    mode: "strict" | "permissive";
-    duration: number;
-  }) => {
-    // Clear any pending save
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Debounce: save after 500ms of no changes
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        setSaving(true);
-
-        // Build old and new key sets for diffing
-        const oldGrantedKeys = new Set<string>();
-        for (const cap of grantedRef.current) {
-          const keys = await walletAPI.capabilityToStorageKeys(cap);
-          for (const key of keys) oldGrantedKeys.add(key);
-        }
-
-        const newGrantedKeys = new Set<string>();
-        for (const cap of data.granted) {
-          const keys = await walletAPI.capabilityToStorageKeys(cap);
-          for (const key of keys) newGrantedKeys.add(key);
-        }
-
-        // Delete individual keys that were removed (not entire capabilities)
-        for (const key of oldGrantedKeys) {
-          if (!newGrantedKeys.has(key)) {
-            await walletAPI.revokeAuthorization(`${appId}:${key}`);
-          }
-        }
-
-        // Store all newly granted capabilities (additive upsert).
-        // This also overwrites capability data blobs (e.g. account lists).
-        if (data.granted.length > 0) {
-          await walletAPI.storeCapabilityGrants(appId, data.granted);
-        }
-
-        // Update ref (not state — no re-render needed)
-        grantedRef.current = data.granted;
-      } catch (err) {
-        console.error("[AppAuthorizationCard] Failed to save capabilities:", err);
-        alert(`Failed to save: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setSaving(false);
+  const handleCapabilitiesChange = useCallback(
+    (data: { granted: GrantedCapability[]; mode: "strict" | "permissive"; duration: number }) => {
+      // Clear any pending save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
-    }, 500);
-  }, [appId, walletAPI]);
+
+      // Debounce: save after 500ms of no changes
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          setSaving(true);
+
+          // Build old and new key sets for diffing
+          const oldGrantedKeys = new Set<string>();
+          for (const cap of grantedRef.current) {
+            const keys = await walletAPI.capabilityToStorageKeys(cap);
+            for (const key of keys) oldGrantedKeys.add(key);
+          }
+
+          const newGrantedKeys = new Set<string>();
+          for (const cap of data.granted) {
+            const keys = await walletAPI.capabilityToStorageKeys(cap);
+            for (const key of keys) newGrantedKeys.add(key);
+          }
+
+          // Delete individual keys that were removed (not entire capabilities)
+          for (const key of oldGrantedKeys) {
+            if (!newGrantedKeys.has(key)) {
+              await walletAPI.revokeAuthorization(`${appId}:${key}`);
+            }
+          }
+
+          // Store all newly granted capabilities (additive upsert).
+          // This also overwrites capability data blobs (e.g. account lists).
+          if (data.granted.length > 0) {
+            await walletAPI.storeCapabilityGrants(appId, data.granted);
+          }
+
+          // Update ref (not state — no re-render needed)
+          grantedRef.current = data.granted;
+        } catch (err) {
+          console.error("[AppAuthorizationCard] Failed to save capabilities:", err);
+          alert(`Failed to save: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          setSaving(false);
+        }
+      }, 500);
+    },
+    [appId, walletAPI],
+  );
 
   return (
     <Card sx={{ width: "100%", position: "relative" }}>
@@ -256,9 +247,7 @@ export function AppAuthorizationCard({
             showAppId={false}
           />
         ) : (
-          <Alert severity="info">
-            No capabilities have been requested by this app yet
-          </Alert>
+          <Alert severity="info">No capabilities have been requested by this app yet</Alert>
         )}
       </CardContent>
     </Card>

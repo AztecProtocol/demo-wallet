@@ -1,18 +1,66 @@
-name: CI Build
+name: CI
 
 on:
-  pull_request:
-    branches:
-      - main
-      - next
   push:
     branches:
       - main
       - next
+  pull_request:
+    branches:
+      - main
+      - next
+  pull_request_target:
+    branches:
+      - main
+      - next
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
   build:
-    uses: ./.github/workflows/build.yml
+    name: Build Artifacts
+    needs: lint
+    uses: ./.github/workflows/build-artifacts.yml
     with:
       release-mode: false
       retention-days: 7
+
+  deploy-web:
+    name: Deploy Web Wallet
+    needs: lint
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      production: false
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      pr-number: ${{ github.event.pull_request.number || 0 }}
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

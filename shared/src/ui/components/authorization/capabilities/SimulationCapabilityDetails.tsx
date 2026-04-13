@@ -3,7 +3,6 @@ import Typography from "@mui/material/Typography";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { ContractFunctionPattern } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import type { SimulationCapability } from "./types";
 
 interface SimulationCapabilityDetailsProps {
@@ -29,17 +28,13 @@ function PatternCards({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
       {patterns.map((pattern, idx) => {
-        const contractKey =
-          pattern.contract === "*" ? "*" : pattern.contract.toString();
+        const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
         const addressStr = contractKey;
         const rawName = contractMetadata.get(addressStr);
         const name = rawName && !rawName.includes("...") ? rawName : undefined;
         const shortAddr =
-          contractKey === "*"
-            ? null
-            : `${addressStr.slice(0, 10)}...${addressStr.slice(-8)}`;
-        const funcName =
-          pattern.function === "*" ? "any function" : pattern.function;
+          contractKey === "*" ? null : `${addressStr.slice(0, 10)}...${addressStr.slice(-8)}`;
+        const funcName = pattern.function === "*" ? "any function" : pattern.function;
         const storageKey = `${prefix}:${contractKey}:${pattern.function}`;
 
         return (
@@ -61,11 +56,7 @@ function PatternCards({
                 </Typography>
               ) : name ? (
                 <>
-                  <Typography
-                    variant="caption"
-                    fontWeight={600}
-                    sx={{ display: "block" }}
-                  >
+                  <Typography variant="caption" fontWeight={600} sx={{ display: "block" }}>
                     {name}
                   </Typography>
                   <Typography
@@ -97,10 +88,7 @@ function PatternCards({
                 />
               }
               label={
-                <Typography
-                  variant="caption"
-                  sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}
-                >
+                <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>
                   {funcName}
                 </Typography>
               }
@@ -124,10 +112,7 @@ export function SimulationCapabilityDetails({
       {/* Transaction Simulations Section */}
       {capability.transactions && (
         <Box sx={{ mb: 1 }}>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 600, display: "block", mb: 0.5 }}
-          >
+          <Typography variant="caption" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>
             Transaction Simulations (simulateTx)
           </Typography>
           {capability.transactions.scope === "*" ? (
@@ -149,10 +134,7 @@ export function SimulationCapabilityDetails({
       {/* Utility Simulations Section */}
       {capability.utilities && (
         <Box>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 600, display: "block", mb: 0.5, mt: 1 }}
-          >
+          <Typography variant="caption" sx={{ fontWeight: 600, display: "block", mb: 0.5, mt: 1 }}>
             Utility Simulations (simulateUtility)
           </Typography>
           {capability.utilities.scope === "*" ? (

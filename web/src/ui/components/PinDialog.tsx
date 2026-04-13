@@ -12,12 +12,7 @@
  */
 
 import { useState, useCallback } from "react";
-import {
-  Box,
-  Button,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Button, TextField, Typography } from "@mui/material";
 
 export interface PinDialogProps {
   mode: "set" | "enter";

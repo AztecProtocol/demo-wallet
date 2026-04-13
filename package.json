@@ -9,8 +9,27 @@
     "shared"
   ],
   "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint --filter='*'",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
+    "typecheck": "turbo run typecheck --filter='*'",
+    "test": "turbo run test",
     "local-aztec:enable": "node scripts/toggle-local-aztec.js enable && yarn install && cd extension && corepack yarn install",
     "local-aztec:disable": "node scripts/toggle-local-aztec.js disable && yarn install && cd extension && corepack yarn install",
     "local-aztec:status": "node scripts/toggle-local-aztec.js status"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.1.3",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^15.0.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.4",
+    "typescript": "~5.6.2",
+    "typescript-eslint": "^8.32.0"
   }
 }

@@ -34,11 +34,11 @@ export function AuthorizeAccountsContent({
       const allAccounts: InternalAccount[] = await walletAPI.getAccounts();
       setAccounts(
         allAccounts.map((acc) => ({
-            address: acc.item.toString(),
-            alias: acc.alias,
-            originalAlias: acc.alias,
-            selected: false,
-          }))
+          address: acc.item.toString(),
+          alias: acc.alias,
+          originalAlias: acc.alias,
+          selected: false,
+        })),
       );
     };
     loadAccounts();
@@ -60,16 +60,12 @@ export function AuthorizeAccountsContent({
 
   const handleToggleAccount = (index: number) => {
     setAccounts((prev) =>
-      prev.map((acc, i) =>
-        i === index ? { ...acc, selected: !acc.selected } : acc
-      )
+      prev.map((acc, i) => (i === index ? { ...acc, selected: !acc.selected } : acc)),
     );
   };
 
   const handleAliasChange = (index: number, newAlias: string) => {
-    setAccounts((prev) =>
-      prev.map((acc, i) => (i === index ? { ...acc, alias: newAlias } : acc))
-    );
+    setAccounts((prev) => prev.map((acc, i) => (i === index ? { ...acc, alias: newAlias } : acc)));
   };
 
   return (
@@ -77,12 +73,11 @@ export function AuthorizeAccountsContent({
       {showAppId && (
         <>
           <Typography variant="body1" gutterBottom>
-            App <strong>{request.appId}</strong> is requesting access to your
-            accounts.
+            App <strong>{request.appId}</strong> is requesting access to your accounts.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Select which accounts to share. You can also customize the aliases
-            that will be visible to the app.
+            Select which accounts to share. You can also customize the aliases that will be visible
+            to the app.
           </Typography>
         </>
       )}
@@ -99,17 +94,12 @@ export function AuthorizeAccountsContent({
               border: 1,
               borderColor: account.selected ? "primary.main" : "divider",
               borderRadius: 1,
-              bgcolor: account.selected
-                ? "action.hover"
-                : "background.paper",
+              bgcolor: account.selected ? "action.hover" : "background.paper",
             }}
           >
             <FormControlLabel
               control={
-                <Checkbox
-                  checked={account.selected}
-                  onChange={() => handleToggleAccount(index)}
-                />
+                <Checkbox checked={account.selected} onChange={() => handleToggleAccount(index)} />
               }
               label=""
               sx={{ m: 0 }}
@@ -152,8 +142,8 @@ export function AuthorizeAccountsContent({
       )}
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This authorization will be remembered. You can revoke it later from the
-        Authorized Apps settings.
+        This authorization will be remembered. You can revoke it later from the Authorized Apps
+        settings.
       </Typography>
     </>
   );

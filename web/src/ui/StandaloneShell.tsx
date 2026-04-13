@@ -43,13 +43,7 @@ export function StandaloneShell() {
   );
 
   if (!pinReady) {
-    return (
-      <PinDialog
-        mode={pinMode}
-        error={pinError}
-        onSubmit={handlePinSubmit}
-      />
-    );
+    return <PinDialog mode={pinMode} error={pinError} onSubmit={handlePinSubmit} />;
   }
 
   return <Root walletApiFactory={WalletApi.create} />;

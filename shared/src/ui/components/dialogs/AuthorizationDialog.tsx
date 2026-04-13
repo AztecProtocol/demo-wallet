@@ -174,9 +174,7 @@ export function AuthorizationDialog({
   const isSmall = useMediaQuery(theme.breakpoints.down("md"));
   const { walletAPI } = useContext(WalletContext);
   const items = request.items;
-  const [accountList, setAccountList] = useState<
-    Array<{ alias: string; item: AztecAddress }>
-  >([]);
+  const [accountList, setAccountList] = useState<Array<{ alias: string; item: AztecAddress }>>([]);
 
   // Load accounts for displaying "from" information
   useEffect(() => {
@@ -207,8 +205,8 @@ export function AuthorizationDialog({
             item.method === "getContractClassMetadata",
           // Note: createAuthWit is intentionally NOT persistent
         },
-      ])
-    )
+      ]),
+    ),
   );
 
   // Reset state when request changes (new item from queue)
@@ -229,8 +227,8 @@ export function AuthorizationDialog({
               item.method === "getContractClassMetadata",
             // Note: createAuthWit is intentionally NOT persistent
           },
-        ])
-      )
+        ]),
+      ),
     );
   }, [request.id, items]); // Reset when request ID or items change
 
@@ -283,9 +281,7 @@ export function AuthorizationDialog({
     onApprove(itemResponses);
   };
 
-  const approvedCount = Array.from(itemStates.values()).filter(
-    (s: ItemState) => s.approved
-  ).length;
+  const approvedCount = Array.from(itemStates.values()).filter((s: ItemState) => s.approved).length;
 
   return (
     <Dialog open={true} fullScreen={isSmall} maxWidth={!isSmall && wide ? "lg" : "md"} fullWidth>
@@ -297,7 +293,9 @@ export function AuthorizationDialog({
             justifyContent: "space-between",
           }}
         >
-          <Typography variant="subtitle1" fontWeight="bold">Authorization Request</Typography>
+          <Typography variant="subtitle1" fontWeight="bold">
+            Authorization Request
+          </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {queueLength > 1 && (
               <Typography
@@ -314,13 +312,7 @@ export function AuthorizationDialog({
                 {queueLength} pending
               </Typography>
             )}
-            <IconButton
-              edge="end"
-              color="inherit"
-              onClick={onDeny}
-              aria-label="close"
-              size="small"
-            >
+            <IconButton edge="end" color="inherit" onClick={onDeny} aria-label="close" size="small">
               <CloseIcon />
             </IconButton>
           </Box>
@@ -328,8 +320,8 @@ export function AuthorizationDialog({
       </DialogTitle>
       <DialogContent sx={{ px: { xs: 1.5, sm: 3 }, pt: 1 }}>
         <Typography variant="body1" gutterBottom>
-          App <strong>{request.appId}</strong> is requesting to perform{" "}
-          {items.length} operation{items.length > 1 ? "s" : ""}:
+          App <strong>{request.appId}</strong> is requesting to perform {items.length} operation
+          {items.length > 1 ? "s" : ""}:
         </Typography>
 
         <Box sx={{ mt: 2 }}>
@@ -353,9 +345,7 @@ export function AuthorizationDialog({
                 }}
               >
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Box
-                    sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}
-                  >
+                  <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
                     <Checkbox
                       checked={state.approved}
                       onChange={(e) => {
@@ -380,8 +370,7 @@ export function AuthorizationDialog({
                 <AccordionDetails sx={{ px: { xs: 1, sm: 2 }, pt: 1 }}>
                   <Box>
                     {/* Prominent info card for sendTx and simulateTx */}
-                    {(item.method === "sendTx" ||
-                      item.method === "simulateTx") &&
+                    {(item.method === "sendTx" || item.method === "simulateTx") &&
                       item.params.from && (
                         <Card
                           sx={{
@@ -409,7 +398,10 @@ export function AuthorizationDialog({
                                   gap: 0.5,
                                 }}
                               >
-                                <AppsIcon fontSize={isSmall ? "inherit" : "small"} color="primary" />
+                                <AppsIcon
+                                  fontSize={isSmall ? "inherit" : "small"}
+                                  color="primary"
+                                />
                                 {!isSmall && (
                                   <Typography variant="body2" fontWeight="medium">
                                     App:
@@ -432,11 +424,11 @@ export function AuthorizationDialog({
                               {(() => {
                                 const fromAddress = item.params.from;
                                 const isNoFrom = !fromAddress || fromAddress === "NO_FROM";
-                                const account = isNoFrom ? undefined : accountList.find((a) =>
-                                  a.item.equals(
-                                    AztecAddress.fromString(fromAddress)
-                                  )
-                                );
+                                const account = isNoFrom
+                                  ? undefined
+                                  : accountList.find((a) =>
+                                      a.item.equals(AztecAddress.fromString(fromAddress)),
+                                    );
                                 const internalAlias = isNoFrom
                                   ? "External entrypoint"
                                   : account?.alias || "Unknown Account";
@@ -488,15 +480,10 @@ export function AuthorizationDialog({
                       )}
 
                     {item.method === "sendTx" && (
-                      <AuthorizeSendTxContent
-                        request={item}
-                        showAppId={false}
-                        compact={isSmall}
-                      />
+                      <AuthorizeSendTxContent request={item} showAppId={false} compact={isSmall} />
                     )}
 
-                    {(item.method === "simulateTx" ||
-                      item.method === "simulateUtility") && (
+                    {(item.method === "simulateTx" || item.method === "simulateUtility") && (
                       <AuthorizeSimulateTxContent
                         request={item}
                         showAppId={false}
@@ -505,17 +492,11 @@ export function AuthorizationDialog({
                     )}
 
                     {item.method === "registerContract" && (
-                      <AuthorizeContractContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizeContractContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "registerSender" && (
-                      <AuthorizeSenderContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizeSenderContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "getAccounts" && (
@@ -539,31 +520,19 @@ export function AuthorizationDialog({
                     )}
 
                     {item.method === "createAuthWit" && (
-                      <AuthorizeCreateAuthWitContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizeCreateAuthWitContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "getPrivateEvents" && (
-                      <AuthorizePrivateEventsContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizePrivateEventsContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "getContractMetadata" && (
-                      <AuthorizeContractMetadataContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizeContractMetadataContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "getContractClassMetadata" && (
-                      <AuthorizeContractClassMetadataContent
-                        request={item}
-                        showAppId={false}
-                      />
+                      <AuthorizeContractClassMetadataContent request={item} showAppId={false} />
                     )}
 
                     {item.method === "requestCapabilities" && (
@@ -584,8 +553,8 @@ export function AuthorizationDialog({
         </Box>
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Review each operation above and select which ones you want to approve.
-          You can approve all, some, or none of the requested operations.
+          Review each operation above and select which ones you want to approve. You can approve
+          all, some, or none of the requested operations.
         </Typography>
       </DialogContent>
 

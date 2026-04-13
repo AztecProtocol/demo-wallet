@@ -57,9 +57,7 @@ const BB_WASM_PATH = isDev
   ? resolve(__dirname, "./bb/barretenberg-threads.wasm.gz")
   : "__RESOURCES_PATH__/bb/barretenberg-threads.wasm.gz";
 
-const BB_BINARY_PATH = isDev
-  ? resolve(__dirname, "./bb/bb")
-  : "__RESOURCES_PATH__/bb/bb";
+const BB_BINARY_PATH = isDev ? resolve(__dirname, "./bb/bb") : "__RESOURCES_PATH__/bb/bb";
 
 const BB_NAPI_PATH = isDev
   ? resolve(__dirname, "./bb/nodejs_module.node")
@@ -67,14 +65,10 @@ const BB_NAPI_PATH = isDev
 
 const platform = process.platform;
 const arch = process.arch;
-const nativeHostBinaryName =
-  platform === "win32" ? "native-host.exe" : "native-host";
+const nativeHostBinaryName = platform === "win32" ? "native-host.exe" : "native-host";
 
 const NATIVE_HOST_PATH = isDev
-  ? resolve(
-      __dirname,
-      `./dist/native-host/${platform}-${arch}/${nativeHostBinaryName}`,
-    )
+  ? resolve(__dirname, `./dist/native-host/${platform}-${arch}/${nativeHostBinaryName}`)
   : `__RESOURCES_PATH__/${platform}-${arch}/${nativeHostBinaryName}`;
 
 // https://vitejs.dev/config

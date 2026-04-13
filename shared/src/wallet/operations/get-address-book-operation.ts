@@ -1,14 +1,7 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { Aliased } from "@aztec/aztec.js/wallet";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -75,13 +68,7 @@ export class GetAddressBookOperation extends ExternalOperation<
     return interaction;
   }
 
-  async prepare(): Promise<
-    PrepareResult<
-      GetAddressBookResult,
-      GetAddressBookDisplayData,
-      GetAddressBookExecutionData
-    >
-  > {
+  async prepare(): Promise<PrepareResult<GetAddressBookDisplayData, GetAddressBookExecutionData>> {
     // Load all senders from database
     const senders = await this.db.listSenders();
     const contacts: Aliased<AztecAddress>[] = senders.map((sender) => ({
@@ -134,9 +121,7 @@ export class GetAddressBookOperation extends ExternalOperation<
     }));
   }
 
-  async execute(
-    _executionData: GetAddressBookExecutionData,
-  ): Promise<GetAddressBookResult> {
+  async execute(_executionData: GetAddressBookExecutionData): Promise<GetAddressBookResult> {
     await this.emitProgress("SUCCESS", undefined, true);
 
     // Return the contacts selected by the user during authorization

@@ -11,22 +11,13 @@ import type {
   WalletInteractionType,
 } from "../wallet/types/wallet-interaction";
 import { WalletInteractionSchema } from "../wallet/types/wallet-interaction";
-import type {
-  AuthorizationRequest,
-  AuthorizationResponse,
-} from "../wallet/types/authorization";
+import type { AuthorizationRequest, AuthorizationResponse } from "../wallet/types/authorization";
 import type { InternalAccount } from "../wallet/core/internal-wallet";
 import type { DecodedExecutionTrace } from "../wallet/decoding/tx-callstack-decoder";
 
-export type OnWalletUpdateListener = (
-  interaction: WalletInteraction<any>
-) => void;
-export type OnAuthorizationRequestListener = (
-  request: AuthorizationRequest
-) => void;
-export type OnProofDebugExportRequestListener = (
-  request: ProofDebugExportRequest
-) => void;
+export type OnWalletUpdateListener = (interaction: WalletInteraction<any>) => void;
+export type OnAuthorizationRequestListener = (request: AuthorizationRequest) => void;
+export type OnProofDebugExportRequestListener = (request: ProofDebugExportRequest) => void;
 
 // Zod schema for execution trace components
 const ContractInfoSchema = z.object({
@@ -65,10 +56,8 @@ const PrivateCallEventSchema: z.ZodType<any> = z.lazy(() =>
     isStaticCall: z.boolean(),
     args: z.array(ArgValueSchema),
     returnValues: z.array(ArgValueSchema),
-    nestedEvents: z.array(
-      z.union([PrivateCallEventSchema, PublicCallEventSchema])
-    ),
-  })
+    nestedEvents: z.array(z.union([PrivateCallEventSchema, PublicCallEventSchema])),
+  }),
 );
 
 const DecodedExecutionTraceSchema = z.union([
@@ -122,8 +111,6 @@ const ExecutionStatsSchema = z.object({
     .optional(),
 });
 
-
-
 // Internal wallet interface - extends external with internal-only methods
 export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   createAccount(
@@ -131,11 +118,13 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
     type: AccountType,
     secret: Fr,
     salt: Fr,
-    signingKey: Buffer
+    signingKey: Buffer,
   ): Promise<void>;
   deployAccount(address: AztecAddress): Promise<void>;
   getAccounts(): Promise<InternalAccount[]>; // Override with enriched type
   getInteractions(): Promise<WalletInteraction<WalletInteractionType>[]>;
+  deleteInteraction(id: string): Promise<void>;
+  clearInteractions(): Promise<void>;
   getExecutionTrace(interactionId: string): Promise<
     | {
         trace?: DecodedExecutionTrace;
@@ -148,9 +137,7 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   resolveAuthorization(response: AuthorizationResponse): void;
   onWalletUpdate(callback: OnWalletUpdateListener): () => void;
   onAuthorizationRequest(callback: OnAuthorizationRequestListener): () => void;
-  onProofDebugExportRequest: (
-    callback: OnProofDebugExportRequestListener
-  ) => void;
+  onProofDebugExportRequest: (callback: OnProofDebugExportRequestListener) => void;
   // App authorization management
   listAuthorizedApps(): Promise<string[]>;
   getAppCapabilities(appId: string): Promise<{
@@ -162,130 +149,103 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   storeCapabilityGrants(
     appId: string,
     granted: GrantedCapability[],
-    requestedCapabilities?: GrantedCapability[]
+    requestedCapabilities?: GrantedCapability[],
   ): Promise<void>;
-  revokeCapability(
-    appId: string,
-    capability: GrantedCapability
-  ): Promise<void>;
+  revokeCapability(appId: string, capability: GrantedCapability): Promise<void>;
   updateAccountAuthorization(
     appId: string,
-    accounts: { alias: string; item: string }[]
+    accounts: { alias: string; item: string }[],
   ): Promise<void>;
   updateAddressBookAuthorization(
     appId: string,
-    contacts: { alias: string; item: string }[]
+    contacts: { alias: string; item: string }[],
   ): Promise<void>;
   revokeAuthorization(key: string): Promise<void>;
   revokeAppAuthorizations(appId: string): Promise<void>;
 };
 
-export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface> =
-  {
-    ...WalletSchema,
-    // @ts-ignore Annoying zod error
-    createAccount: z
-      .function()
-      .args(
-        z.string(),
-        z.enum(AccountTypes),
-        schemas.Fr,
-        schemas.Fr,
-        schemas.Buffer
-      ),
-    // @ts-ignore Annoying zod error
-    deployAccount: z
-      .function()
-      .args(schemas.AztecAddress),
-    // @ts-ignore - Type inference for enriched InternalAccount with type field
-    getAccounts: z
-      .function()
-      .args()
-      .returns(
-        z.array(
-          z.object({
-            alias: z.string(),
-            item: schemas.AztecAddress,
-            type: z.enum(AccountTypes),
-            deployed: z.boolean(),
-          })
-        )
-      ),
-    getInteractions: z
-      .function()
-      .args()
-      .returns(z.array(WalletInteractionSchema)),
-    // @ts-ignore
-    getExecutionTrace: z
-      .function()
-      .args(z.string())
-      .returns(
-        optional(
-          z.object({
-            trace: DecodedExecutionTraceSchema.optional(),
-            stats: ExecutionStatsSchema.optional(),
-            from: z.string().optional(),
-            embeddedPaymentMethodFeePayer: z.string().optional(),
-          })
-        )
-      ),
-    // @ts-ignore
-    resolveAuthorization: z.function().args(
-      z.object({
-        id: z.string(),
-        approved: z.boolean(),
-        appId: z.string(),
-        itemResponses: z.record(z.any()),
-      })
-    ),
-    // App authorization management
-    listAuthorizedApps: z.function().args().returns(z.array(z.string())),
-    // @ts-ignore
-    getAppCapabilities: z
-      .function()
-      .args(z.string())
-      .returns(
+export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface> = {
+  ...WalletSchema,
+  // @ts-expect-error Annoying zod error
+  createAccount: z
+    .function()
+    .args(z.string(), z.enum(AccountTypes), schemas.Fr, schemas.Fr, schemas.Buffer),
+  // @ts-expect-error Annoying zod error
+  deployAccount: z.function().args(schemas.AztecAddress),
+  // @ts-expect-error - Type inference for enriched InternalAccount with type field
+  getAccounts: z
+    .function()
+    .args()
+    .returns(
+      z.array(
         z.object({
-          requested: z.array(z.any()),
-          granted: z.array(z.any()),
+          alias: z.string(),
+          item: schemas.AztecAddress,
+          type: z.enum(AccountTypes),
+          deployed: z.boolean(),
         }),
       ),
-    // @ts-ignore
-    resolveContractNames: z
-      .function()
-      .args(z.array(z.string()))
-      .returns(z.record(z.string())),
-    // @ts-ignore
-    capabilityToStorageKeys: z
-      .function()
-      .args(z.any())
-      .returns(z.array(z.string())),
-    // @ts-ignore
-    storeCapabilityGrants: z
-      .function()
-      .args(z.string(), z.array(z.any()), z.array(z.any()).optional())
-      .returns(z.void()),
-    // @ts-ignore
-    revokeCapability: z
-      .function()
-      .args(z.string(), z.any())
-      .returns(z.void()),
-    // @ts-ignore
-    updateAccountAuthorization: z
-      .function()
-      .args(
-        z.string(),
-        z.array(z.object({ alias: z.string(), item: z.string() })),
+    ),
+  getInteractions: z.function().args().returns(z.array(WalletInteractionSchema)),
+  // @ts-expect-error - zod type inference
+  deleteInteraction: z.function().args(z.string()).returns(z.void()),
+  clearInteractions: z.function().args().returns(z.void()),
+  // @ts-expect-error - zod type inference
+  getExecutionTrace: z
+    .function()
+    .args(z.string())
+    .returns(
+      optional(
+        z.object({
+          trace: DecodedExecutionTraceSchema.optional(),
+          stats: ExecutionStatsSchema.optional(),
+          from: z.string().optional(),
+          embeddedPaymentMethodFeePayer: z.string().optional(),
+        }),
       ),
-    // @ts-ignore
-    updateAddressBookAuthorization: z
-      .function()
-      .args(
-        z.string(),
-        z.array(z.object({ alias: z.string(), item: z.string() })),
-      ),
-    // @ts-ignore
-    revokeAuthorization: z.function().args(z.string()),
-    // @ts-ignore
-    revokeAppAuthorizations: z.function().args(z.string()),
-  };
+    ),
+  // @ts-expect-error - zod type inference
+  resolveAuthorization: z.function().args(
+    z.object({
+      id: z.string(),
+      approved: z.boolean(),
+      appId: z.string(),
+      itemResponses: z.record(z.any()),
+    }),
+  ),
+  // App authorization management
+  listAuthorizedApps: z.function().args().returns(z.array(z.string())),
+  // @ts-expect-error - zod type inference
+  getAppCapabilities: z
+    .function()
+    .args(z.string())
+    .returns(
+      z.object({
+        requested: z.array(z.any()),
+        granted: z.array(z.any()),
+      }),
+    ),
+  // @ts-expect-error - zod type inference
+  resolveContractNames: z.function().args(z.array(z.string())).returns(z.record(z.string())),
+  // @ts-expect-error - zod type inference
+  capabilityToStorageKeys: z.function().args(z.any()).returns(z.array(z.string())),
+  // @ts-expect-error - zod type inference
+  storeCapabilityGrants: z
+    .function()
+    .args(z.string(), z.array(z.any()), z.array(z.any()).optional())
+    .returns(z.void()),
+  // @ts-expect-error - zod type inference
+  revokeCapability: z.function().args(z.string(), z.any()).returns(z.void()),
+  // @ts-expect-error - zod type inference
+  updateAccountAuthorization: z
+    .function()
+    .args(z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))),
+  // @ts-expect-error - zod type inference
+  updateAddressBookAuthorization: z
+    .function()
+    .args(z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))),
+  // @ts-expect-error - zod type inference
+  revokeAuthorization: z.function().args(z.string()),
+  // @ts-expect-error - zod type inference
+  revokeAppAuthorizations: z.function().args(z.string()),
+};

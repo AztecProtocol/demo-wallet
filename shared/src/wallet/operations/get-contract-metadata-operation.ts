@@ -1,14 +1,7 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { type ContractMetadata, ContractInitializationStatus } from "@aztec/aztec.js/wallet";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
@@ -64,9 +57,7 @@ export class GetContractMetadataOperation extends ExternalOperation<
     this.interactionManager = interactionManager;
   }
 
-  async check(
-    _address: AztecAddress,
-  ): Promise<GetContractMetadataResult | undefined> {
+  async check(_address: AztecAddress): Promise<GetContractMetadataResult | undefined> {
     // No early return - always requires authorization
     return undefined;
   }
@@ -89,13 +80,7 @@ export class GetContractMetadataOperation extends ExternalOperation<
 
   async prepare(
     address: AztecAddress,
-  ): Promise<
-    PrepareResult<
-      GetContractMetadataResult,
-      GetContractMetadataDisplayData,
-      GetContractMetadataExecutionData
-    >
-  > {
+  ): Promise<PrepareResult<GetContractMetadataDisplayData, GetContractMetadataExecutionData>> {
     // Query metadata
     const metadata = await this.getContractMetadata(address);
 

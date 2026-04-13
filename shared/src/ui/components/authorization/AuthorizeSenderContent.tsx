@@ -8,10 +8,7 @@ interface AuthorizeSenderContentProps {
 }
 
 // Reusable content component for displaying registerSender authorization details
-export function AuthorizeSenderContent({
-  request,
-  showAppId = true,
-}: AuthorizeSenderContentProps) {
+export function AuthorizeSenderContent({ request, showAppId = true }: AuthorizeSenderContentProps) {
   const address = request.params.address || "Unknown";
   const alias = request.params.alias || "No alias provided";
 
@@ -19,8 +16,7 @@ export function AuthorizeSenderContent({
     <>
       {showAppId && (
         <Typography variant="body1" gutterBottom>
-          App <strong>{request.appId}</strong> wants to register a sender
-          address.
+          App <strong>{request.appId}</strong> wants to register a sender address.
         </Typography>
       )}
       <Box
@@ -56,8 +52,7 @@ export function AuthorizeSenderContent({
         )}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This will allow the app to register this address as a known sender in
-        your wallet.
+        This will allow the app to register this address as a known sender in your wallet.
       </Typography>
     </>
   );

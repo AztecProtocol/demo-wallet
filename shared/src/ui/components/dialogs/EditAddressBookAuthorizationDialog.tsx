@@ -57,16 +57,12 @@ export function EditAddressBookAuthorizationDialog({
 
       const contactsWithSelection = contacts.map((contact) => {
         const isSelected = currentAddresses.has(contact.item.toString());
-        const currentContact = currentContacts.find(
-          (cc) => cc.item === contact.item.toString()
-        );
+        const currentContact = currentContacts.find((cc) => cc.item === contact.item.toString());
 
         return {
           address: contact.item.toString(),
           originalAlias: contact.alias,
-          displayAlias: isSelected
-            ? currentContact?.alias || contact.alias
-            : contact.alias,
+          displayAlias: isSelected ? currentContact?.alias || contact.alias : contact.alias,
           selected: isSelected,
         };
       });
@@ -81,16 +77,16 @@ export function EditAddressBookAuthorizationDialog({
   const handleToggleContact = (address: string) => {
     setAllContacts((prev) =>
       prev.map((contact) =>
-        contact.address === address ? { ...contact, selected: !contact.selected } : contact
-      )
+        contact.address === address ? { ...contact, selected: !contact.selected } : contact,
+      ),
     );
   };
 
   const handleAliasChange = (address: string, newAlias: string) => {
     setAllContacts((prev) =>
       prev.map((contact) =>
-        contact.address === address ? { ...contact, displayAlias: newAlias } : contact
-      )
+        contact.address === address ? { ...contact, displayAlias: newAlias } : contact,
+      ),
     );
   };
 
@@ -124,8 +120,7 @@ export function EditAddressBookAuthorizationDialog({
       <DialogTitle>Edit Address Book Authorization for {appId}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Select which contacts this app can access and customize the aliases
-          shown to the app.
+          Select which contacts this app can access and customize the aliases shown to the app.
         </Typography>
 
         {error && (
@@ -161,9 +156,7 @@ export function EditAddressBookAuthorizationDialog({
                 }
                 label={
                   <Box>
-                    <Typography variant="body2">
-                      {contact.originalAlias}
-                    </Typography>
+                    <Typography variant="body2">{contact.originalAlias}</Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
@@ -181,16 +174,14 @@ export function EditAddressBookAuthorizationDialog({
                   size="small"
                   label="Alias shown to app"
                   value={contact.displayAlias}
-                  onChange={(e) =>
-                    handleAliasChange(contact.address, e.target.value)
-                  }
+                  onChange={(e) => handleAliasChange(contact.address, e.target.value)}
                   sx={{
                     mt: 1,
                     ml: 4,
-                    '& .MuiInputBase-input': {
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }
+                    "& .MuiInputBase-input": {
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    },
                   }}
                   helperText="The app will see this contact under this alias"
                 />
@@ -209,11 +200,7 @@ export function EditAddressBookAuthorizationDialog({
         <Button onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={saving}
-        >
+        <Button onClick={handleSave} variant="contained" disabled={saving}>
           {saving ? "Saving..." : "Save"}
         </Button>
       </DialogActions>

@@ -16,8 +16,7 @@ export default defineContentScript({
   main() {
     const handler = new ContentScriptConnectionHandler({
       sendToBackground: (message) => browser.runtime.sendMessage(message),
-      addBackgroundListener: (listener) =>
-        browser.runtime.onMessage.addListener(listener),
+      addBackgroundListener: (listener) => browser.runtime.onMessage.addListener(listener),
     });
 
     handler.start();

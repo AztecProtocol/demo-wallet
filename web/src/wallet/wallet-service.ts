@@ -62,10 +62,7 @@ type SessionData = {
   }>;
   /** One-time account/contact bootstrap from cookies. Runs once per session. */
   bootstrapDone: Promise<void> | null;
-  wallets: Map<
-    string,
-    Promise<{ external: ExternalWallet; internal: InternalWallet }>
-  >;
+  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
 };
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
@@ -110,10 +107,7 @@ export async function getOrCreateSession(
   appId: string,
   onWalletEvent: (eventType: string, detail: unknown) => void,
 ): Promise<{ external: ExternalWallet; internal: InternalWallet }> {
-  const network = getNetworkByChainId(
-    chainInfo.chainId.toNumber(),
-    chainInfo.version.toNumber(),
-  );
+  const network = getNetworkByChainId(chainInfo.chainId.toNumber(), chainInfo.version.toNumber());
   if (!network) {
     throw new Error(
       `Unknown network: chainId=${chainInfo.chainId.toNumber()}, version=${chainInfo.version.toNumber()}`,
@@ -133,9 +127,7 @@ export async function getOrCreateSession(
 
   if (!session) {
     const log = createLogger("wallet:session");
-    log.info(
-      `[PXE-INIT] Creating NEW session with shared PXE instance for sessionId=${sessionId}`,
-    );
+    log.info(`[PXE-INIT] Creating NEW session with shared PXE instance for sessionId=${sessionId}`);
 
     const pxeInit = (async () => {
       const l1Contracts = await node.getL1ContractAddresses();
@@ -175,11 +167,7 @@ export async function getOrCreateSession(
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
 
-      const pxe = await createPXE(
-        node,
-        { ...getPXEConfig(), ...configOverrides },
-        options,
-      );
+      const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
 
       const pendingAuthorizations = new Map<
         string,
@@ -248,7 +236,9 @@ export async function getOrCreateSession(
           let type: string | undefined;
           try {
             type = JSON.parse(detail)?.type;
-          } catch { /* ignore parse errors */ }
+          } catch {
+            /* ignore parse errors */
+          }
 
           if (!IS_IFRAME && (type === "createAccount" || type === "deployAccount")) {
             scheduleAccountSync(sharedResources.db);
@@ -266,15 +256,9 @@ export async function getOrCreateSession(
         wallet.addEventListener("authorization-request", (event: Event) => {
           onWalletEvent("authorization-request", (event as CustomEvent).detail);
         });
-        wallet.addEventListener(
-          "proof-debug-export-request",
-          (event: Event) => {
-            onWalletEvent(
-              "proof-debug-export-request",
-              (event as CustomEvent).detail,
-            );
-          },
-        );
+        wallet.addEventListener("proof-debug-export-request", (event: Event) => {
+          onWalletEvent("proof-debug-export-request", (event as CustomEvent).detail);
+        });
       };
 
       wireEvents(externalWallet);
@@ -332,9 +316,7 @@ export async function bootstrapAccountsFromCookie(
 
   const { db } = await getSharedResources(chainInfo);
   const existingAccounts = await db.listAccounts();
-  const existingAddresses = new Set(
-    existingAccounts.map((a) => a.item.toString()),
-  );
+  const existingAddresses = new Set(existingAccounts.map((a) => a.item.toString()));
 
   let imported = 0;
   for (const portable of portableAccounts) {
@@ -352,9 +334,7 @@ export async function bootstrapAccountsFromCookie(
         alias: portable.alias,
       });
       imported++;
-      log.info(
-        `Imported account ${portable.alias ?? portable.address} from cookie`,
-      );
+      log.info(`Imported account ${portable.alias ?? portable.address} from cookie`);
     }
 
     // Sync deployed state from cookie
@@ -364,9 +344,7 @@ export async function bootstrapAccountsFromCookie(
 
     // Register with PXE via the wallet's getAccountManager (idempotent).
     await wallet.getAccountManager(portable.type, secretKey, salt, signingKey);
-    log.info(
-      `Registered account ${portable.alias ?? portable.address} with PXE`,
-    );
+    log.info(`Registered account ${portable.alias ?? portable.address} with PXE`);
   }
 
   log.info(
@@ -381,10 +359,7 @@ export async function bootstrapAccountsFromCookie(
  * Bypasses InternalWallet.registerSender to avoid emitting interaction events
  * for each bootstrapped contact (which would clutter the interaction history).
  */
-async function bootstrapContactsFromCookie(
-  db: WalletDB,
-  pxe: PXE,
-): Promise<number> {
+async function bootstrapContactsFromCookie(db: WalletDB, pxe: PXE): Promise<number> {
   const log = createLogger("wallet:cookie");
 
   if (!_cookiePassphrase) {
@@ -440,9 +415,7 @@ async function syncAccountsToCookie(db: WalletDB): Promise<void> {
       `Synced ${portableAccounts.length} account(s) to encrypted cookie`,
     );
   } catch (e) {
-    createLogger("wallet:cookie").warn(
-      `Failed to sync accounts to cookie: ${e}`,
-    );
+    createLogger("wallet:cookie").warn(`Failed to sync accounts to cookie: ${e}`);
   }
 }
 
@@ -465,9 +438,7 @@ async function syncContactsToCookie(db: WalletDB): Promise<void> {
       `Synced ${portableContacts.length} contact(s) to encrypted cookies`,
     );
   } catch (e) {
-    createLogger("wallet:cookie").warn(
-      `Failed to sync contacts to cookie: ${e}`,
-    );
+    createLogger("wallet:cookie").warn(`Failed to sync contacts to cookie: ${e}`);
   }
 }
 
@@ -486,9 +457,7 @@ async function syncCapabilitiesToCookie(db: WalletDB): Promise<void> {
       `Synced capabilities for ${apps.length} app(s) to encrypted cookies`,
     );
   } catch (e) {
-    createLogger("wallet:cookie").warn(
-      `Failed to sync capabilities to cookie: ${e}`,
-    );
+    createLogger("wallet:cookie").warn(`Failed to sync capabilities to cookie: ${e}`);
   }
 }
 

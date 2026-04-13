@@ -22,5 +22,5 @@
     "allowArbitraryExtensions": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*", "wallet-api.d.ts"]
+  "include": ["src/**/*", "wallet-api.d.ts", "forge.env.d.ts"]
 }

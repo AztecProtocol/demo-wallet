@@ -8,6 +8,7 @@
  */
 
 import { app } from "electron";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
@@ -15,7 +16,6 @@ import { join } from "node:path";
 // Native messaging configuration
 export const NATIVE_HOST_NAME = "com.aztec.keychain";
 const FIREFOX_EXTENSION_ID = "aztec-keychain@aztec.network";
-
 
 /**
  * Get the system-wide native messaging manifest path for Chrome.
@@ -65,46 +65,46 @@ export function checkSystemWideManifest(nativeHostPath: string, chromeExtensionI
         allowed_origins: [`chrome-extension://${extensionId}/`],
       },
       null,
-      2
+      2,
     );
 
     console.error("");
     console.error(
-      "╔══════════════════════════════════════════════════════════════════════════════╗"
+      "╔══════════════════════════════════════════════════════════════════════════════╗",
     );
     console.error(
-      "║                                                                              ║"
+      "║                                                                              ║",
     );
     console.error(
-      "║   ⚠️  NATIVE MESSAGING MANIFEST NOT FOUND IN SYSTEM-WIDE LOCATION ⚠️          ║"
+      "║   ⚠️  NATIVE MESSAGING MANIFEST NOT FOUND IN SYSTEM-WIDE LOCATION ⚠️          ║",
     );
     console.error(
-      "║                                                                              ║"
+      "║                                                                              ║",
     );
     console.error(
-      "║   When using WXT dev mode, Chrome runs with a custom --user-data-dir and    ║"
+      "║   When using WXT dev mode, Chrome runs with a custom --user-data-dir and    ║",
     );
     console.error(
-      "║   only checks the SYSTEM-WIDE location for native messaging hosts.          ║"
+      "║   only checks the SYSTEM-WIDE location for native messaging hosts.          ║",
     );
     console.error(
-      "║                                                                              ║"
+      "║                                                                              ║",
     );
     console.error(
-      "║   The manifest must be installed at:                                         ║"
+      "║   The manifest must be installed at:                                         ║",
     );
     console.error(`║   ${manifestPath.padEnd(72)}║`);
     console.error(
-      "║                                                                              ║"
+      "║                                                                              ║",
     );
     console.error(
-      "║   Run the command below to install it.                                       ║"
+      "║   Run the command below to install it.                                       ║",
     );
     console.error(
-      "║                                                                              ║"
+      "║                                                                              ║",
     );
     console.error(
-      "╚══════════════════════════════════════════════════════════════════════════════╝"
+      "╚══════════════════════════════════════════════════════════════════════════════╝",
     );
     console.error("");
     console.error("Copy and paste this command:");
@@ -130,34 +130,26 @@ function getManifestPaths(): { firefox: string[]; chrome: string[] } {
 
   switch (process.platform) {
     case "darwin":
-      paths.firefox.push(
-        join(home, "Library/Application Support/Mozilla/NativeMessagingHosts")
-      );
+      paths.firefox.push(join(home, "Library/Application Support/Mozilla/NativeMessagingHosts"));
       paths.chrome.push(
-        join(
-          home,
-          "Library/Application Support/Google/Chrome/NativeMessagingHosts"
-        )
+        join(home, "Library/Application Support/Google/Chrome/NativeMessagingHosts"),
       );
-      paths.chrome.push(
-        join(home, "Library/Application Support/Chromium/NativeMessagingHosts")
-      );
+      paths.chrome.push(join(home, "Library/Application Support/Chromium/NativeMessagingHosts"));
       break;
 
     case "linux":
       paths.firefox.push(join(home, ".mozilla/native-messaging-hosts"));
-      paths.chrome.push(
-        join(home, ".config/google-chrome/NativeMessagingHosts")
-      );
+      paths.chrome.push(join(home, ".config/google-chrome/NativeMessagingHosts"));
       paths.chrome.push(join(home, ".config/chromium/NativeMessagingHosts"));
       break;
 
-    case "win32":
+    case "win32": {
       // Windows manifests go in AppData, registry points to them
       const appData = join(home, "AppData", "Local", "AztecKeychain");
       paths.firefox.push(appData);
       paths.chrome.push(appData);
       break;
+    }
   }
 
   return paths;
@@ -179,10 +171,7 @@ function createFirefoxManifest(nativeHostPath: string): object {
 /**
  * Create Chrome native messaging manifest.
  */
-function createChromeManifest(
-  nativeHostPath: string,
-  extensionId: string
-): object {
+function createChromeManifest(nativeHostPath: string, extensionId: string): object {
   return {
     name: NATIVE_HOST_NAME,
     description: "Demo Wallet Native Messaging Host",
@@ -195,21 +184,13 @@ function createChromeManifest(
 /**
  * Install Windows registry keys for native messaging.
  */
-function installWindowsRegistryKeys(paths: {
-  firefox: string[];
-  chrome: string[];
-}): void {
-  const { execSync } = require("child_process");
-
+function installWindowsRegistryKeys(paths: { firefox: string[]; chrome: string[] }): void {
   // Firefox registry key
-  const firefoxManifestPath = join(
-    paths.firefox[0],
-    `${NATIVE_HOST_NAME}.json`
-  );
+  const firefoxManifestPath = join(paths.firefox[0], `${NATIVE_HOST_NAME}.json`);
   try {
     execSync(
       `reg add "HKCU\\Software\\Mozilla\\NativeMessagingHosts\\${NATIVE_HOST_NAME}" /ve /t REG_SZ /d "${firefoxManifestPath}" /f`,
-      { stdio: "pipe" }
+      { stdio: "pipe" },
     );
     console.log("Installed Firefox registry key");
   } catch (err: any) {
@@ -218,14 +199,11 @@ function installWindowsRegistryKeys(paths: {
 
   // Chrome registry key
   if (process.env.CHROME_EXTENSION_ID) {
-    const chromeManifestPath = join(
-      paths.chrome[0],
-      `${NATIVE_HOST_NAME}.json`
-    );
+    const chromeManifestPath = join(paths.chrome[0], `${NATIVE_HOST_NAME}.json`);
     try {
       execSync(
         `reg add "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${NATIVE_HOST_NAME}" /ve /t REG_SZ /d "${chromeManifestPath}" /f`,
-        { stdio: "pipe" }
+        { stdio: "pipe" },
       );
       console.log("Installed Chrome registry key");
     } catch (err: any) {
@@ -238,7 +216,10 @@ function installWindowsRegistryKeys(paths: {
  * Install native messaging manifests for all supported browsers.
  * Called on app startup to ensure the extension can communicate with the app.
  */
-export function installNativeMessagingManifests(nativeHostPath: string, chromeExtensionId: string): void {
+export function installNativeMessagingManifests(
+  nativeHostPath: string,
+  chromeExtensionId: string,
+): void {
   // Verify native host binary exists
   if (!fs.existsSync(nativeHostPath)) {
     console.error(`Native host binary not found: ${nativeHostPath}`);
@@ -262,19 +243,13 @@ export function installNativeMessagingManifests(nativeHostPath: string, chromeEx
       fs.writeFileSync(manifestPath, JSON.stringify(firefoxManifest, null, 2));
       console.log(`Installed Firefox manifest: ${manifestPath}`);
     } catch (err: any) {
-      console.error(
-        `Failed to install Firefox manifest to ${dir}:`,
-        err.message
-      );
+      console.error(`Failed to install Firefox manifest to ${dir}:`, err.message);
     }
   }
 
   // Install Chrome manifests (if extension ID is configured)
   if (chromeExtensionId) {
-    const chromeManifest = createChromeManifest(
-      nativeHostPath,
-      chromeExtensionId
-    );
+    const chromeManifest = createChromeManifest(nativeHostPath, chromeExtensionId);
     for (const dir of paths.chrome) {
       try {
         if (!fs.existsSync(dir)) {
@@ -284,19 +259,12 @@ export function installNativeMessagingManifests(nativeHostPath: string, chromeEx
         fs.writeFileSync(manifestPath, JSON.stringify(chromeManifest, null, 2));
         console.log(`Installed Chrome manifest: ${manifestPath}`);
       } catch (err: any) {
-        console.error(
-          `Failed to install Chrome manifest to ${dir}:`,
-          err.message
-        );
+        console.error(`Failed to install Chrome manifest to ${dir}:`, err.message);
       }
     }
   } else {
-    console.log(
-      "Chrome extension ID not configured, skipping Chrome manifest installation."
-    );
-    console.log(
-      "In production, set CHROME_EXTENSION_ID env var when building."
-    );
+    console.log("Chrome extension ID not configured, skipping Chrome manifest installation.");
+    console.log("In production, set CHROME_EXTENSION_ID env var when building.");
   }
 
   // Windows: Add registry keys

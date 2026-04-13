@@ -40,11 +40,6 @@ export function AuthorizedApps() {
     }
   };
 
-  const handleUpdate = async () => {
-    // Reload apps after updating
-    await loadApps();
-  };
-
   if (loading) {
     return (
       <Box
@@ -72,8 +67,8 @@ export function AuthorizedApps() {
     return (
       <Box sx={{ p: 2 }}>
         <Alert severity="info">
-          No apps have been authorized yet. When you grant persistent
-          authorizations to external applications, they will appear here.
+          No apps have been authorized yet. When you grant persistent authorizations to external
+          applications, they will appear here.
         </Alert>
       </Box>
     );
@@ -89,12 +84,7 @@ export function AuthorizedApps() {
       </Typography>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {apps.map((appId) => (
-          <AppAuthorizationCard
-            key={appId}
-            appId={appId}
-            onRevoke={handleRevoke}
-            onUpdate={handleUpdate}
-          />
+          <AppAuthorizationCard key={appId} appId={appId} onRevoke={handleRevoke} />
         ))}
       </Box>
     </Box>

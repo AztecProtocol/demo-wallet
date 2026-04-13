@@ -1,8 +1,5 @@
 import Box from "@mui/material/Box";
-import type {
-  PrivateCallEvent,
-  ExecutionEvent,
-} from "../../../wallet/decoding/tx-callstack-decoder";
+import type { PrivateCallEvent } from "../../../wallet/decoding/tx-callstack-decoder";
 import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-authorization-formatter";
 import { FunctionCallDisplay } from "./FunctionCallDisplay";
 import { ExecutionEventDisplay } from "./ExecutionEventDisplay";
@@ -10,14 +7,12 @@ import { ExecutionEventDisplay } from "./ExecutionEventDisplay";
 // Helper to check if a call requires authorization
 function requiresAuthorization(
   call: PrivateCallEvent,
-  authorizations?: ReadableCallAuthorization[]
+  authorizations?: ReadableCallAuthorization[],
 ): boolean {
   if (!authorizations || authorizations.length === 0) return false;
 
   return authorizations.some(
-    (auth) =>
-      auth.contract.address === call.contract.address &&
-      auth.function === call.function
+    (auth) => auth.contract.address === call.contract.address && auth.function === call.function,
   );
 }
 

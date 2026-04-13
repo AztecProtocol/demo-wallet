@@ -1,9 +1,5 @@
-import type {
-  WalletInteraction,
-  WalletInteractionType,
-} from "../types/wallet-interaction";
+import type { WalletInteraction, WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
-import type { AuthorizationManager } from "../managers/authorization-manager";
 
 /**
  * Persistence configuration for authorization caching.
@@ -16,11 +12,10 @@ export interface PersistenceConfig {
 /**
  * Result from the prepare phase of an operation.
  *
- * @template TResult - The final result type of the operation (unused but kept for backwards compatibility)
  * @template TDisplayData - The display data type for the UI
  * @template TExecutionData - The execution data type for the execute phase
  */
-export interface PrepareResult<TResult, TDisplayData, TExecutionData> {
+export interface PrepareResult<TDisplayData, TExecutionData> {
   /**
    * Data to display in the UI and authorization dialog.
    * Always complete and accurate - never fake/placeholder data.
@@ -99,9 +94,7 @@ export abstract class ExternalOperation<
    * @param args - Raw operation arguments
    * @returns The created interaction
    */
-  abstract createInteraction(
-    ...args: TArgs
-  ): Promise<WalletInteraction<WalletInteractionType>>;
+  abstract createInteraction(...args: TArgs): Promise<WalletInteraction<WalletInteractionType>>;
 
   /**
    * PHASE 2: PREPARE
@@ -111,9 +104,7 @@ export abstract class ExternalOperation<
    * @param args - Arguments for the operation
    * @returns PrepareResult containing earlyReturn, displayData, executionData, and persistence config
    */
-  abstract prepare(
-    ...args: TArgs
-  ): Promise<PrepareResult<TResult, TDisplayData, TExecutionData>>;
+  abstract prepare(...args: TArgs): Promise<PrepareResult<TDisplayData, TExecutionData>>;
 
   /**
    * PHASE 2B: REQUEST AUTHORIZATION (Standalone only)
@@ -127,7 +118,7 @@ export abstract class ExternalOperation<
    */
   abstract requestAuthorization(
     displayData: TDisplayData,
-    persistence?: PersistenceConfig
+    persistence?: PersistenceConfig,
   ): Promise<void>;
 
   /**
@@ -144,9 +135,7 @@ export abstract class ExternalOperation<
    * Set the current interaction context.
    * Called by orchestrators (standalone or batch) before execute().
    */
-  setCurrentInteraction(
-    interaction: WalletInteraction<WalletInteractionType> | undefined
-  ): void {
+  setCurrentInteraction(interaction: WalletInteraction<WalletInteractionType> | undefined): void {
     this.interaction = interaction;
   }
 
@@ -167,11 +156,11 @@ export abstract class ExternalOperation<
     updates?: Partial<{
       title: string;
       [key: string]: unknown;
-    }>
+    }>,
   ): Promise<void> {
     if (this.interaction) {
       await this.interactionManager.storeAndEmit(
-        this.interaction.update({ status, description, complete, ...updates })
+        this.interaction.update({ status, description, complete, ...updates }),
       );
     }
   }
@@ -200,18 +189,14 @@ export abstract class ExternalOperation<
       const prepared = await this.prepare(...args);
 
       // PHASE 3: REQUEST AUTHORIZATION (throws on error)
-      await this.requestAuthorization(
-        prepared.displayData,
-        prepared.persistence
-      );
+      await this.requestAuthorization(prepared.displayData, prepared.persistence);
 
       // PHASE 4: EXECUTE (throws on error, should set SUCCESS state before returning)
       const result = await this.execute(prepared.executionData!);
       return result;
     } catch (error) {
       // Unified error handling for all phases
-      const description =
-        error instanceof Error ? error.message : String(error);
+      const description = error instanceof Error ? error.message : String(error);
       await this.emitProgress("ERROR", description, true);
       throw error;
     } finally {

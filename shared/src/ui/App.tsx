@@ -46,44 +46,40 @@ type CompactTab = MenuSection | "interactions";
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentSection, setCurrentSection] = useState<MenuSection>("accounts");
-  const [interactionsPanelWidth, setInteractionsPanelWidth] = useState(
-    INTERACTIONS_PANEL_WIDTH
-  );
+  const [interactionsPanelWidth, setInteractionsPanelWidth] = useState(INTERACTIONS_PANEL_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [compactTab, setCompactTab] = useState<CompactTab>("accounts");
 
   // Track when each phase begins per interaction (interactionId:STATUS → timestamp)
   const phaseStartsRef = useRef<Map<string, number>>(new Map());
 
-
-  const [interactions, setInteractions] = useState<
-    WalletInteraction<WalletInteractionType>[]
-  >([]);
-  const [selectedInteractionTypes, setSelectedInteractionTypes] = useState<
-    WalletInteractionType[]
-  >([
-    "registerContract",
-    "createAccount",
-    "deployAccount",
-    "simulateTx",
-    "simulateUtility",
-    "sendTx",
-    "profileTx",
-    "registerSender",
-    "getAccounts",
-    "getAddressBook",
-    "createAuthWit",
-    "getPrivateEvents",
-    "getContractMetadata",
-    "getContractClassMetadata",
-    "requestCapabilities",
-  ]);
+  const [interactions, setInteractions] = useState<WalletInteraction<WalletInteractionType>[]>([]);
+  const [selectedInteractionTypes, setSelectedInteractionTypes] = useState<WalletInteractionType[]>(
+    [
+      "registerContract",
+      "createAccount",
+      "deployAccount",
+      "simulateTx",
+      "simulateUtility",
+      "sendTx",
+      "profileTx",
+      "registerSender",
+      "getAccounts",
+      "getAddressBook",
+      "createAuthWit",
+      "getPrivateEvents",
+      "getContractMetadata",
+      "getContractClassMetadata",
+      "requestCapabilities",
+    ],
+  );
 
   const [authQueue, setAuthQueue] = useState<AuthorizationRequest[]>([]);
   const currentAuth = authQueue[0] || null;
 
-  const [proofDebugExportRequest, setProofDebugExportRequest] =
-    useState<(ProofDebugExportRequest & { debugData: string }) | null>(null);
+  const [proofDebugExportRequest, setProofDebugExportRequest] = useState<
+    (ProofDebugExportRequest & { debugData: string }) | null
+  >(null);
 
   const { walletAPI } = useContext(WalletContext);
   const { currentNetwork } = useNetwork();
@@ -127,14 +123,11 @@ export function App() {
       if ((interaction as any).type === "capabilityChange") return;
 
       setInteractions((prevEvents) => {
-        const eventsMap = new Map<
-          string,
-          WalletInteraction<WalletInteractionType>
-        >(prevEvents.map((e) => [e.id, e]));
-        eventsMap.set(interaction.id, interaction);
-        return Array.from(eventsMap.values()).sort(
-          (a, b) => b.timestamp - a.timestamp
+        const eventsMap = new Map<string, WalletInteraction<WalletInteractionType>>(
+          prevEvents.map((e) => [e.id, e]),
         );
+        eventsMap.set(interaction.id, interaction);
+        return Array.from(eventsMap.values()).sort((a, b) => b.timestamp - a.timestamp);
       });
     });
 
@@ -152,7 +145,7 @@ export function App() {
       (request: ProofDebugExportRequest & { debugData: string }) => {
         console.log("Proof debug export request:", request.id);
         setProofDebugExportRequest(request);
-      }
+      },
     );
 
     return () => {
@@ -160,6 +153,17 @@ export function App() {
       unsubAuthRequest();
     };
   }, [currentNetwork.id, walletAPI]);
+
+  const handleDismissInteraction = (id: string) => {
+    walletAPI.deleteInteraction(id);
+    setInteractions((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleClearCompleted = () => {
+    const completedIds = interactions.filter((i) => i.complete).map((i) => i.id);
+    walletAPI.clearInteractions();
+    setInteractions((prev) => prev.filter((i) => !completedIds.includes(i.id)));
+  };
 
   const handleMenuToggle = () => {
     setMenuOpen(!menuOpen);
@@ -205,9 +209,7 @@ export function App() {
 
   const handleProofDebugExport = async () => {
     if (proofDebugExportRequest) {
-      const result = await (walletAPI as any).saveProofDebugData(
-        proofDebugExportRequest.debugData
-      );
+      const result = await (walletAPI as any).saveProofDebugData(proofDebugExportRequest.debugData);
       if (result?.success) {
         console.log("Debug data saved to:", result.filePath);
       } else if (result && !result.canceled) {
@@ -231,10 +233,7 @@ export function App() {
       if (!isResizing) return;
 
       const newWidth = window.innerWidth - e.clientX;
-      if (
-        newWidth >= INTERACTIONS_PANEL_MIN_WIDTH &&
-        newWidth <= INTERACTIONS_PANEL_MAX_WIDTH
-      ) {
+      if (newWidth >= INTERACTIONS_PANEL_MIN_WIDTH && newWidth <= INTERACTIONS_PANEL_MAX_WIDTH) {
         setInteractionsPanelWidth(newWidth);
       }
     };
@@ -292,7 +291,15 @@ export function App() {
   // ── Compact layout (< 700px wide OR < 500px tall) ──────────────────────────
   if (isCompact) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", overflow: "hidden" }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          width: "100%",
+          overflow: "hidden",
+        }}
+      >
         {/* Header row */}
         <Box
           sx={{
@@ -362,6 +369,8 @@ export function App() {
               interactions={interactions}
               selectedTypes={selectedInteractionTypes}
               onTypeFilterChange={setSelectedInteractionTypes}
+              onDismiss={handleDismissInteraction}
+              onClearCompleted={handleClearCompleted}
               phaseStartsRef={phaseStartsRef}
             />
           ) : (
@@ -415,10 +424,7 @@ export function App() {
                 />
               </Box>
               {hasTxTimeline && (
-                <TxProgressTimeline
-                  interaction={active}
-                  phaseStartsRef={phaseStartsRef}
-                />
+                <TxProgressTimeline interaction={active} phaseStartsRef={phaseStartsRef} />
               )}
             </Box>
           );
@@ -475,11 +481,7 @@ export function App() {
               borderColor: "divider",
             }}
           >
-            <IconButton
-              color="primary"
-              aria-label="open menu"
-              onClick={handleMenuToggle}
-            >
+            <IconButton color="primary" aria-label="open menu" onClick={handleMenuToggle}>
               <MenuIcon />
             </IconButton>
           </Box>
@@ -647,9 +649,7 @@ export function App() {
             }),
           }}
         />
-        <Box
-          sx={{ p: 2, borderBottom: 1, borderColor: "divider", borderLeft: 1 }}
-        >
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", borderLeft: 1 }}>
           <Typography variant="h6" component="h2">
             Interactions
           </Typography>
@@ -666,6 +666,8 @@ export function App() {
             interactions={interactions}
             selectedTypes={selectedInteractionTypes}
             onTypeFilterChange={setSelectedInteractionTypes}
+            onDismiss={handleDismissInteraction}
+            onClearCompleted={handleClearCompleted}
             phaseStartsRef={phaseStartsRef}
           />
         </Box>

@@ -1,14 +1,7 @@
-import {
-  ExternalOperation,
-  type PrepareResult,
-  type PersistenceConfig,
-} from "./base-operation";
+import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { PXE } from "@aztec/pxe/client/lazy";
-import {
-  WalletInteraction,
-  type WalletInteractionType,
-} from "../types/wallet-interaction";
+import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -51,23 +44,20 @@ export class RegisterSenderOperation extends ExternalOperation<
     private pxe: PXE,
     private db: WalletDB,
     interactionManager: InteractionManager,
-    private authorizationManager: AuthorizationManager
+    private authorizationManager: AuthorizationManager,
   ) {
     super();
     this.interactionManager = interactionManager;
   }
 
-  async check(
-    _address: AztecAddress,
-    _alias: string
-  ): Promise<RegisterSenderResult | undefined> {
+  async check(_address: AztecAddress, _alias: string): Promise<RegisterSenderResult | undefined> {
     // No early return checks for this operation
     return undefined;
   }
 
   async createInteraction(
     address: AztecAddress,
-    alias: string
+    alias: string,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
     const interaction = WalletInteraction.from({
@@ -85,14 +75,8 @@ export class RegisterSenderOperation extends ExternalOperation<
 
   async prepare(
     address: AztecAddress,
-    alias: string
-  ): Promise<
-    PrepareResult<
-      RegisterSenderResult,
-      RegisterSenderDisplayData,
-      RegisterSenderExecutionData
-    >
-  > {
+    alias: string,
+  ): Promise<PrepareResult<RegisterSenderDisplayData, RegisterSenderExecutionData>> {
     return {
       displayData: { address, alias },
       executionData: { address, alias },
@@ -101,7 +85,7 @@ export class RegisterSenderOperation extends ExternalOperation<
 
   async requestAuthorization(
     displayData: RegisterSenderDisplayData,
-    _persistence?: PersistenceConfig
+    _persistence?: PersistenceConfig,
   ): Promise<void> {
     // Update interaction with detailed title and status
     await this.emitProgress("REQUESTING AUTHORIZATION", undefined, false, {
@@ -122,9 +106,7 @@ export class RegisterSenderOperation extends ExternalOperation<
     ]);
   }
 
-  async execute(
-    executionData: RegisterSenderExecutionData
-  ): Promise<RegisterSenderResult> {
+  async execute(executionData: RegisterSenderExecutionData): Promise<RegisterSenderResult> {
     // Store sender in database
     await this.db.storeSender(executionData.address, executionData.alias);
 

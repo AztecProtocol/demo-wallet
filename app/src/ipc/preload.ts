@@ -2,10 +2,7 @@ import type { Aliased } from "@aztec/aztec.js/wallet";
 import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import { contextBridge, ipcRenderer } from "electron";
 import type { TxHash, TxReceipt } from "@aztec/stdlib/tx";
-import type {
-  WalletInteraction,
-  WalletInteractionType,
-} from "@demo-wallet/shared/core";
+import type { WalletInteraction, WalletInteractionType } from "@demo-wallet/shared/core";
 
 contextBridge.exposeInMainWorld("walletAPI", {
   getTxReceipt(stringifiedArgs: string): Promise<TxReceipt> {
@@ -26,10 +23,14 @@ contextBridge.exposeInMainWorld("walletAPI", {
   deployAccount(stringifiedArgs: string): Promise<void> {
     return ipcRenderer.invoke("deployAccount", stringifiedArgs);
   },
-  getInteractions(
-    stringifiedArgs: string
-  ): Promise<WalletInteraction<WalletInteractionType>[]> {
+  getInteractions(stringifiedArgs: string): Promise<WalletInteraction<WalletInteractionType>[]> {
     return ipcRenderer.invoke("getInteractions", stringifiedArgs);
+  },
+  deleteInteraction(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("deleteInteraction", stringifiedArgs);
+  },
+  clearInteractions(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("clearInteractions", stringifiedArgs);
   },
   getExecutionTrace(stringifiedArgs: string): Promise<any> {
     return ipcRenderer.invoke("getExecutionTrace", stringifiedArgs);
@@ -80,13 +81,11 @@ contextBridge.exposeInMainWorld("walletAPI", {
   },
   // Proof debug export
   saveProofDebugData(
-    base64Data: string
+    base64Data: string,
   ): Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }> {
     return ipcRenderer.invoke("saveProofDebugData", base64Data);
   },
   onProofDebugExportRequest(callback) {
-    return ipcRenderer.on("proof-debug-export-request", (_event, eventData) =>
-      callback(eventData)
-    );
+    return ipcRenderer.on("proof-debug-export-request", (_event, eventData) => callback(eventData));
   },
 });

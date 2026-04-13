@@ -1,7 +1,6 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
-import Chip from "@mui/material/Chip";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import type { AuthorizationItem } from "../../../wallet/types/authorization";
@@ -23,12 +22,10 @@ export function AuthorizeContractMetadataContent({
       {showAppId && (
         <>
           <Typography variant="body1" gutterBottom>
-            App <strong>{request.appId}</strong> is requesting contract metadata
-            information.
+            App <strong>{request.appId}</strong> is requesting contract metadata information.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This reveals whether you have a specific contract registered in your
-            wallet.
+            This reveals whether you have a specific contract registered in your wallet.
           </Typography>
         </>
       )}
@@ -38,9 +35,8 @@ export function AuthorizeContractMetadataContent({
           Privacy Notice
         </Typography>
         <Typography variant="body2">
-          Revealing contract registration status discloses information about
-          your interactions and interests. Only grant this permission to apps
-          you trust.
+          Revealing contract registration status discloses information about your interactions and
+          interests. Only grant this permission to apps you trust.
         </Typography>
       </Alert>
 
@@ -77,8 +73,7 @@ export function AuthorizeContractMetadataContent({
                 <CancelIcon fontSize="small" color="error" />
               )}
               <Typography variant="body2">
-                Contract {displayData.isRegistered ? "is" : "is not"} registered
-                in wallet
+                Contract {displayData.isRegistered ? "is" : "is not"} registered in wallet
               </Typography>
             </Box>
 
@@ -91,8 +86,7 @@ export function AuthorizeContractMetadataContent({
                     <CancelIcon fontSize="small" color="error" />
                   )}
                   <Typography variant="body2">
-                    Contract {displayData.isInitialized ? "is" : "is not"}{" "}
-                    initialized
+                    Contract {displayData.isInitialized ? "is" : "is not"} initialized
                   </Typography>
                 </Box>
 
@@ -103,8 +97,7 @@ export function AuthorizeContractMetadataContent({
                     <CancelIcon fontSize="small" color="error" />
                   )}
                   <Typography variant="body2">
-                    Instance {displayData.isPublished ? "is" : "is not"}{" "}
-                    published on-chain
+                    Instance {displayData.isPublished ? "is" : "is not"} published on-chain
                   </Typography>
                 </Box>
               </>
@@ -114,8 +107,8 @@ export function AuthorizeContractMetadataContent({
       </Box>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        This authorization can be made persistent for this specific contract.
-        You can revoke it later from the Authorized Apps settings.
+        This authorization can be made persistent for this specific contract. You can revoke it
+        later from the Authorized Apps settings.
       </Typography>
     </>
   );

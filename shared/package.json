@@ -8,17 +8,17 @@
     "./core": "./src/core.ts"
   },
   "dependencies": {
-    "@aztec/accounts": "v4.2.0-aztecnr-rc.2",
-    "@aztec/aztec.js": "v4.2.0-aztecnr-rc.2",
-    "@aztec/constants": "v4.2.0-aztecnr-rc.2",
-    "@aztec/entrypoints": "v4.2.0-aztecnr-rc.2",
-    "@aztec/foundation": "v4.2.0-aztecnr-rc.2",
-    "@aztec/kv-store": "v4.2.0-aztecnr-rc.2",
-    "@aztec/noir-contracts.js": "v4.2.0-aztecnr-rc.2",
-    "@aztec/protocol-contracts": "v4.2.0-aztecnr-rc.2",
-    "@aztec/pxe": "v4.2.0-aztecnr-rc.2",
-    "@aztec/stdlib": "v4.2.0-aztecnr-rc.2",
-    "@aztec/wallet-sdk": "v4.2.0-aztecnr-rc.2",
+    "@aztec/accounts": "v4.2.0-nightly.20260412",
+    "@aztec/aztec.js": "v4.2.0-nightly.20260412",
+    "@aztec/constants": "v4.2.0-nightly.20260412",
+    "@aztec/entrypoints": "v4.2.0-nightly.20260412",
+    "@aztec/foundation": "v4.2.0-nightly.20260412",
+    "@aztec/kv-store": "v4.2.0-nightly.20260412",
+    "@aztec/noir-contracts.js": "v4.2.0-nightly.20260412",
+    "@aztec/protocol-contracts": "v4.2.0-nightly.20260412",
+    "@aztec/pxe": "v4.2.0-nightly.20260412",
+    "@aztec/stdlib": "v4.2.0-nightly.20260412",
+    "@aztec/wallet-sdk": "v4.2.0-nightly.20260412",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@fontsource/roboto": "^5.1.1",
@@ -31,6 +31,8 @@
     "zod": "^3.23.8"
   },
   "scripts": {
+    "lint": "yarn exec eslint .",
+    "typecheck": "yarn exec tsc --noEmit",
     "test": "vitest"
   },
   "devDependencies": {

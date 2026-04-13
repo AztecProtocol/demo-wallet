@@ -60,7 +60,7 @@ export class WalletInteraction<T extends WalletInteractionType> {
     public complete: boolean,
     public title: string,
     public description: string,
-    public timestamp: number
+    public timestamp: number,
   ) {}
 
   update({
@@ -98,7 +98,7 @@ export class WalletInteraction<T extends WalletInteractionType> {
       complete,
       title ?? "",
       description ?? "",
-      timestamp ?? Date.now()
+      timestamp ?? Date.now(),
     );
   }
 
@@ -110,7 +110,7 @@ export class WalletInteraction<T extends WalletInteractionType> {
       this.complete,
       this.title,
       this.description,
-      BigInt(this.timestamp)
+      BigInt(this.timestamp),
     );
   }
 
@@ -138,7 +138,7 @@ export class WalletInteraction<T extends WalletInteractionType> {
       complete,
       title,
       description,
-      timestamp
+      timestamp,
     );
   }
 }

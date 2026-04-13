@@ -53,7 +53,7 @@ function buildBundle() {
     {
       cwd: ROOT_DIR,
       stdio: "inherit",
-    }
+    },
   );
 
   console.log(`Bundle created: ${BUNDLE_PATH}`);
@@ -76,13 +76,10 @@ function buildBinary(target) {
   console.log(`Building binary for ${target}...`);
 
   try {
-    execSync(
-      `npx pkg "${BUNDLE_PATH}" --target ${pkgTarget} --output "${outputPath}"`,
-      {
-        cwd: ROOT_DIR,
-        stdio: "inherit",
-      }
-    );
+    execSync(`npx pkg "${BUNDLE_PATH}" --target ${pkgTarget} --output "${outputPath}"`, {
+      cwd: ROOT_DIR,
+      stdio: "inherit",
+    });
 
     // Make executable on Unix
     if (!target.startsWith("win32")) {

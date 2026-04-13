@@ -3,7 +3,6 @@ import Typography from "@mui/material/Typography";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { ContractFunctionPattern } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import type { TransactionCapability } from "./types";
 
 interface TransactionCapabilityDetailsProps {
@@ -32,17 +31,13 @@ export function TransactionCapabilityDetails({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
       {patterns.map((pattern, idx) => {
-        const contractKey =
-          pattern.contract === "*" ? "*" : pattern.contract.toString();
+        const contractKey = pattern.contract === "*" ? "*" : pattern.contract.toString();
         const addressStr = contractKey;
         const rawName = contractMetadata.get(addressStr);
         const name = rawName && !rawName.includes("...") ? rawName : undefined;
         const shortAddr =
-          contractKey === "*"
-            ? null
-            : `${addressStr.slice(0, 10)}...${addressStr.slice(-8)}`;
-        const funcName =
-          pattern.function === "*" ? "any function" : pattern.function;
+          contractKey === "*" ? null : `${addressStr.slice(0, 10)}...${addressStr.slice(-8)}`;
+        const funcName = pattern.function === "*" ? "any function" : pattern.function;
         const storageKey = `sendTx:${contractKey}:${pattern.function}`;
 
         return (
@@ -64,11 +59,7 @@ export function TransactionCapabilityDetails({
                 </Typography>
               ) : name ? (
                 <>
-                  <Typography
-                    variant="caption"
-                    fontWeight={600}
-                    sx={{ display: "block" }}
-                  >
+                  <Typography variant="caption" fontWeight={600} sx={{ display: "block" }}>
                     {name}
                   </Typography>
                   <Typography
@@ -100,10 +91,7 @@ export function TransactionCapabilityDetails({
                 />
               }
               label={
-                <Typography
-                  variant="caption"
-                  sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}
-                >
+                <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>
                   {funcName}
                 </Typography>
               }

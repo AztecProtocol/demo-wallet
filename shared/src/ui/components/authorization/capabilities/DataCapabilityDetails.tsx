@@ -7,17 +7,11 @@ interface DataCapabilityDetailsProps {
   capability: DataCapability;
 }
 
-export function DataCapabilityDetails({
-  capability,
-}: DataCapabilityDetailsProps) {
+export function DataCapabilityDetails({ capability }: DataCapabilityDetailsProps) {
   return (
     <Box>
       {capability.addressBook && (
-        <Typography
-          variant="caption"
-          gutterBottom
-          sx={{ display: "block" }}
-        >
+        <Typography variant="caption" gutterBottom sx={{ display: "block" }}>
           • Access to address book
         </Typography>
       )}

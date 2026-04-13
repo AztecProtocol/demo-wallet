@@ -1,12 +1,7 @@
 import { decodeFromAbi } from "@aztec/aztec.js/abi";
-import { type Aliased } from "@aztec/aztec.js/wallet";
 import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import {
-  FunctionCall,
-  getFunctionArtifact,
-  type AbiDecoded,
-} from "@aztec/stdlib/abi";
+import { FunctionCall, getFunctionArtifact, type AbiDecoded } from "@aztec/stdlib/abi";
 import type { OffchainEffect } from "@aztec/stdlib/tx";
 import type { DecodingCache } from "./decoding-cache";
 
@@ -57,9 +52,7 @@ export class CallAuthorizationFormatter {
     }
 
     if (typeof value === "object") {
-      return JSON.stringify(value, (_, v) =>
-        typeof v === "bigint" ? v.toString() : v
-      );
+      return JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v));
     }
 
     return String(value);
@@ -68,22 +61,16 @@ export class CallAuthorizationFormatter {
   async parseCallAuthorizationFromEffect(effect: OffchainEffect) {
     let callAuthorizationRequest: CallAuthorizationRequest | undefined;
     try {
-      callAuthorizationRequest = await CallAuthorizationRequest.fromFields(
-        effect.data
-      );
-      const instance = await this.cache.getContractInstance(
-        effect.contractAddress
-      );
-      const artifact = await this.cache.getContractArtifact(
-        instance.currentContractClassId
-      );
+      callAuthorizationRequest = await CallAuthorizationRequest.fromFields(effect.data);
+      const instance = await this.cache.getContractInstance(effect.contractAddress);
+      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
       const functionAbi = await getFunctionArtifact(
         artifact,
-        callAuthorizationRequest.functionSelector
+        callAuthorizationRequest.functionSelector,
       );
       const callData = decodeFromAbi(
         functionAbi.parameters.map((param) => param.type),
-        callAuthorizationRequest.args
+        callAuthorizationRequest.args,
       ) as AbiDecoded[];
       const parameters = functionAbi.parameters.map((param, i) => ({
         name: param.name,
@@ -102,10 +89,10 @@ export class CallAuthorizationFormatter {
           functionAbi.isStatic,
           false,
           callAuthorizationRequest.args,
-          functionAbi.returnTypes
+          functionAbi.returnTypes,
         ),
       };
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -135,11 +122,7 @@ export class CallAuthorizationFormatter {
         let formattedValue = this.formatAbiValue(param.value);
 
         // If the value looks like an address, try to get its alias
-        if (
-          param.value &&
-          typeof param.value === "object" &&
-          "toString" in param.value
-        ) {
+        if (param.value && typeof param.value === "object" && "toString" in param.value) {
           const valueStr = param.value.toString();
           if (valueStr.startsWith("0x") && valueStr.length === 66) {
             try {
@@ -156,7 +139,7 @@ export class CallAuthorizationFormatter {
           name: param.name || "arg",
           value: formattedValue,
         };
-      })
+      }),
     );
 
     return {
@@ -187,12 +170,12 @@ export class CallAuthorizationFormatter {
           functionCall: FunctionCall;
         }
       | undefined
-    >
+    >,
   ): Promise<ReadableCallAuthorization[]> {
     const formattedCalls = await Promise.all(
       callAuthorizations
         .filter(Boolean)
-        .map((auth) => this.formatCallAuthorizationForDisplay(auth!))
+        .map((auth) => this.formatCallAuthorizationForDisplay(auth!)),
     );
 
     return formattedCalls;

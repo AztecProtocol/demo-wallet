@@ -57,16 +57,12 @@ export function EditAccountAuthorizationDialog({
 
       const accountsWithSelection = accounts.map((acc) => {
         const isSelected = currentAddresses.has(acc.item.toString());
-        const currentAccount = currentAccounts.find(
-          (ca) => ca.item === acc.item.toString()
-        );
+        const currentAccount = currentAccounts.find((ca) => ca.item === acc.item.toString());
 
         return {
           address: acc.item.toString(),
           originalAlias: acc.alias,
-          displayAlias: isSelected
-            ? currentAccount?.alias || acc.alias
-            : acc.alias,
+          displayAlias: isSelected ? currentAccount?.alias || acc.alias : acc.alias,
           selected: isSelected,
         };
       });
@@ -80,17 +76,13 @@ export function EditAccountAuthorizationDialog({
 
   const handleToggleAccount = (address: string) => {
     setAllAccounts((prev) =>
-      prev.map((acc) =>
-        acc.address === address ? { ...acc, selected: !acc.selected } : acc
-      )
+      prev.map((acc) => (acc.address === address ? { ...acc, selected: !acc.selected } : acc)),
     );
   };
 
   const handleAliasChange = (address: string, newAlias: string) => {
     setAllAccounts((prev) =>
-      prev.map((acc) =>
-        acc.address === address ? { ...acc, displayAlias: newAlias } : acc
-      )
+      prev.map((acc) => (acc.address === address ? { ...acc, displayAlias: newAlias } : acc)),
     );
   };
 
@@ -124,8 +116,7 @@ export function EditAccountAuthorizationDialog({
       <DialogTitle>Edit Account Authorization for {appId}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Select which accounts this app can access and customize the aliases
-          shown to the app.
+          Select which accounts this app can access and customize the aliases shown to the app.
         </Typography>
 
         {error && (
@@ -161,9 +152,7 @@ export function EditAccountAuthorizationDialog({
                 }
                 label={
                   <Box>
-                    <Typography variant="body2">
-                      {account.originalAlias}
-                    </Typography>
+                    <Typography variant="body2">{account.originalAlias}</Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
@@ -181,16 +170,14 @@ export function EditAccountAuthorizationDialog({
                   size="small"
                   label="Alias shown to app"
                   value={account.displayAlias}
-                  onChange={(e) =>
-                    handleAliasChange(account.address, e.target.value)
-                  }
+                  onChange={(e) => handleAliasChange(account.address, e.target.value)}
                   sx={{
                     mt: 1,
                     ml: 4,
-                    '& .MuiInputBase-input': {
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }
+                    "& .MuiInputBase-input": {
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    },
                   }}
                   helperText="The app will see this account under this alias"
                 />
@@ -200,20 +187,14 @@ export function EditAccountAuthorizationDialog({
         </List>
 
         {allAccounts.length === 0 && (
-          <Alert severity="info">
-            No accounts available. Create an account first.
-          </Alert>
+          <Alert severity="info">No accounts available. Create an account first.</Alert>
         )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={saving}
-        >
+        <Button onClick={handleSave} variant="contained" disabled={saving}>
           {saving ? "Saving..." : "Save"}
         </Button>
       </DialogActions>

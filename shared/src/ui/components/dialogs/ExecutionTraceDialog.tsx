@@ -35,7 +35,9 @@ export function ExecutionTraceDialog({
 
   if (!trace) return null;
 
-  const isFromZero = from === "NO_FROM" || (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
+  const isFromZero =
+    from === "NO_FROM" ||
+    (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (
@@ -59,18 +61,15 @@ export function ExecutionTraceDialog({
         }}
       >
         Execution Trace
-        <IconButton
-          aria-label="close"
-          onClick={onClose}
-          sx={{ color: (t) => t.palette.grey[500] }}
-        >
+        <IconButton aria-label="close" onClick={onClose} sx={{ color: (t) => t.palette.grey[500] }}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ px: { xs: 1, sm: 3 }, overflow: "hidden auto", minWidth: 0 }}>
+      <DialogContent dividers sx={{ px: { xs: 1, sm: 3 }, overflow: "auto", minWidth: 0 }}>
         {isFromZero && (
           <Alert severity="info" sx={{ mb: 1 }}>
-            This transaction uses an external entrypoint and does not execute from any of your accounts.
+            This transaction uses an external entrypoint and does not execute from any of your
+            accounts.
           </Alert>
         )}
         {hasEmbeddedFeePayer && (

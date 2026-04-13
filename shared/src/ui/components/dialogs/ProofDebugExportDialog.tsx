@@ -56,8 +56,8 @@ export function ProofDebugExportDialog({
         </Alert>
 
         <Typography variant="body1" gutterBottom>
-          The proving process failed. You can export debug data to help the
-          development team investigate this issue.
+          The proving process failed. You can export debug data to help the development team
+          investigate this issue.
         </Typography>
 
         <Alert severity="warning" sx={{ my: 2 }}>
@@ -65,8 +65,7 @@ export function ProofDebugExportDialog({
             Privacy Warning
           </Typography>
           <Typography variant="body2">
-            The exported file contains <strong>sensitive information</strong>{" "}
-            including:
+            The exported file contains <strong>sensitive information</strong> including:
           </Typography>
           <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
             <li>
@@ -75,34 +74,26 @@ export function ProofDebugExportDialog({
               </Typography>
             </li>
             <li>
-              <Typography variant="body2">
-                Circuit bytecode and verification keys
-              </Typography>
+              <Typography variant="body2">Circuit bytecode and verification keys</Typography>
             </li>
             <li>
-              <Typography variant="body2">
-                Function names and execution flow
-              </Typography>
+              <Typography variant="body2">Function names and execution flow</Typography>
             </li>
           </Box>
         </Alert>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Only share this file with trusted parties (e.g., the Aztec development
-          team) for debugging purposes.
+          Only share this file with trusted parties (e.g., the Aztec development team) for debugging
+          purposes.
         </Typography>
 
         <FormControlLabel
           control={
-            <Checkbox
-              checked={acknowledged}
-              onChange={(e) => setAcknowledged(e.target.checked)}
-            />
+            <Checkbox checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
           }
           label={
             <Typography variant="body2">
-              I understand this file contains sensitive data and I consent to
-              exporting it
+              I understand this file contains sensitive data and I consent to exporting it
             </Typography>
           }
         />

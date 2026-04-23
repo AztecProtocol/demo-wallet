@@ -9,19 +9,20 @@
  * SECURITY: All cookie payloads are encrypted with AES-256-GCM using a key
  * derived from a user passphrase via PBKDF2. The server only sees ciphertext.
  *
- * Accounts:     `aztec-wallet-accounts` = base64(salt + iv + ciphertext(JSON))
- * Contacts:     `aztec-wallet-contacts-{N}` = base64(salt + iv + ciphertext(binary))
- * Capabilities: `aztec-wallet-caps-{N}` = base64(salt + iv + ciphertext(JSON))
+ * Accounts:     `aztec-wallet-accounts`    = base64(salt + iv + ciphertext(JSON))
+ * Contacts:     `aztec-wallet-contacts-{N}` = chunked base64(salt + iv + ciphertext(gzip(binary)))
+ * Capabilities: `aztec-wallet-caps-{N}`    = chunked base64(salt + iv + ciphertext(gzip(JSON)))
  *
- * Contacts use binary packing (32-byte raw addresses instead of 66-char hex)
- * and span multiple numbered cookies for practically unbounded storage.
- * Each cookie chunk is independently encrypted.
- *
- * Contact binary format per entry: [32 bytes address] [1 byte alias len] [N bytes alias]
- * ~47 bytes per contact (with 14-char alias) → ~60 contacts per cookie → 600+ with 10 cookies.
+ * Contacts use binary packing (32-byte raw addresses instead of 66-char hex).
+ * Contact binary format per entry: [32 bytes address] [1 byte alias len] [N bytes alias].
  *
  * Capabilities store all per-app authorization entries (grants, __behavior__,
- * __requested__) as JSON, using multi-cookie chunking for large manifests.
+ * __requested__) as JSON.
+ *
+ * For the multi-cookie formats (contacts, caps) we compress the plaintext with
+ * gzip, encrypt the whole payload once (one PBKDF2 derivation + one salt/iv/tag),
+ * then split the resulting base64 ciphertext across sequentially-numbered
+ * cookies. This is dramatically smaller than encrypting each chunk separately.
  *
  * Attributes: SameSite=None; Secure; Path=/; Max-Age=31536000 (1 year)
  */
@@ -132,11 +133,101 @@ export interface PortableContact {
 const CONTACTS_COOKIE_PREFIX = "aztec-wallet-contacts-";
 const ADDRESS_BYTES = 32;
 // Max cookie value size after accounting for name + attributes.
-// Cookie total limit is ~4096 bytes. Name "aztec-wallet-contacts-NN" is ~26 chars,
-// attributes "; Path=/; ..." add ~50 chars. Leave margin → 4000 bytes for the value.
-// base64 expands 3:4, and encryption adds 44 bytes (salt+iv+tag).
-// So max plaintext per chunk ≈ (4000 / 1.34) - 44 ≈ 2940 bytes.
-const MAX_PLAINTEXT_PER_CHUNK = 2900;
+// Cookie total limit is ~4096 bytes. Name + attributes consume ~80 chars;
+// leave margin → ~4000 bytes for the value.
+const MAX_BASE64_PER_CHUNK = 4000;
+
+// ─── Compression + chunked-ciphertext helpers ───
+
+async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function chunkString(s: string, maxChars: number): string[] {
+  if (s.length === 0) return [""];
+  const chunks: string[] = [];
+  for (let i = 0; i < s.length; i += maxChars) {
+    chunks.push(s.slice(i, i + maxChars));
+  }
+  return chunks;
+}
+
+function readChunkedCookieValue(prefix: string): string | undefined {
+  const allCookies = document.cookie.split("; ");
+  let result = "";
+  let found = false;
+  for (let i = 0; ; i++) {
+    const name = `${prefix}${i}`;
+    const match = allCookies.find((c) => c.startsWith(`${name}=`));
+    if (!match) break;
+    found = true;
+    result += match.split("=").slice(1).join("=");
+  }
+  return found ? result : undefined;
+}
+
+function clearChunkedCookies(prefix: string): void {
+  for (let i = 0; ; i++) {
+    const name = `${prefix}${i}`;
+    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
+    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
+  }
+}
+
+/**
+ * Compress + encrypt + chunk a binary payload across numbered cookies.
+ * Returns the number of chunks written.
+ */
+async function writeChunkedCookies(
+  prefix: string,
+  plaintext: Uint8Array,
+  passphrase: string,
+): Promise<number> {
+  const compressed = await gzipCompress(plaintext);
+  const encrypted = await encryptWithPassphrase(compressed, passphrase);
+  const encoded = uint8ToBase64(encrypted);
+  const chunks = chunkString(encoded, MAX_BASE64_PER_CHUNK);
+
+  for (let i = 0; i < chunks.length; i++) {
+    document.cookie = [
+      `${prefix}${i}=${chunks[i]}`,
+      `Path=/`,
+      `Max-Age=${MAX_AGE}`,
+      `SameSite=None`,
+      `Secure`,
+    ].join("; ");
+  }
+
+  for (let i = chunks.length; ; i++) {
+    const name = `${prefix}${i}`;
+    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
+    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
+  }
+
+  return chunks.length;
+}
+
+/**
+ * Read + decrypt + decompress a chunked cookie payload.
+ * Returns undefined if no cookies with this prefix exist.
+ * Throws on wrong passphrase (AES-GCM auth tag mismatch).
+ */
+async function readChunkedCookies(
+  prefix: string,
+  passphrase: string,
+): Promise<Uint8Array | undefined> {
+  const encoded = readChunkedCookieValue(prefix);
+  if (encoded === undefined) return undefined;
+  const encrypted = base64ToUint8(encoded);
+  const compressed = await decryptWithPassphrase(encrypted, passphrase);
+  return gzipDecompress(compressed);
+}
 
 /**
  * Pack contacts into a compact binary format.
@@ -187,17 +278,6 @@ function unpackContacts(data: Uint8Array): PortableContact[] {
 }
 
 /**
- * Split packed binary into chunks that fit within a single cookie's plaintext budget.
- */
-function chunkBytes(data: Uint8Array, maxBytes: number): Uint8Array[] {
-  const chunks: Uint8Array[] = [];
-  for (let i = 0; i < data.length; i += maxBytes) {
-    chunks.push(data.slice(i, Math.min(i + maxBytes, data.length)));
-  }
-  return chunks.length > 0 ? chunks : [new Uint8Array(0)];
-}
-
-/**
  * Write contacts to multiple encrypted cookies.
  * Old contact cookies beyond the new count are cleared.
  */
@@ -206,26 +286,7 @@ export async function writeContactsCookies(
   passphrase: string,
 ): Promise<void> {
   const packed = packContacts(contacts);
-  const chunks = chunkBytes(packed, MAX_PLAINTEXT_PER_CHUNK);
-
-  for (let i = 0; i < chunks.length; i++) {
-    const encrypted = await encryptWithPassphrase(chunks[i], passphrase);
-    const encoded = uint8ToBase64(encrypted);
-    document.cookie = [
-      `${CONTACTS_COOKIE_PREFIX}${i}=${encoded}`,
-      `Path=/`,
-      `Max-Age=${MAX_AGE}`,
-      `SameSite=None`,
-      `Secure`,
-    ].join("; ");
-  }
-
-  // Clear any leftover cookies from a previous larger set
-  for (let i = chunks.length; ; i++) {
-    const name = `${CONTACTS_COOKIE_PREFIX}${i}`;
-    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
-    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
-  }
+  await writeChunkedCookies(CONTACTS_COOKIE_PREFIX, packed, passphrase);
 }
 
 /**
@@ -233,30 +294,9 @@ export async function writeContactsCookies(
  * Throws on wrong passphrase.
  */
 export async function readContactsCookies(passphrase: string): Promise<PortableContact[]> {
-  const allCookies = document.cookie.split("; ");
-  const chunks: Uint8Array[] = [];
-
-  for (let i = 0; ; i++) {
-    const name = `${CONTACTS_COOKIE_PREFIX}${i}`;
-    const match = allCookies.find((c) => c.startsWith(`${name}=`));
-    if (!match) break;
-    const encoded = match.split("=").slice(1).join("=");
-    const data = base64ToUint8(encoded);
-    chunks.push(await decryptWithPassphrase(data, passphrase));
-  }
-
-  if (chunks.length === 0) return [];
-
-  // Concatenate all decrypted chunks
-  const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
-  const combined = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return unpackContacts(combined);
+  const data = await readChunkedCookies(CONTACTS_COOKIE_PREFIX, passphrase);
+  if (!data) return [];
+  return unpackContacts(data);
 }
 
 /**
@@ -270,11 +310,7 @@ export function hasContactsCookies(): boolean {
  * Delete all contacts cookies.
  */
 export function clearContactsCookies(): void {
-  for (let i = 0; ; i++) {
-    const name = `${CONTACTS_COOKIE_PREFIX}${i}`;
-    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
-    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
-  }
+  clearChunkedCookies(CONTACTS_COOKIE_PREFIX);
 }
 
 // ─── Capabilities (JSON, multi-cookie) ───
@@ -298,7 +334,6 @@ const CAPS_COOKIE_PREFIX = "aztec-wallet-caps-";
 
 /**
  * Write all apps' capability grants to encrypted multi-cookie storage.
- * Old capability cookies beyond the new count are cleared.
  */
 export async function writeCapabilitiesCookies(
   apps: PortableAppCapabilities[],
@@ -306,26 +341,7 @@ export async function writeCapabilitiesCookies(
 ): Promise<void> {
   const json = JSON.stringify(apps);
   const plaintext = new TextEncoder().encode(json);
-  const chunks = chunkBytes(plaintext, MAX_PLAINTEXT_PER_CHUNK);
-
-  for (let i = 0; i < chunks.length; i++) {
-    const encrypted = await encryptWithPassphrase(chunks[i], passphrase);
-    const encoded = uint8ToBase64(encrypted);
-    document.cookie = [
-      `${CAPS_COOKIE_PREFIX}${i}=${encoded}`,
-      `Path=/`,
-      `Max-Age=${MAX_AGE}`,
-      `SameSite=None`,
-      `Secure`,
-    ].join("; ");
-  }
-
-  // Clear leftover cookies from a previous larger set
-  for (let i = chunks.length; ; i++) {
-    const name = `${CAPS_COOKIE_PREFIX}${i}`;
-    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
-    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
-  }
+  await writeChunkedCookies(CAPS_COOKIE_PREFIX, plaintext, passphrase);
 }
 
 /**
@@ -335,33 +351,10 @@ export async function writeCapabilitiesCookies(
 export async function readCapabilitiesCookies(
   passphrase: string,
 ): Promise<PortableAppCapabilities[]> {
-  const allCookies = document.cookie.split("; ");
-  const chunks: Uint8Array[] = [];
-
-  for (let i = 0; ; i++) {
-    const name = `${CAPS_COOKIE_PREFIX}${i}`;
-    const match = allCookies.find((c) => c.startsWith(`${name}=`));
-    if (!match) break;
-    const encoded = match.split("=").slice(1).join("=");
-    const data = base64ToUint8(encoded);
-    chunks.push(await decryptWithPassphrase(data, passphrase));
-  }
-
-  if (chunks.length === 0) return [];
-
-  // Concatenate all decrypted chunks
-  const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
-  const combined = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  const json = new TextDecoder().decode(combined);
-  const parsed = JSON.parse(json);
-  if (!Array.isArray(parsed)) return [];
-  return parsed;
+  const data = await readChunkedCookies(CAPS_COOKIE_PREFIX, passphrase);
+  if (!data) return [];
+  const parsed = JSON.parse(new TextDecoder().decode(data));
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 /**
@@ -375,9 +368,5 @@ export function hasCapabilitiesCookies(): boolean {
  * Delete all capabilities cookies.
  */
 export function clearCapabilitiesCookies(): void {
-  for (let i = 0; ; i++) {
-    const name = `${CAPS_COOKIE_PREFIX}${i}`;
-    if (!document.cookie.split("; ").some((c) => c.startsWith(`${name}=`))) break;
-    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=None; Secure`;
-  }
+  clearChunkedCookies(CAPS_COOKIE_PREFIX);
 }

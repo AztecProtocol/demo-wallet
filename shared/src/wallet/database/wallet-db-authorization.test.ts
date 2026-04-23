@@ -100,6 +100,30 @@ describe("capabilityToStorageKeys", () => {
 });
 
 describe("storeCapabilityGrants", () => {
+  it("does not embed the full capability object in per-key stored values", async () => {
+    // Guards against the quadratic-blowup regression that made the capability
+    // cookie payload huge: we used to store the whole GrantedCapability under
+    // `.capability` on every storage key it expanded into.
+    const cap = {
+      type: "contracts",
+      contracts: [addr1, addr2],
+      canRegister: true,
+      canGetMetadata: true,
+    } as any;
+    await db.storeCapabilityGrants(APP_ID, [cap]);
+
+    for (const key of [
+      `registerContract:${addr1.toString()}`,
+      `registerContract:${addr2.toString()}`,
+      `getContractMetadata:${addr1.toString()}`,
+      `getContractMetadata:${addr2.toString()}`,
+    ]) {
+      const data = await db.retrievePersistentAuthorization(APP_ID, key);
+      expect(data).toBeDefined();
+      expect(data).not.toHaveProperty("capability");
+    }
+  });
+
   it("stores additively and appends to __requested__", async () => {
     // Ad-hoc grant
     await db.storePersistentAuthorization(APP_ID, "getAccounts", {

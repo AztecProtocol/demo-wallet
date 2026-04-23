@@ -333,11 +333,17 @@ export class WalletDB {
       // Extract capability-specific data that authorization checks expect
       const capabilityData = this.extractCapabilityData(capability);
 
+      // Note: we intentionally do NOT persist the full `capability` object here.
+      // Storing it per-key caused quadratic blowup when syncing to cookies
+      // (N keys × the whole capability serialized N times). The capability
+      // shape is fully recoverable from the set of storage keys via
+      // `reconstructCapabilitiesFromKeys`, so only per-key metadata and the
+      // small `capabilityData` payload (e.g. the accounts list for getAccounts)
+      // needs to live here.
       for (const key of keys) {
         await this.storePersistentAuthorization(appId, key, {
           persistent: true,
           grantedAt: Date.now(),
-          capability: capability,
           ...capabilityData,
         });
       }

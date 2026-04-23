@@ -21,12 +21,12 @@ The wallet uses **Native Messaging** for secure communication between the browse
 
 ```bash
 node scripts/update.js                                             # auto-detect latest
-node scripts/update.js --version 4.0.0-nightly.20260206            # specific version
-node scripts/update.js --network devnet                             # update for devnet instead of nextnet
-node scripts/update.js --rollup-version 3863723750                  # set rollup version manually
+node scripts/update.js --version 4.3.0-nightly.20260423            # specific version
+node scripts/update.js --skip-install                               # skip yarn install
+node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```
 
-Updates `@aztec/*` deps in `app/` and `extension/`, runs `yarn install`, and fetches the rollup version from the network's node URL (configured in `networks.ts`) to update the version. Use `--network` to target a different network (default: `nextnet`).
+Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
 
 ## Development Setup
 

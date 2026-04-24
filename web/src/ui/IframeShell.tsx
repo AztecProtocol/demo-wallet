@@ -91,11 +91,9 @@ async function hasStorageAccessAlready(): Promise<boolean> {
 function WalletUI({
   authQueue,
   setAuthQueue,
-  verificationHash,
 }: {
   authQueue: AuthorizationRequest[];
   setAuthQueue: React.Dispatch<React.SetStateAction<AuthorizationRequest[]>>;
-  verificationHash: string | null;
 }) {
   const { currentNetwork } = useNetwork();
   const chainInfo = networkToChainInfo(currentNetwork);
@@ -154,10 +152,6 @@ function WalletUI({
     <WalletContext.Provider value={walletContext}>
       <CssBaseline />
       <App />
-      {/* Overlay: emoji verification during key exchange */}
-      <Dialog open={!!verificationHash} fullScreen>
-        <EmojiVerification verificationHash={verificationHash ?? ""} />
-      </Dialog>
       {/* Overlay: dApp authorization requests */}
       {currentAuth && (
         <AuthorizationDialog
@@ -485,9 +479,26 @@ function IframeContent() {
   }, []);
 
   // ─── Render: centralized gate sequence ───
+  //
+  // The emoji-verification dialog is rendered alongside every gate so it
+  // can appear during key exchange regardless of which gate is active —
+  // including the pre-network-lock blank screen. Without this, the iframe
+  // renders empty while the dApp waits for the user to click an emoji that
+  // is never shown.
+
+  const emojiOverlay = (
+    <Dialog open={!!verificationHash} fullScreen>
+      <EmojiVerification verificationHash={verificationHash ?? ""} />
+    </Dialog>
+  );
 
   if (gate === "checking") {
-    return <CssBaseline />;
+    return (
+      <>
+        <CssBaseline />
+        {emojiOverlay}
+      </>
+    );
   }
 
   if (gate === "needs-storage" || gate === "needs-visit") {
@@ -499,6 +510,7 @@ function IframeContent() {
           onGrant={handleRequestStorageAccess}
           onRetry={handleRetryClick}
         />
+        {emojiOverlay}
       </>
     );
   }
@@ -508,6 +520,7 @@ function IframeContent() {
       <>
         <CssBaseline />
         <NoCookieGate onRetry={handleNoCookieRetry} />
+        {emojiOverlay}
       </>
     );
   }
@@ -517,6 +530,7 @@ function IframeContent() {
       <>
         <CssBaseline />
         <PinDialog mode="enter" error={pinError} onSubmit={handlePinSubmit} />
+        {emojiOverlay}
       </>
     );
   }
@@ -527,15 +541,19 @@ function IframeContent() {
   // failed requests and — if the default is unreachable — wedging the
   // onboarding "registering contracts" step.
   if (!networkLocked) {
-    return <CssBaseline />;
+    return (
+      <>
+        <CssBaseline />
+        {emojiOverlay}
+      </>
+    );
   }
 
   return (
-    <WalletUI
-      authQueue={authQueue}
-      setAuthQueue={setAuthQueue}
-      verificationHash={verificationHash}
-    />
+    <>
+      <WalletUI authQueue={authQueue} setAuthQueue={setAuthQueue} />
+      {emojiOverlay}
+    </>
   );
 }
 

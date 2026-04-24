@@ -1,44 +1,100 @@
 name: Deploy Web Wallet
 
 on:
-  workflow_call:
+  # Push to main → production deploy. The CI workflow runs independently
+  # on the same push; a failing CI there doesn't automatically abort the
+  # deploy here, so if strict gating is ever needed, switch to workflow_run.
+  push:
+    branches:
+      - main
+  # PRs → preview deploy, gated on CI success. pull_request_target runs
+  # in base-repo context so it has access to secrets; the authorize +
+  # wait-for-ci jobs below guard against running untrusted PR code.
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
     inputs:
       production:
-        description: "Deploy to production (true) or preview (false)"
+        description: "Deploy to production"
         required: false
+        default: true
         type: boolean
-        default: false
-      ref:
-        description: "Git ref to check out"
-        required: false
-        type: string
-        default: ""
-      pr-number:
-        description: "PR number to comment on (omit to skip comment)"
-        required: false
-        type: number
-        default: 0
-    secrets:
-      VERCEL_TOKEN:
-        required: true
-      VERCEL_ORG_ID:
-        required: true
-      VERCEL_PROJECT_ID:
-        required: true
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+permissions:
+  contents: read
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+
 jobs:
-  deploy:
-    name: ${{ inputs.production && 'Deploy (production)' || 'Deploy (preview)' }}
+  authorize:
+    # Guard pull_request_target against untrusted code with access to secrets.
+    # Trusted authors (repo collaborators with write+) are auto-allowed;
+    # external contributors need the `deploy-preview` label applied manually
+    # after a maintainer reviews the PR.
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
+    steps:
+      - name: Check author association or label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+            const assoc = context.payload.pull_request.author_association;
+            if (trusted.includes(assoc)) {
+              core.info(`Author association ${assoc} is trusted — proceeding.`);
+              return;
+            }
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            if (labels.includes('deploy-preview')) {
+              core.info('deploy-preview label present — proceeding.');
+              return;
+            }
+            core.setFailed(
+              `PR from ${assoc} without deploy-preview label. ` +
+              `Add the label manually after reviewing the PR to deploy.`,
+            );
+
+  wait-for-ci:
+    # Only gate on CI for PRs — push to main and manual dispatch skip this.
+    needs: [authorize]
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # Waits on the single sentinel check produced by ci.yml's `ci-complete`
+      # job, which itself `needs: [lint, build]`. One check name independent
+      # of how many matrix/reusable jobs run inside the CI workflow.
+      - name: Wait for CI Complete
+        uses: fountainhead/action-wait-for-check@v1.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: CI Complete
+          ref: ${{ github.event.pull_request.head.sha }}
+          timeoutSeconds: 3000
+          intervalSeconds: 15
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [authorize, wait-for-ci]
+    # On push to main and workflow_dispatch, authorize + wait-for-ci are
+    # both skipped — allow deploy through. On PRs, require wait-for-ci to
+    # have succeeded (which in turn requires authorize to have succeeded).
+    if: ${{ always() && (needs.wait-for-ci.result == 'success' || (needs.wait-for-ci.result == 'skipped' && github.event_name != 'pull_request_target')) }}
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          # pull_request_target defaults to the base ref — check out the PR
+          # head so we deploy the actual proposed changes.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -60,7 +116,14 @@ jobs:
         id: deploy
         working-directory: ./web
         run: |
-          if [ "${{ inputs.production }}" == "true" ]; then
+          IS_PROD="false"
+          if [ "${{ github.event_name }}" == "push" ]; then
+            IS_PROD="true"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.production }}" == "true" ]; then
+            IS_PROD="true"
+          fi
+
+          if [ "$IS_PROD" == "true" ]; then
             vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
             DEPLOY_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} --archive=tgz --yes)
           else
@@ -70,13 +133,39 @@ jobs:
           echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
-        if: ${{ inputs.pr-number != 0 }}
+        if: github.event_name == 'pull_request_target'
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
-              issue_number: ${{ inputs.pr-number }},
+            const prNumber = context.payload.pull_request.number;
+            // Update an existing bot comment in place so PRs don't accumulate
+            // one deploy comment per push.
+            const marker = '<!-- demo-wallet-deploy-url -->';
+            const body = [
+              marker,
+              '🚀 Web wallet deployed!',
+              '',
+              '**Preview URL:** ${{ steps.deploy.outputs.url }}',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🚀 Web wallet deployed!\n\n**Preview URL:** ${{ steps.deploy.outputs.url }}'
-            })
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }

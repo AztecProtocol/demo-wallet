@@ -254,7 +254,7 @@ function NoCookieGate({ onRetry }: { onRetry: () => void }) {
 // ─── Outer: centralized gating ───
 
 function IframeContent() {
-  const { currentNetwork, switchNetwork } = useNetwork();
+  const { switchNetwork } = useNetwork();
   const switchNetworkRef = useRef(switchNetwork);
   useEffect(() => {
     switchNetworkRef.current = switchNetwork;
@@ -277,6 +277,12 @@ function IframeContent() {
   // Wallet state (only used after gate === "ready")
   const [authQueue, setAuthQueue] = useState<AuthorizationRequest[]>([]);
   const [verificationHash, setVerificationHash] = useState<string | null>(null);
+  // True once the dApp's first `getWallet` call has locked the iframe to
+  // the dApp-provided network. Until then, `currentNetwork` is whatever
+  // NetworkProvider defaulted to, which is NOT guaranteed to match the
+  // dApp — mounting the wallet UI before the lock causes a stray PXE
+  // session on the default network whose requests fail and block onboarding.
+  const [networkLocked, setNetworkLocked] = useState(false);
   const clearVerificationHash = useCallback(() => setVerificationHash(null), []);
 
   const clearVerificationHashRef = useRef(clearVerificationHash);
@@ -416,6 +422,7 @@ function IframeContent() {
             if (dAppNetwork) {
               switchNetworkRef.current(dAppNetwork.id);
             }
+            setNetworkLocked(true);
           }
 
           const cacheKey = `${chainId.toString()}-${version.toString()}-${appId}`;
@@ -470,7 +477,12 @@ function IframeContent() {
 
     handler.start();
     return () => handler.stop();
-  }, [currentNetwork.id]);
+    // Intentionally empty deps: the handler reads chainInfo from each dApp
+    // request, not from `currentNetwork`. Re-running this on network switch
+    // tore down the handler and orphaned the in-flight `getWallet` promise
+    // the dApp was awaiting — causing onboarding to hang until refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Render: centralized gate sequence ───
 
@@ -509,7 +521,15 @@ function IframeContent() {
     );
   }
 
-  // All gates passed — mount the wallet UI
+  // All gates passed, but don't mount the wallet UI until the dApp has
+  // told us which network to use. Mounting earlier would spin up a PXE
+  // on the (possibly stale) default network, flooding the console with
+  // failed requests and — if the default is unreachable — wedging the
+  // onboarding "registering contracts" step.
+  if (!networkLocked) {
+    return <CssBaseline />;
+  }
+
   return (
     <WalletUI
       authQueue={authQueue}

@@ -4,3 +4,4 @@ export * from "./database";
 export * from "./types";
 export * from "./decoding";
 export * from "./utils";
+export * from "./session";

@@ -8,7 +8,7 @@
 
 import { type Fr } from "@aztec/foundation/schemas";
 import type { InternalWalletInterface, AuthorizationResponse } from "@demo-wallet/shared/core";
-import { getOrCreateSession } from "../../wallet/wallet-service.ts";
+import { getOrCreateSessionWithCookieSync } from "../../wallet/wallet-service.ts";
 
 // Event emitter for wallet update and authorization request events.
 // These are global because they are session-level (not per-API instance).
@@ -39,7 +39,7 @@ function emitProofDebugExportRequest(detail: unknown) {
 // Cache: chainId-version → InternalWallet
 const walletCache = new Map<
   string,
-  Promise<Awaited<ReturnType<typeof getOrCreateSession>>["internal"]>
+  Promise<Awaited<ReturnType<typeof getOrCreateSessionWithCookieSync>>["internal"]>
 >();
 
 function getCacheKey(chainId: Fr, version: Fr): string {
@@ -49,10 +49,10 @@ function getCacheKey(chainId: Fr, version: Fr): string {
 async function getInternalWallet(
   chainId: Fr,
   version: Fr,
-): Promise<Awaited<ReturnType<typeof getOrCreateSession>>["internal"]> {
+): Promise<Awaited<ReturnType<typeof getOrCreateSessionWithCookieSync>>["internal"]> {
   const key = getCacheKey(chainId, version);
   if (!walletCache.has(key)) {
-    const p = getOrCreateSession({ chainId, version }, "internal-ui", (eventType, detail) => {
+    const p = getOrCreateSessionWithCookieSync({ chainId, version }, "internal-ui", (eventType, detail) => {
       if (eventType === "wallet-update") emitWalletUpdate(detail);
       else if (eventType === "authorization-request") emitAuthorizationRequest(detail);
       else if (eventType === "proof-debug-export-request") emitProofDebugExportRequest(detail);

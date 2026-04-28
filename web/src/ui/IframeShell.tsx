@@ -46,7 +46,7 @@ import {
   type IframeConnectionConfig,
 } from "@aztec/wallet-sdk/iframe/handlers";
 import {
-  getOrCreateSession,
+  getOrCreateSessionWithCookieSync,
   setCookiePassphrase,
   hasCookiePassphrase,
 } from "../wallet/wallet-service.ts";
@@ -107,7 +107,7 @@ function WalletUI({
       chainId: chainInfo.chainId,
       version: chainInfo.version,
     };
-    await getOrCreateSession(normalizedChainInfo, "refresh", () => {});
+    await getOrCreateSessionWithCookieSync(normalizedChainInfo, "refresh", () => {});
   }, [chainInfo.chainId, chainInfo.version]);
 
   const walletContext = useMemo(
@@ -426,7 +426,7 @@ function IframeContent() {
               await pinGateRef.current.promise;
 
               const normalizedChainInfo = { chainId, version };
-              const { external } = await getOrCreateSession(
+              const { external } = await getOrCreateSessionWithCookieSync(
                 normalizedChainInfo,
                 appId,
                 (eventType, detail) => {

@@ -52,7 +52,7 @@ import {
 } from "../wallet/wallet-service.ts";
 import { hasAccountsCookie, readAccountsCookie } from "../wallet/sync-cookies.ts";
 import { EmojiVerification } from "./components/EmojiVerification.tsx";
-import { PinDialog } from "./components/PinDialog.tsx";
+import { PinDialog } from "@demo-wallet/shared/ui";
 import { Fr } from "@aztec/aztec.js/fields";
 
 const themeOptions: ThemeOptions = {

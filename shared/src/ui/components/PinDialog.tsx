@@ -1,14 +1,14 @@
 /**
  * PIN dialog — prompts the user for a short passphrase (PIN) used to
- * encrypt/decrypt account secrets stored in the cross-origin cookie.
+ * encrypt/decrypt account secrets.
  *
  * Two modes:
- * - "set": User sets a new PIN (standalone wallet, first time)
- * - "enter": User enters existing PIN (iframe, or standalone after reload)
+ * - "set": User sets a new PIN (first time)
+ * - "enter": User enters existing PIN (after reload, or in iframe context)
  *
  * Renders as a full-viewport centered card. Dark styling is applied inline
- * so it looks correct even without a ThemeProvider ancestor (standalone shell
- * renders this before the Root/ThemeProvider mounts).
+ * so it looks correct even without a ThemeProvider ancestor (host shells
+ * may render this before the Root/ThemeProvider mounts).
  */
 
 import { useState, useCallback } from "react";

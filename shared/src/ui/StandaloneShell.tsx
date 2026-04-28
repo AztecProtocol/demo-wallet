@@ -20,8 +20,12 @@ export interface StandaloneShellProps {
   hasExistingVault: () => boolean | Promise<boolean>;
   /** Verify the entered PIN/password. Throws on wrong password. */
   verifyPin: (pin: string) => Promise<void>;
-  /** Persist the PIN/password for this session. */
-  setPin: (pin: string) => void;
+  /**
+   * Persist the PIN/password for this session. May be sync (web cookie) or
+   * async (extension storage); the shell awaits it before mounting Root, so
+   * downstream code can rely on persistence completing first.
+   */
+  setPin: (pin: string) => void | Promise<void>;
   /** Wallet API factory passed to <Root />. */
   walletApiFactory: RootProps["walletApiFactory"];
 }
@@ -55,7 +59,7 @@ export function StandaloneShell({
         }
       }
 
-      setPin(pin);
+      await setPin(pin);
       setPinReady(true);
     },
     [pinMode, verifyPin, setPin],

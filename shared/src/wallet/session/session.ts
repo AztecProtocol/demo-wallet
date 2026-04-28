@@ -65,10 +65,9 @@ export type SessionData = {
  * `__setSharedResourcesFactoryForTests` to exercise the session-keying logic
  * without requiring a live Aztec node.
  */
-export type SharedResourcesFactory = (
-  node: AztecNode,
-  chainInfo: ChainInfo,
-) => Promise<SharedResources>;
+export type SharedResourcesFactory = (node: AztecNode) => Promise<SharedResources>;
+
+const sessionLog = createLogger("wallet:session");
 
 const defaultSharedResourcesFactory: SharedResourcesFactory = async (node) => {
   const l1Contracts = await node.getL1ContractAddresses();
@@ -134,11 +133,20 @@ let nodeClientFactory: NodeClientFactory = createAztecNodeClient;
 
 const RUNNING_SESSIONS = new Map<string, SessionData>();
 
+/**
+ * Get-or-create the session for `chainInfo` and the wallet pair for `appId`.
+ *
+ * Returns the resolved canonical `sessionId` (`${chainId}-${version}`)
+ * alongside the wallet pair. Callers should prefer this `sessionId` over
+ * recomputing one from the input `chainInfo` because version auto-detection
+ * (when `chainInfo.version === 0`) happens inside this function — the
+ * input `chainInfo`'s version may differ from the resolved one.
+ */
 export async function getOrCreateSession(
   chainInfo: ChainInfo,
   appId: string,
   onWalletEvent: (eventType: string, detail: unknown) => void,
-): Promise<{ external: ExternalWallet; internal: InternalWallet }> {
+): Promise<{ external: ExternalWallet; internal: InternalWallet; sessionId: string }> {
   const network = getNetworkByChainId(chainInfo.chainId.toNumber(), chainInfo.version.toNumber());
   if (!network) {
     throw new Error(
@@ -158,14 +166,15 @@ export async function getOrCreateSession(
   let session = RUNNING_SESSIONS.get(sessionId);
 
   if (!session) {
-    const log = createLogger("wallet:session");
-    log.info(`[PXE-INIT] Creating NEW session with shared PXE instance for sessionId=${sessionId}`);
+    sessionLog.info(
+      `[PXE-INIT] Creating NEW session with shared PXE instance for sessionId=${sessionId}`,
+    );
 
-    const sharedResources = sharedResourcesFactory(node, chainInfo);
+    const sharedResources = sharedResourcesFactory(node);
     session = { sharedResources, wallets: new Map() };
     RUNNING_SESSIONS.set(sessionId, session);
   } else {
-    createLogger("wallet:session").info(
+    sessionLog.info(
       `[PXE-INIT] Reusing existing shared PXE instance for sessionId=${sessionId}`,
     );
   }
@@ -219,7 +228,8 @@ export async function getOrCreateSession(
     session.wallets.set(appId, walletInit());
   }
 
-  return session.wallets.get(appId)!;
+  const wallet = await session.wallets.get(appId)!;
+  return { ...wallet, sessionId };
 }
 
 /** Returns the current sessions map (for debugging / UI inspection) */
@@ -230,22 +240,13 @@ export function getRunningSessionIds(): string[] {
 /**
  * Returns the shared resources for a session (pxe, node, db, pendingAuthorizations).
  * Used by the UI wallet-api to resolve authorization requests directly.
+ *
+ * Pass the canonical `sessionId` returned from `getOrCreateSession`. Computing
+ * a sessionId from a `chainInfo` whose `version` is still `0` will not find
+ * the session — that's by design; callers must flow the resolved sessionId.
  */
-export async function getSharedResources(chainInfo: ChainInfo): Promise<SharedResources> {
-  const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
-  let session = RUNNING_SESSIONS.get(sessionId);
-
-  // If version is 0 (unresolved), find the session by chainId prefix
-  if (!session && chainInfo.version.toNumber() === 0) {
-    const prefix = `${chainInfo.chainId.toNumber()}-`;
-    for (const [key, value] of RUNNING_SESSIONS) {
-      if (key.startsWith(prefix) && key !== sessionId) {
-        session = value;
-        break;
-      }
-    }
-  }
-
+export async function getSharedResources(sessionId: string): Promise<SharedResources> {
+  const session = RUNNING_SESSIONS.get(sessionId);
   if (!session) {
     throw new Error(`No session found for sessionId=${sessionId}`);
   }
@@ -253,9 +254,8 @@ export async function getSharedResources(chainInfo: ChainInfo): Promise<SharedRe
 }
 
 /**
- * Test-only: clears the in-memory `RUNNING_SESSIONS` map. Used by unit tests
- * to start each test with a fresh session manager. Not exported from the
- * public barrel — import it directly from "./session" in tests.
+ * Test-only helper. Not exported from the package barrel; import directly
+ * from `./session` in tests.
  */
 export function __resetSessionsForTests() {
   RUNNING_SESSIONS.clear();

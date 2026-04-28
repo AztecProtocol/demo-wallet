@@ -98,7 +98,7 @@ export async function getOrCreateSessionWithCookieSync(
   chainInfo: ChainInfo,
   appId: string,
   onWalletEvent: (eventType: string, detail: unknown) => void,
-): Promise<{ external: ExternalWallet; internal: InternalWallet }> {
+): Promise<{ external: ExternalWallet; internal: InternalWallet; sessionId: string }> {
   // Captured after the lifted getOrCreateSession resolves. Events can only
   // fire after wallet construction, which can only happen after the session's
   // shared resources resolve, so by the time `wrappedOnWalletEvent` is invoked
@@ -131,8 +131,13 @@ export async function getOrCreateSessionWithCookieSync(
     onWalletEvent(eventType, detail);
   };
 
+  // `getOrCreateSession` resolves `version=0` internally, so its returned
+  // `sessionId` is the canonical key. We use that for both `getSharedResources`
+  // and the `cookieBootstrapBySession` keying — recomputing one from the
+  // (possibly version-0) input `chainInfo` would diverge.
   const pair = await getOrCreateSession(chainInfo, appId, wrappedOnWalletEvent);
-  const resources = await getSharedResources(chainInfo);
+  const { sessionId } = pair;
+  const resources = await getSharedResources(sessionId);
   sessionDb = resources.db;
 
   // ─── One-shot per-session cookie bootstrap ───
@@ -140,7 +145,6 @@ export async function getOrCreateSessionWithCookieSync(
   // block, but the lifted module no longer knows about cookies. Run it here on
   // the first call per session id, gated on the passphrase being set.
   if (_cookiePassphrase) {
-    const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
     let bootstrap = cookieBootstrapBySession.get(sessionId);
     if (!bootstrap) {
       bootstrap = (async () => {
@@ -154,7 +158,7 @@ export async function getOrCreateSessionWithCookieSync(
           // Must be serialized to avoid concurrent PXE operations on the same
           // IndexedDB (IDB transactions auto-close on browser, causing
           // "object not usable" errors).
-          await bootstrapAccountsFromCookie(chainInfo, pair.internal);
+          await bootstrapAccountsFromCookie(sessionId, pair.internal);
           await bootstrapContactsFromCookie(db, pxe);
         } else {
           // Standalone: accounts and contacts are the source of truth — push
@@ -181,10 +185,13 @@ export async function getOrCreateSessionWithCookieSync(
  * Requires passphrase to have been set via setCookiePassphrase().
  * Skips accounts that already exist in the DB.
  *
+ * @param sessionId - The canonical sessionId returned from
+ *   `getOrCreateSession`. Pass the resolved sessionId, not one recomputed
+ *   from a (possibly version=0) chainInfo.
  * @param wallet - An InternalWallet instance used to register accounts with PXE.
  */
 export async function bootstrapAccountsFromCookie(
-  chainInfo: ChainInfo,
+  sessionId: string,
   wallet: InternalWallet,
 ): Promise<number> {
   const log = createLogger("wallet:cookie");
@@ -201,7 +208,7 @@ export async function bootstrapAccountsFromCookie(
     return 0;
   }
 
-  const { db } = await getSharedResources(chainInfo);
+  const { db } = await getSharedResources(sessionId);
   const existingAccounts = await db.listAccounts();
   const existingAddresses = new Set(existingAccounts.map((a) => a.item.toString()));
 

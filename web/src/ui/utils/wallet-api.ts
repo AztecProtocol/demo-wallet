@@ -36,30 +36,36 @@ function emitProofDebugExportRequest(detail: unknown) {
   proofDebugExportListeners.forEach((cb) => cb(parsed));
 }
 
-// Cache: chainId-version → InternalWallet
-const walletCache = new Map<
-  string,
-  Promise<Awaited<ReturnType<typeof getOrCreateSessionWithCookieSync>>["internal"]>
->();
+// Cache: input-key (chainId-version, may use unresolved version=0) → session pair.
+// We cache the whole pair (not just the wallet) so callers can reach the
+// resolved `sessionId` for downstream calls like `getSharedResources`.
+type CachedSession = Awaited<ReturnType<typeof getOrCreateSessionWithCookieSync>>;
+const walletCache = new Map<string, Promise<CachedSession>>();
 
 function getCacheKey(chainId: Fr, version: Fr): string {
   return `${chainId.toString()}-${version.toString()}`;
 }
 
-async function getInternalWallet(
-  chainId: Fr,
-  version: Fr,
-): Promise<Awaited<ReturnType<typeof getOrCreateSessionWithCookieSync>>["internal"]> {
+function getOrCreateSessionEntry(chainId: Fr, version: Fr): Promise<CachedSession> {
   const key = getCacheKey(chainId, version);
-  if (!walletCache.has(key)) {
-    const p = getOrCreateSessionWithCookieSync({ chainId, version }, "internal-ui", (eventType, detail) => {
+  let entry = walletCache.get(key);
+  if (!entry) {
+    entry = getOrCreateSessionWithCookieSync({ chainId, version }, "internal-ui", (eventType, detail) => {
       if (eventType === "wallet-update") emitWalletUpdate(detail);
       else if (eventType === "authorization-request") emitAuthorizationRequest(detail);
       else if (eventType === "proof-debug-export-request") emitProofDebugExportRequest(detail);
-    }).then(({ internal }) => internal);
-    walletCache.set(key, p);
+    });
+    walletCache.set(key, entry);
   }
-  return walletCache.get(key)!;
+  return entry;
+}
+
+async function getInternalWallet(
+  chainId: Fr,
+  version: Fr,
+): Promise<CachedSession["internal"]> {
+  const { internal } = await getOrCreateSessionEntry(chainId, version);
+  return internal;
 }
 
 export class WalletApi {
@@ -133,7 +139,8 @@ export class WalletApi {
 }
 
 // resolveAuthorization needs to reach the shared pendingAuthorizations map.
-// We access it by going through wallet-service's session.
+// We access it by going through wallet-service's session, using the resolved
+// sessionId captured when the session was first created.
 import { getSharedResources } from "../../wallet/wallet-service.ts";
 
 async function resolveAuthorizationViaSession(
@@ -141,7 +148,10 @@ async function resolveAuthorizationViaSession(
   version: Fr,
   response: AuthorizationResponse,
 ): Promise<void> {
-  const resources = await getSharedResources({ chainId, version });
+  // Reuses the cached session (resolves version=0 if needed) rather than
+  // recomputing a sessionId from the un-resolved (chainId, version).
+  const { sessionId } = await getOrCreateSessionEntry(chainId, version);
+  const resources = await getSharedResources(sessionId);
   const pending = resources.pendingAuthorizations.get(response.id);
   if (pending) {
     pending.promise.resolve(response);

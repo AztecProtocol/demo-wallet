@@ -67,4 +67,10 @@ describe("session manager", () => {
     expect(w1.external).toBe(w2.external);
     expect(w1.internal).toBe(w2.internal);
   });
+
+  it("returns the resolved sessionId on the wallet pair", async () => {
+    const result = await getOrCreateSession(CHAIN_A, "app-1", () => {});
+    expect(result.sessionId).toBe("31337-1");
+    expect(getRunningSessionIds()).toContain(result.sessionId);
+  });
 });

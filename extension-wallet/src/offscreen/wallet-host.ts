@@ -1,5 +1,6 @@
 import type { ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/aztec.js/fields";
+import { WalletSchema } from "@aztec/aztec.js/wallet";
 import { getOrCreateSession, InternalWalletInterfaceSchema } from "@demo-wallet/shared/core";
 import { VaultState } from "../vault/vault-state";
 import { PortServer, type MethodHandlerMap } from "../ipc/port-server";
@@ -46,8 +47,19 @@ export class WalletHost {
       }),
 
       ...this.buildWalletMethodHandlers(),
+      ...this.buildDappMethodHandlers(),
     };
   }
+
+  private forwardWalletEvent = (eventType: string, detail: unknown) => {
+    if (eventType === "wallet-update") {
+      this.server.broadcast("wallet-update", detail);
+    } else if (eventType === "authorization-request") {
+      this.server.broadcast("authorization-request", detail);
+    } else if (eventType === "proof-debug-export-request") {
+      this.server.broadcast("proof-debug-export-request", detail);
+    }
+  };
 
   private buildWalletMethodHandlers(): MethodHandlerMap {
     const guard = async () => {
@@ -57,15 +69,7 @@ export class WalletHost {
       const { internal } = await getOrCreateSession(
         this.currentChainInfo,
         "ui",
-        (eventType, detail) => {
-          if (eventType === "wallet-update") {
-            this.server.broadcast("wallet-update", detail);
-          } else if (eventType === "authorization-request") {
-            this.server.broadcast("authorization-request", detail);
-          } else if (eventType === "proof-debug-export-request") {
-            this.server.broadcast("proof-debug-export-request", detail);
-          }
-        },
+        this.forwardWalletEvent,
       );
       return internal;
     };
@@ -81,6 +85,40 @@ export class WalletHost {
           throw new Error(`Method ${methodName} not found on InternalWallet`);
         }
         return await fn.apply(wallet, args);
+      };
+    }
+    return handlers;
+  }
+
+  /**
+   * Build handlers for `dapp.*` methods. Each forwards to the per-session
+   * ExternalWallet identified by `session.appId` + `session.chainInfo`.
+   * Called shape: handler(session, message), where message.args is the call payload.
+   */
+  private buildDappMethodHandlers(): MethodHandlerMap {
+    const handlers: MethodHandlerMap = {};
+    for (const methodName of Object.keys(WalletSchema)) {
+      handlers[`dapp.${methodName}`] = async (...callArgs: unknown[]) => {
+        if (!this.vault.isUnlocked()) {
+          throw new Error("Vault is locked");
+        }
+        const [session, message] = callArgs;
+        const sess = session as { appId: string; chainInfo: ChainInfo };
+        const msg = message as { args?: unknown[] };
+
+        const { external } = await getOrCreateSession(
+          sess.chainInfo,
+          sess.appId,
+          this.forwardWalletEvent,
+        );
+        const args = msg.args ?? [];
+        const fn = (external as unknown as Record<string, (...a: unknown[]) => unknown>)[
+          methodName
+        ];
+        if (typeof fn !== "function") {
+          throw new Error(`Method ${methodName} not found on ExternalWallet`);
+        }
+        return await fn.apply(external, args);
       };
     }
     return handlers;

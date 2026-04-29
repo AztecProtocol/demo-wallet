@@ -1,0 +1,13 @@
+# WXT generated artifacts
+.wxt
+.output
+
+# Build stats
+stats.html
+stats-*.json
+
+# Logs
+*.log
+
+# Firefox-specific dev config that WXT may generate locally
+web-ext.config.ts

@@ -6,7 +6,8 @@
   "workspaces": [
     "app",
     "web",
-    "shared"
+    "shared",
+    "extension-wallet"
   ],
   "scripts": {
     "build": "turbo run build",

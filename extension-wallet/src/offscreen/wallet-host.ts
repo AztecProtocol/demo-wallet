@@ -1,7 +1,11 @@
 import type { ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/aztec.js/fields";
 import { WalletSchema } from "@aztec/aztec.js/wallet";
-import { getOrCreateSession, InternalWalletInterfaceSchema } from "@demo-wallet/shared/core";
+import {
+  getOrCreateSession,
+  getSharedResources,
+  InternalWalletInterfaceSchema,
+} from "@demo-wallet/shared/core";
 import { VaultState } from "../vault/vault-state";
 import { PortServer, type MethodHandlerMap } from "../ipc/port-server";
 
@@ -45,6 +49,22 @@ export class WalletHost {
         chainId: this.currentChainInfo.chainId.toString(),
         version: this.currentChainInfo.version.toString(),
       }),
+
+      // Returns the array of pending authorization requests for the current
+      // chain. The approval window calls this on mount to find the request
+      // matching its requestId (avoiding the race between window-open and
+      // the original `authorization-request` broadcast).
+      "authorization.getPending": async () => {
+        const { sessionId } = await getOrCreateSession(
+          this.currentChainInfo,
+          "ui",
+          this.forwardWalletEvent,
+        );
+        const shared = await getSharedResources(sessionId);
+        return Array.from(shared.pendingAuthorizations.values()).map(
+          (entry) => entry.request,
+        );
+      },
 
       ...this.buildWalletMethodHandlers(),
       ...this.buildDappMethodHandlers(),

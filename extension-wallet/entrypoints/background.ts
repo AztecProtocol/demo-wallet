@@ -1,15 +1,18 @@
+import "../src/shared/polyfills";
 import { BackgroundConnectionHandler } from "@aztec/wallet-sdk/extension/handlers";
 import type { WalletResponse } from "@aztec/wallet-sdk/types";
 import { WALLET_ID, WALLET_NAME, WALLET_VERSION } from "../src/shared/constants";
-import { isAppRemembered } from "../src/background/remembered-apps";
+import { isAppRemembered, rememberApp } from "../src/background/remembered-apps";
 import {
   ensureOffscreen,
   acquireKeepAlive,
   releaseKeepAlive,
+  markOffscreenReady,
 } from "../src/background/offscreen-lifecycle";
 import { enqueueApproval, isApprovalWindowOpen } from "../src/background/approval-window";
 import { bumpActivity, onAutoLockFired } from "../src/background/auto-lock";
 import { PortClient } from "../src/ipc/port-client";
+import { parseEventDetail } from "../src/ipc/parse-event-detail";
 import { hasVaultMeta } from "../src/vault/vault-meta";
 
 export default defineBackground(() => {
@@ -19,10 +22,14 @@ export default defineBackground(() => {
   async function getPortClient(): Promise<PortClient> {
     await ensureOffscreen();
     if (!portClient) {
-      portClient = new PortClient();
+      // SW already ensured the offscreen above; skip the round-trip ping.
+      portClient = new PortClient({ skipEnsureOffscreen: true });
       portClient.connect();
       portClient.onBroadcast("authorization-request", (payload) => {
-        const req = payload as { id: string; type?: string };
+        // Wallet-emitted events arrive as `jsonStringify(content)` strings —
+        // parse before reading fields. Without this, `req.id` is undefined
+        // and the approval window opens with `?requestId=undefined`.
+        const req = parseEventDetail(payload) as { id: string; type?: string };
         enqueueApproval({ id: req.id, type: req.type ?? "unknown" });
       });
     }
@@ -35,7 +42,7 @@ export default defineBackground(() => {
     const initialized = await hasVaultMeta();
     if (!initialized) {
       await chrome.tabs.create({
-        url: chrome.runtime.getURL("onboarding/index.html"),
+        url: chrome.runtime.getURL("onboarding.html"),
       });
     }
   });
@@ -62,6 +69,13 @@ export default defineBackground(() => {
         chrome.action.openPopup().catch(() => {});
       },
       onWalletMessage: async (session, message) => {
+        // TEMP DEBUG: log every dApp message and what we send back so we can
+        // see whether responses leave the SW. Revert once the bug is found.
+        console.log("[SW] onWalletMessage", {
+          messageId: message.messageId,
+          type: message.type,
+          sessionId: session.sessionId,
+        });
         if (!(await hasVaultMeta())) {
           await sessionHandler.sendResponse(session.sessionId, {
             messageId: message.messageId,
@@ -86,7 +100,7 @@ export default defineBackground(() => {
             chrome.action.openPopup().catch(() => {
               chrome.windows.create({
                 url: chrome.runtime.getURL(
-                  "popup/index.html?reason=unlock-for-request",
+                  "popup.html?reason=unlock-for-request",
                 ),
                 type: "popup",
                 width: 380,
@@ -100,20 +114,32 @@ export default defineBackground(() => {
             session,
             message,
           ]);
+          console.log("[SW] dapp call returned", {
+            messageId: message.messageId,
+            type: message.type,
+            resultPreview: typeof result === "object" ? Object.keys(result ?? {}) : typeof result,
+          });
           const response: WalletResponse = {
             messageId: message.messageId,
             walletId: WALLET_ID,
             result,
           };
           await sessionHandler.sendResponse(session.sessionId, response);
+          console.log("[SW] sendResponse OK", { messageId: message.messageId });
         } catch (err) {
           const e = err as Error;
+          console.error("[SW] dapp call failed", {
+            messageId: message.messageId,
+            type: message.type,
+            error: e.message,
+          });
           const response: WalletResponse = {
             messageId: message.messageId,
             walletId: WALLET_ID,
             error: { message: e.message ?? String(err) },
           };
           await sessionHandler.sendResponse(session.sessionId, response);
+          console.log("[SW] sendResponse(error) OK", { messageId: message.messageId });
         } finally {
           pendingDappCount--;
           releaseKeepAlive();
@@ -136,6 +162,79 @@ export default defineBackground(() => {
   // Bump activity whenever a UI surface connects (popup/expanded/approval open).
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name === "ui-activity") void bumpActivity();
+  });
+
+  // Multiplexed onMessage handler. Each `type` is a distinct UI ↔ SW request.
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    const type = (msg as { type?: string })?.type;
+    if (type === "ensure-offscreen") {
+      ensureOffscreen().then(
+        () => sendResponse({ ok: true }),
+        (err: Error) => sendResponse({ ok: false, error: err.message }),
+      );
+      return true;
+    }
+    if (type === "offscreen-ready") {
+      markOffscreenReady();
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (type === "get-pending-discoveries") {
+      // Surface the SDK-managed pending list to the popup so it can render
+      // approve/reject UI. We expose only the fields the popup needs.
+      const discoveries = sessionHandler.getPendingDiscoveries().map((d) => ({
+        requestId: d.requestId,
+        origin: d.origin,
+        appId: d.appId,
+        chainId: d.chainInfo.chainId.toString(),
+        version: d.chainInfo.version.toString(),
+      }));
+      sendResponse({ ok: true, discoveries });
+      return false;
+    }
+    if (type === "approve-discovery") {
+      const { requestId, remember } = msg as {
+        requestId: string;
+        remember?: boolean;
+      };
+      const discovery = sessionHandler
+        .getPendingDiscoveries()
+        .find((d) => d.requestId === requestId);
+      const ok = sessionHandler.approveDiscovery(requestId);
+      if (ok && remember && discovery) {
+        void rememberApp(
+          discovery.appId,
+          discovery.origin,
+          discovery.chainInfo.chainId.toString(),
+          discovery.chainInfo.version.toString(),
+        );
+      }
+      sendResponse({ ok });
+      return false;
+    }
+    if (type === "reject-discovery") {
+      const { requestId } = msg as { requestId: string };
+      const ok = sessionHandler.rejectDiscovery(requestId);
+      sendResponse({ ok });
+      return false;
+    }
+    if (type === "get-active-sessions") {
+      // Active (post-key-exchange) dApp sessions. Each carries a
+      // `verificationHash` the popup can render as emojis for the user to
+      // compare with what the dApp displays — that's the security check that
+      // the ECDH handshake produced the same shared secret on both sides.
+      const sessions = sessionHandler.getActiveSessions().map((s) => ({
+        sessionId: s.sessionId,
+        origin: s.origin,
+        appId: s.appId,
+        verificationHash: s.verificationHash,
+        chainId: s.chainInfo.chainId.toString(),
+        version: s.chainInfo.version.toString(),
+      }));
+      sendResponse({ ok: true, sessions });
+      return false;
+    }
+    return false;
   });
 
   browser.tabs.onRemoved.addListener((tabId) => sessionHandler.terminateForTab(tabId));

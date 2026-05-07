@@ -18,6 +18,12 @@ import { PinDialog } from "./components/PinDialog.tsx";
 export interface StandaloneShellProps {
   /** Whether persisted vault/cookie data exists. Used to choose set-PIN vs enter-PIN. */
   hasExistingVault: () => boolean | Promise<boolean>;
+  /**
+   * Whether the vault is already unlocked from another surface (extension flavor).
+   * If provided and resolves true, the PIN gate is skipped entirely. Web flavor
+   * has no such concept — leave undefined.
+   */
+  isAlreadyUnlocked?: () => boolean | Promise<boolean>;
   /** Verify the entered PIN/password. Throws on wrong password. */
   verifyPin: (pin: string) => Promise<void>;
   /**
@@ -32,6 +38,7 @@ export interface StandaloneShellProps {
 
 export function StandaloneShell({
   hasExistingVault,
+  isAlreadyUnlocked,
   verifyPin,
   setPin,
   walletApiFactory,
@@ -41,10 +48,15 @@ export function StandaloneShell({
   const [pinError, setPinError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.resolve(hasExistingVault()).then((existing) => {
+    (async () => {
+      if (isAlreadyUnlocked && (await isAlreadyUnlocked())) {
+        setPinReady(true);
+        return;
+      }
+      const existing = await hasExistingVault();
       setPinMode(existing ? "enter" : "set");
-    });
-  }, [hasExistingVault]);
+    })();
+  }, [hasExistingVault, isAlreadyUnlocked]);
 
   const handlePinSubmit = useCallback(
     async (pin: string) => {

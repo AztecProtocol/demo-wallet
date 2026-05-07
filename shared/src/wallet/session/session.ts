@@ -156,10 +156,20 @@ export async function getOrCreateSession(
 
   const node = nodeClientFactory(network.nodeUrl!);
 
-  // Auto-detect version if 0
+  // Auto-detect version if 0. `rollupVersion` shape has shifted across Aztec
+  // SDK versions — sometimes Fr, sometimes bigint/number, sometimes a hex
+  // string. Narrow defensively at runtime so we accept any of those, since
+  // the SDK's compile-time type doesn't always match the runtime value.
   if (chainInfo.version.equals(new Fr(0))) {
     const { rollupVersion } = await node.getNodeInfo();
-    chainInfo = { ...chainInfo, version: new Fr(rollupVersion) };
+    const raw: unknown = rollupVersion;
+    const versionFr =
+      raw instanceof Fr
+        ? raw
+        : typeof raw === "string"
+          ? Fr.fromString(raw)
+          : new Fr(raw as bigint | number | boolean);
+    chainInfo = { ...chainInfo, version: versionFr };
   }
 
   const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;

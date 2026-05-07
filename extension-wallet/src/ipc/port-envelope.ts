@@ -13,6 +13,13 @@ export const PortResponseSchema = z.object({
   id: z.string(),
   ok: z.boolean(),
   result: z.unknown().optional(),
+  /**
+   * Set when `result` is a JSON-serialized string of the actual result. Used
+   * as a fallback when structured clone can't handle the result (e.g. class
+   * instances with non-cloneable internal slots). Receivers that see this
+   * flag must `JSON.parse(result)` to recover the value.
+   */
+  resultIsJson: z.boolean().optional(),
   error: z
     .object({
       message: z.string(),

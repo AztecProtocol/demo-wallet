@@ -63,7 +63,7 @@ function Approval() {
       }
       // Best-effort: postMessage on a port runs synchronously; the offscreen
       // may or may not see it before the SW unloads us.
-      void client.call("wallet.resolveAuthorization", [
+      void client.call("authorization.resolve", [
         { id: request.id, approved: false, appId: request.appId, itemResponses },
       ]);
     }
@@ -77,7 +77,7 @@ function Approval() {
     itemResponses: Record<string, AuthorizationItemResponse>,
   ) => {
     resolved.current = true;
-    await client.call("wallet.resolveAuthorization", [
+    await client.call("authorization.resolve", [
       { id: request.id, approved: true, appId: request.appId, itemResponses },
     ]);
     window.close();
@@ -93,7 +93,7 @@ function Approval() {
         appId: item.appId,
       };
     }
-    await client.call("wallet.resolveAuthorization", [
+    await client.call("authorization.resolve", [
       { id: request.id, approved: false, appId: request.appId, itemResponses },
     ]);
     window.close();

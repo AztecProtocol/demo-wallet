@@ -26,7 +26,7 @@ async function openNext(): Promise<void> {
   const next = queue.shift();
   if (!next) return;
   const url = chrome.runtime.getURL(
-    `approval/index.html?requestId=${encodeURIComponent(next.id)}`,
+    `approval.html?requestId=${encodeURIComponent(next.id)}`,
   );
   const win = await chrome.windows.create({
     url,

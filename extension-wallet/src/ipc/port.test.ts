@@ -22,6 +22,9 @@ function installChromeMock() {
   (globalThis as any).chrome = {
     runtime: {
       onConnect: { addListener: (l: any) => onConnectListeners.push(l) },
+      // PortClient pings the SW first; in tests we just say "ok" — the
+      // server-side onConnect listener is already registered by the test setup.
+      sendMessage: async (_msg: unknown) => ({ ok: true }),
       connect: (opts: { name: string }) => {
         const a = new MockPort(opts.name);
         const b = new MockPort(opts.name);
@@ -52,7 +55,7 @@ describe("Port transport", () => {
     const server = new PortServer({});
     server.start();
     const client = new PortClient();
-    client.connect();
+    await client.connect();
     const seen: any[] = [];
     client.onBroadcast("wallet-update", (p) => seen.push(p));
     // Wait a microtask for the connect to register on the server side.

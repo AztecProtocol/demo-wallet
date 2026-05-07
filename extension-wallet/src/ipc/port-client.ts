@@ -8,15 +8,46 @@ import {
 
 type BroadcastHandler = (payload: unknown) => void;
 
+export interface PortClientOptions {
+  /** If true, skip the ensure-offscreen ping (caller guarantees offscreen is alive). */
+  skipEnsureOffscreen?: boolean;
+}
+
 export class PortClient {
   private port: chrome.runtime.Port | null = null;
+  private connecting: Promise<void> | null = null;
   private pending = new Map<
     string,
     { resolve: (v: unknown) => void; reject: (e: Error) => void }
   >();
   private subscriptions = new Map<PortBroadcast["event"], Set<BroadcastHandler>>();
 
-  connect() {
+  constructor(private options: PortClientOptions = {}) {}
+
+  /**
+   * Kicks off connection. Safe to fire-and-forget; `call()` awaits internally
+   * if the port isn't ready yet.
+   */
+  connect(): Promise<void> {
+    if (this.port) return Promise.resolve();
+    if (this.connecting) return this.connecting;
+    this.connecting = this.doConnect().finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async doConnect(): Promise<void> {
+    if (!this.options.skipEnsureOffscreen) {
+      // Ask the SW to spawn the offscreen doc first; without this the port
+      // opens before any listener exists and immediately disconnects.
+      const reply = (await chrome.runtime.sendMessage({
+        type: "ensure-offscreen",
+      })) as { ok: boolean; error?: string } | undefined;
+      if (!reply?.ok) {
+        throw new Error(reply?.error ?? "Failed to ensure offscreen document");
+      }
+    }
     this.port = chrome.runtime.connect({ name: OFFSCREEN_PORT_NAME });
     this.port.onMessage.addListener((raw) => this.onMessage(raw));
     this.port.onDisconnect.addListener(() => this.onDisconnect());
@@ -28,6 +59,7 @@ export class PortClient {
   }
 
   async call<T>(method: string, args: unknown[]): Promise<T> {
+    if (!this.port) await this.connect();
     if (!this.port) throw new Error("Port not connected");
     const id = crypto.randomUUID();
     const req: PortRequest = { kind: "request", id, method, args };
@@ -63,7 +95,14 @@ export class PortClient {
     if (!pending) return;
     this.pending.delete(msg.id);
     if (msg.ok) {
-      pending.resolve(msg.result);
+      // Fallback path on the server side stringified the result (when
+      // structured clone couldn't handle it). Parse it back here so the
+      // caller still gets a normal value.
+      const result =
+        msg.resultIsJson && typeof msg.result === "string"
+          ? JSON.parse(msg.result)
+          : msg.result;
+      pending.resolve(result);
     } else {
       pending.reject(new Error(msg.error?.message ?? "Unknown error"));
     }

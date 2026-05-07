@@ -38,7 +38,7 @@ yarn compile        # tsc --noEmit
                  ▼
             ┌───────────────────────────────┐
             │ Offscreen document            │
-            │ (entrypoints/offscreen.ts)    │
+            │ (entrypoints/offscreen/)      │
             │  - VaultState (lock/unlock)   │
             │  - WalletHost (RPC dispatch)  │
             │  - PXE / WalletDB / shared    │
@@ -63,7 +63,7 @@ yarn compile        # tsc --noEmit
 ### Files
 
 - `entrypoints/background.ts` — Service worker (router only)
-- `entrypoints/offscreen.ts` — Wallet host bootstrap
+- `entrypoints/offscreen/` — Wallet host bootstrap
 - `entrypoints/content.ts` — dApp ↔ extension relay
 - `entrypoints/popup/` — Status + lock screen
 - `entrypoints/approval/` — Per-request approval window

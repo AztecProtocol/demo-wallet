@@ -37,7 +37,37 @@ import {
   type PXEConfig,
   type PXECreationOptions,
 } from "@aztec/pxe/client/lazy";
-import { createStore } from "@aztec/kv-store/indexeddb";
+import { createStore as createIndexedDbStore } from "@aztec/kv-store/indexeddb";
+import type { AztecAsyncKVStore } from "@aztec/kv-store";
+
+/**
+ * A factory for opening kv-stores by name. The default uses IndexedDB
+ * (matches the web flavor). Hosts that want a different backend — e.g. the
+ * extension flavor wants encrypted sqlite-opfs with an in-memory key —
+ * install their own factory at boot via `setStoreFactory(...)`.
+ */
+export type StoreFactory = (name: string, schemaVersion?: number) => Promise<AztecAsyncKVStore>;
+
+const defaultStoreFactory: StoreFactory = (name, schemaVersion) =>
+  createIndexedDbStore(
+    name,
+    {
+      dataDirectory: name,
+      dataStoreMapSizeKb: 2e10,
+    },
+    schemaVersion,
+    createLogger(`kv-store:${name}`),
+  );
+
+let storeFactory: StoreFactory = defaultStoreFactory;
+
+/**
+ * Install a custom store factory. Must be called BEFORE any session is
+ * created — sessions cache the resources produced by the first call.
+ */
+export function setStoreFactory(factory: StoreFactory): void {
+  storeFactory = factory;
+}
 
 export type SharedResources = {
   pxe: PXE;
@@ -84,27 +114,11 @@ const defaultSharedResourcesFactory: SharedResourcesFactory = async (node) => {
       pxe: createLogger("pxe:service"),
       prover: createLogger("bb:native"),
     },
-    store: await createStore(
-      `pxe-${rollupAddress}`,
-      {
-        dataDirectory: configOverrides.dataDirectory,
-        dataStoreMapSizeKb: 2e10,
-      },
-      2,
-      createLogger("pxe:data:lmdb"),
-    ),
+    store: await storeFactory(`pxe-${rollupAddress}`, 2),
   };
 
   const walletDBLogger = createLogger("wallet:data:lmdb");
-  const walletDBStore = await createStore(
-    `wallet-${rollupAddress}`,
-    {
-      dataDirectory: `wallet-${rollupAddress}`,
-      dataStoreMapSizeKb: 2e10,
-    },
-    2,
-    walletDBLogger,
-  );
+  const walletDBStore = await storeFactory(`wallet-${rollupAddress}`, 2);
   const db = WalletDB.init(walletDBStore, walletDBLogger);
 
   const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
@@ -271,6 +285,7 @@ export function __resetSessionsForTests() {
   RUNNING_SESSIONS.clear();
   sharedResourcesFactory = defaultSharedResourcesFactory;
   nodeClientFactory = createAztecNodeClient;
+  storeFactory = defaultStoreFactory;
 }
 
 /** Test-only: override the shared-resources factory (e.g. to bypass real PXE init). */

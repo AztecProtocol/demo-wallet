@@ -14,5 +14,6 @@ describe("session barrel", () => {
     expect("getOrCreateSession" in barrel).toBe(true);
     expect("getRunningSessionIds" in barrel).toBe(true);
     expect("getSharedResources" in barrel).toBe(true);
+    expect("setStoreFactory" in barrel).toBe(true);
   });
 });

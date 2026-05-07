@@ -4,5 +4,6 @@ export {
   getOrCreateSession,
   getRunningSessionIds,
   getSharedResources,
+  setStoreFactory,
 } from "./session";
-export type { SessionData, SharedResources } from "./session";
+export type { SessionData, SharedResources, StoreFactory } from "./session";

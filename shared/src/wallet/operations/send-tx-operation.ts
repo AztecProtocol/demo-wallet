@@ -270,7 +270,7 @@ export class SendTxOperation<
     try {
       provenTx = await this.pxe.proveTx(
         executionData.txRequest,
-        this.scopesFrom(from, executionData.additionalScopes),
+        { scopes: this.scopesFrom(from, executionData.additionalScopes) },
       );
     } catch (provingError: unknown) {
       // Proving failed - offer to export debug data

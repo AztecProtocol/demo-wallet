@@ -262,7 +262,7 @@ export class InternalWallet extends DemoWallet {
     );
     const provenTx = await this.pxe.proveTx(
       txRequest,
-      this.scopesFrom(opts.from, opts.additionalScopes),
+      { scopes: this.scopesFrom(opts.from, opts.additionalScopes) },
     );
     const provingTime = Date.now() - provingStartTime;
 

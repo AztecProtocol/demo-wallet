@@ -48,7 +48,12 @@ export default defineBackground(() => {
   });
 
   const sessionHandler = new BackgroundConnectionHandler(
-    { walletId: WALLET_ID, walletName: WALLET_NAME, walletVersion: WALLET_VERSION },
+    {
+      walletId: WALLET_ID,
+      walletName: WALLET_NAME,
+      walletVersion: WALLET_VERSION,
+      logger: console,
+    },
     {
       sendToTab: (tabId, message) => browser.tabs.sendMessage(tabId, message),
       addContentListener: (handler) => browser.runtime.onMessage.addListener(handler),

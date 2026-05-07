@@ -155,6 +155,12 @@ export class SimulateTxOperation extends ExternalOperation<
               additionalScopes: opts.additionalScopes,
               skipTxValidation: opts.skipTxValidation,
               skipFeeEnforcement: opts.skipFeeEnforcement ?? true,
+              // Forward sendMessagesAs so the simulator's `senderForTags`
+              // is set for `from === NO_FROM` flows (e.g. SubscriptionFPC
+              // sponsored calls). Without this, any private-log emission
+              // in the simulated contract trips the Noir assertion
+              // `Sender for tags is not set`.
+              sendMessagesAs: opts.sendMessagesAs,
             },
           )
         : Promise.resolve(null),

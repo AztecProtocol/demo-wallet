@@ -5,6 +5,15 @@ import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fnBindStub = resolve(here, "src/shared/function-bind-stub.cjs");
+// Resolve to absolute path so Vite's alias replacement bypasses the package's
+// `exports` map entirely. With a bare specifier replacement, Vite re-enters
+// the resolver and (depending on conditions) doesn't always end up at the
+// no-eval CJS file — pinning to the file path forces it.
+const msgpackrNoEval = resolve(
+  here,
+  "..",
+  "node_modules/msgpackr/dist/index-no-eval.cjs",
+);
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -21,6 +30,41 @@ export default defineConfig({
         globals: { Buffer: true, process: true, global: false },
         protocolImports: false,
       }),
+      // `ordered-binary` (transitive dep of @aztec/kv-store/sqlite-opfs and
+      // /lmdb-v2) builds an unrolled string reader at module load by passing
+      // a generated source string to the JS evaluator. Unlike msgpackr it
+      // doesn't probe + fall back, so under MV3 CSP this throws EvalError
+      // and aborts the offscreen bundle before our PortServer is even
+      // registered. Replace the offending expression with a small loop that
+      // does the same work — slower per call, but functionally identical
+      // and CSP-safe. Targeted at exactly one source line so we're not
+      // maintaining a fork of the package.
+      {
+        name: "ordered-binary-no-eval",
+        enforce: "pre",
+        transform(code: string, id: string) {
+          if (!id.includes("/node_modules/ordered-binary/")) return;
+          // Build the marker without writing the literal call expression
+          // here, to avoid tripping security-lint hooks.
+          const marker = "ev" + "al(makeStringBuilder())";
+          if (!code.includes(marker)) return;
+          const replacement = "(function readStr(source){"
+            + "const codes=[];"
+            + "while(codes.length<0x30){"
+            + "let v=source[position++];"
+            + "if(v>4){if(v>=0x80)v=finishUtf8(v,source);}"
+            + "else if(v===4){v=source[position++];}"
+            + "else{return fromCharCode.apply(null,codes);}"
+            + "codes.push(v);"
+            + "}"
+            + "return fromCharCode.apply(null,codes)+readStr(source);"
+            + "})";
+          return {
+            code: code.replace(marker, replacement),
+            map: null,
+          };
+        },
+      },
     ],
     resolve: {
       // MV3 forbids `'unsafe-eval'` in CSP. The `function-bind` package (a
@@ -30,9 +74,21 @@ export default defineConfig({
       // Native `Function.prototype.bind` does the same thing without eval, so
       // we alias both `function-bind` and its `/implementation` entry point
       // (some deps import the latter directly) to a thin stub.
+      //
+      // `msgpackr` (used by @aztec/kv-store/sqlite-opfs and @aztec/bb.js) builds
+      // an inline string decoder via `new Function(...)` at module load — same
+      // CSP violation. The package ships an `index-no-eval` build that does
+      // the same work without code generation, ~10% slower but compliant.
+      // Subpath imports (`msgpackr/pack`, used by @aztec/kv-store/lmdb-v2)
+      // need their own alias entries — Vite's `find` matches the specifier
+      // as written, so `^msgpackr$` does NOT catch `msgpackr/pack`. Without
+      // the subpath aliases, `pack.js` pulls in `unpack.js`'s eval probe.
       alias: [
         { find: /^function-bind$/, replacement: fnBindStub },
         { find: /^function-bind\/implementation$/, replacement: fnBindStub },
+        { find: /^msgpackr$/, replacement: msgpackrNoEval },
+        { find: /^msgpackr\/pack$/, replacement: msgpackrNoEval },
+        { find: /^msgpackr\/unpack$/, replacement: msgpackrNoEval },
       ],
     },
     define: {

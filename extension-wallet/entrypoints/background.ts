@@ -13,7 +13,12 @@ import { enqueueApproval, isApprovalWindowOpen } from "../src/background/approva
 import { bumpActivity, onAutoLockFired } from "../src/background/auto-lock";
 import { PortClient } from "../src/ipc/port-client";
 import { parseEventDetail } from "../src/ipc/parse-event-detail";
-import { hasVaultMeta } from "../src/vault/vault-meta";
+import {
+  hasVaultMeta,
+  handleVaultMetaProxyMessage,
+  VAULT_META_READ,
+  VAULT_META_WRITE,
+} from "../src/vault/vault-meta";
 
 export default defineBackground(() => {
   let portClient: PortClient | null = null;
@@ -172,6 +177,11 @@ export default defineBackground(() => {
   // Multiplexed onMessage handler. Each `type` is a distinct UI ↔ SW request.
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const type = (msg as { type?: string })?.type;
+    if (type === VAULT_META_READ || type === VAULT_META_WRITE) {
+      // Offscreen documents on some Chromium builds lack `chrome.storage`;
+      // proxy the read/write through the SW which always has it.
+      return handleVaultMetaProxyMessage(msg, sendResponse);
+    }
     if (type === "ensure-offscreen") {
       ensureOffscreen().then(
         () => sendResponse({ ok: true }),

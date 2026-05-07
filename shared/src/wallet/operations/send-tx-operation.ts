@@ -48,6 +48,14 @@ interface SendTxExecutionData<W extends InteractionWaitOptions = undefined> {
   simulationResult?: any;
   from?: string;
   additionalScopes?: AztecAddress[];
+  /**
+   * Override sender used to derive discovery tags for private messages. Plumbed
+   * from `SendOptions.sendMessagesAs` to PXE's `proveTx`/`profileTx` calls so
+   * `from === NO_FROM` flows (e.g. SubscriptionFPC sponsored calls) still get a
+   * `senderForTags` and don't trip the Noir-side `Sender for tags is not set`
+   * assertion.
+   */
+  sendMessagesAs?: AztecAddress;
   embeddedPaymentMethodFeePayer?: string;
 }
 
@@ -108,6 +116,10 @@ export class SendTxOperation<
       from: AztecAddress | NoFrom,
       additionalScopes?: AztecAddress[],
     ) => AztecAddress[],
+    private senderForTagsFrom: (
+      from: AztecAddress | NoFrom,
+      sendMessagesAs?: AztecAddress,
+    ) => AztecAddress | undefined,
   ) {
     super();
     this.interactionManager = interactionManager;
@@ -227,6 +239,7 @@ export class SendTxOperation<
         simulationTime: prepared.displayData?.stats?.timings?.total,
         from: opts.from.toString(),
         additionalScopes: opts.additionalScopes,
+        sendMessagesAs: opts.sendMessagesAs,
       },
     };
   }
@@ -266,11 +279,16 @@ export class SendTxOperation<
     const from =
       executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromString(executionData.from!);
 
+    const senderForTags = this.senderForTagsFrom(from, executionData.sendMessagesAs);
+
     let provenTx: TxProvingResult;
     try {
       provenTx = await this.pxe.proveTx(
         executionData.txRequest,
-        { scopes: this.scopesFrom(from, executionData.additionalScopes) },
+        {
+          scopes: this.scopesFrom(from, executionData.additionalScopes),
+          senderForTags,
+        },
       );
     } catch (provingError: unknown) {
       // Proving failed - offer to export debug data
@@ -285,6 +303,7 @@ export class SendTxOperation<
           profileMode: "execution-steps",
           skipProofGeneration: true,
           scopes: this.scopesFrom(from, executionData.additionalScopes),
+          senderForTags,
         });
 
         // Serialize the execution steps to msgpack format

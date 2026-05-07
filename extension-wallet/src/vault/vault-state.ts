@@ -76,6 +76,26 @@ export class VaultState {
   /**
    * Open (or return cached) encrypted store with the given name. Throws if
    * the vault is locked. Uses the in-memory key as the encryption key.
+   *
+   * Two upstream-API quirks need handling here:
+   *
+   * 1. **Key buffer is transferred, not cloned.** `openEncryptedStore` moves
+   *    the key's ArrayBuffer to its worker via `postMessage` transfer list,
+   *    detaching the caller's view. We hold one long-lived key for many
+   *    stores, so we hand it a fresh `new Uint8Array(savedKey)` each call —
+   *    a new buffer with the same bytes — leaving `this.unlockedKey` intact
+   *    for subsequent opens. Without this, the second open sees
+   *    `encryptionKey.length === 0` and rejects.
+   *
+   * 2. **OPFS SAH Pool directories are exclusively locked.** sqlite3mc-wasm
+   *    builds a pool of handle-locked files inside one OPFS directory and
+   *    the lock spans the entire directory. The default (`.aztec-kv`) is
+   *    fine for a single store; with multiple coexisting stores we have to
+   *    place each one in its own pool dir, otherwise the second store's
+   *    `createSyncAccessHandle` rejects with "Access Handles cannot be
+   *    created if there is another open Access Handle...". Naming each
+   *    pool after the store gives stable cross-session identity (the same
+   *    name re-opens the same OPFS files).
    */
   async getStore(name: string): Promise<AztecAsyncKVStore> {
     if (!this.unlockedKey) {
@@ -83,7 +103,8 @@ export class VaultState {
     }
     const cached = this.openStores.get(name);
     if (cached) return cached;
-    const store = await openEncryptedStore(this.unlockedKey, name);
+    const keyCopy = new Uint8Array(this.unlockedKey);
+    const store = await openEncryptedStore(keyCopy, name, `.aztec-${name}`);
     this.openStores.set(name, store);
     return store;
   }

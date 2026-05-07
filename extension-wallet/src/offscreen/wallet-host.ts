@@ -1,6 +1,14 @@
 import type { ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/aztec.js/fields";
-import { WalletSchema } from "@aztec/aztec.js/wallet";
+import {
+  ExecutionPayloadSchema,
+  ProfileOptionsSchema,
+  SendOptionsSchema,
+  SimulateOptionsSchema,
+  WalletSchema,
+} from "@aztec/aztec.js/wallet";
+import { schemas } from "@aztec/stdlib/schemas";
+import { z } from "zod";
 
 /**
  * Build an args parser from a Zod-function schema. Returns a function that
@@ -28,6 +36,65 @@ function makeArgsParser(
     return argsSchema.parse(padded);
   };
 }
+
+/**
+ * Upstream `aztec.js`'s `SendOptionsSchema` / `SimulateOptionsSchema` /
+ * `ProfileOptionsSchema` are missing `sendMessagesAs`, even though the
+ * TypeScript type (`SendInteractionOptions`) declares it. Zod's default
+ * `z.object` strips unknown keys — so when a dApp passes
+ * `.send({ from: NO_FROM, sendMessagesAs: userAddr, ... })` (the standard
+ * pattern for FPC-sponsored / account-deployment flows), `sendMessagesAs`
+ * silently disappears at our offscreen wallet's argsParser. The downstream
+ * PXE then sees `senderForTags === undefined` and any private-log emission
+ * inside the contract trips `Sender for tags is not set`.
+ *
+ * Patch: extend the option schemas with `sendMessagesAs: optional(AztecAddress)`
+ * so the field is preserved AND revived back into an `AztecAddress` instance
+ * (raw hex strings can't be `.toField()`'d by the oracle).
+ *
+ * The replacement `z.function()` schemas are slot-in compatible with the
+ * upstream entries — same args order, same return types — so callers see
+ * no change. They're substituted into a copy of `WalletSchema` below.
+ */
+const PatchedSendOptionsSchema = SendOptionsSchema.extend({
+  sendMessagesAs: schemas.AztecAddress.optional(),
+});
+const PatchedSimulateOptionsSchema = SimulateOptionsSchema.extend({
+  sendMessagesAs: schemas.AztecAddress.optional(),
+});
+const PatchedProfileOptionsSchema = ProfileOptionsSchema.extend({
+  sendMessagesAs: schemas.AztecAddress.optional(),
+});
+
+// We only need the return-type ZodSchema from the upstream entry — pull it
+// off as `unknown` and re-cast to the broadest Zod type to avoid pinning
+// ourselves to upstream's deeply-generic `ZodFunction` shape.
+const upstreamReturn = (name: string): z.ZodTypeAny =>
+  (
+    (WalletSchema as Record<string, { returnType: () => z.ZodTypeAny }>)[name]
+  ).returnType();
+
+const PatchedSimulateTxSchema = z
+  .function()
+  .args(ExecutionPayloadSchema, PatchedSimulateOptionsSchema)
+  .returns(upstreamReturn("simulateTx"));
+
+const PatchedSendTxSchema = z
+  .function()
+  .args(ExecutionPayloadSchema, PatchedSendOptionsSchema)
+  .returns(upstreamReturn("sendTx"));
+
+const PatchedProfileTxSchema = z
+  .function()
+  .args(ExecutionPayloadSchema, PatchedProfileOptionsSchema)
+  .returns(upstreamReturn("profileTx"));
+
+const PatchedWalletSchema: Record<string, unknown> = {
+  ...WalletSchema,
+  simulateTx: PatchedSimulateTxSchema,
+  sendTx: PatchedSendTxSchema,
+  profileTx: PatchedProfileTxSchema,
+};
 
 /**
  * Coerce a `chainInfo`-shaped value back into one with `Fr` instances after
@@ -206,11 +273,14 @@ export class WalletHost {
    */
   private buildDappMethodHandlers(): MethodHandlerMap {
     const handlers: MethodHandlerMap = {};
-    for (const methodName of Object.keys(WalletSchema)) {
+    for (const methodName of Object.keys(PatchedWalletSchema)) {
       // Same JSON-round-trip-revival pattern as wallet.* methods: pull a Zod
       // args parser once per method so primitives (Fr, AztecAddress, ...) get
       // reconstructed from their hex-string forms after the SW→offscreen hop.
-      const methodSchema = (WalletSchema as Record<string, unknown>)[methodName];
+      // `PatchedWalletSchema` overrides simulateTx/sendTx/profileTx with
+      // option schemas that include `sendMessagesAs` (see comment near the
+      // patch definition above for why).
+      const methodSchema = PatchedWalletSchema[methodName];
       const argsParser = makeArgsParser(methodSchema);
 
       handlers[`dapp.${methodName}`] = async (...callArgs: unknown[]) => {

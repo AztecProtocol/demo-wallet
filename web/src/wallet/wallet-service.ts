@@ -1,39 +1,33 @@
 /**
- * Browser wallet service — the browser equivalent of wallet-worker.ts.
+ * Browser wallet service — web-flavor wrapper around the host-agnostic
+ * session manager in `@demo-wallet/shared/core`.
  *
- * Manages PXE sessions indexed by `chainId-version`. Each session has one
- * shared PXE instance (critical: multiple PXE instances sharing the same
- * IndexedDB store cause Map/storage desync) plus per-appId wallet pairs.
+ * The host-agnostic core (PXE per chainId-version, wallet pair per appId,
+ * RUNNING_SESSIONS map) lives in `shared/wallet/session/`. This file layers
+ * the web-only cookie-sync glue on top:
+ *   - cookie-passphrase state and accessors
+ *   - bootstrapping accounts/contacts/capabilities from encrypted cookies
+ *   - syncing wallet state back to cookies on `wallet-update` events
+ *   - iframe-vs-standalone behavior gates via the `IS_IFRAME` flag
  *
- * Key differences from Electron wallet-worker.ts:
- * - Uses @aztec/pxe/client/lazy (WASM prover, lazy artifact loading)
- * - Uses @aztec/kv-store IndexedDB backend instead of LMDB
- * - Runs in the main browser thread (no worker thread / MessagePortMain)
- * - Logger uses createLogger directly (no proxy logger needed)
+ * Call sites that previously imported `getOrCreateSession` directly should
+ * use `getOrCreateSessionWithCookieSync` instead — same signature plus the
+ * cookie-sync side effects wired in.
  */
 
-import { createAztecNodeClient, type AztecNode } from "@aztec/aztec.js/node";
 import { type ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/aztec.js/fields";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { createLogger } from "@aztec/aztec.js/log";
-import { type PromiseWithResolvers } from "@aztec/foundation/promise";
 import {
   ExternalWallet,
   InternalWallet,
   WalletDB,
-  type AuthorizationRequest,
-  type AuthorizationResponse,
-  getNetworkByChainId,
+  getOrCreateSession,
+  getRunningSessionIds,
+  getSharedResources,
 } from "@demo-wallet/shared/core";
-import {
-  createPXE,
-  getPXEConfig,
-  type PXE,
-  type PXEConfig,
-  type PXECreationOptions,
-} from "@aztec/pxe/client/lazy";
-import { createStore } from "@aztec/kv-store/indexeddb";
+import { type PXE } from "@aztec/pxe/client/lazy";
 import {
   writeAccountsCookie,
   readAccountsCookie,
@@ -45,27 +39,11 @@ import {
   type PortableContact,
 } from "./sync-cookies.ts";
 
+// Re-export the lifted host-agnostic API so existing callers can keep
+// importing from this module.
+export { getOrCreateSession, getRunningSessionIds, getSharedResources };
+
 const IS_IFRAME = typeof window !== "undefined" && window.self !== window.top;
-
-type SessionData = {
-  sharedResources: Promise<{
-    pxe: PXE;
-    node: AztecNode;
-    db: WalletDB;
-    pendingAuthorizations: Map<
-      string,
-      {
-        promise: PromiseWithResolvers<AuthorizationResponse>;
-        request: AuthorizationRequest;
-      }
-    >;
-  }>;
-  /** One-time account/contact bootstrap from cookies. Runs once per session. */
-  bootstrapDone: Promise<void> | null;
-  wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
-};
-
-const RUNNING_SESSIONS = new Map<string, SessionData>();
 
 // ─── Targeted cookie sync ───
 // Each cookie is synced only when the relevant data changes, not on every
@@ -102,189 +80,102 @@ export function hasCookiePassphrase(): boolean {
   return _cookiePassphrase !== null;
 }
 
-export async function getOrCreateSession(
+// Tracks one-time cookie bootstrap per session id so that the first call to
+// `getOrCreateSessionWithCookieSync` for a given `chainId-version` runs the
+// bootstrap exactly once. Subsequent calls await the same promise.
+const cookieBootstrapBySession = new Map<string, Promise<void>>();
+
+/**
+ * Web-flavor wrapper around `getOrCreateSession`. Same signature, plus:
+ *   - schedules the appropriate cookie sync when `wallet-update` fires
+ *   - filters out internal `capabilityChange` events from the UI callback
+ *   - in iframe mode, bootstraps accounts/contacts/capabilities from cookies
+ *     once per session before the first wallet pair is returned
+ *   - in standalone mode, runs the initial capability bootstrap-and-resync
+ *     once per session before the first wallet pair is returned
+ */
+export async function getOrCreateSessionWithCookieSync(
   chainInfo: ChainInfo,
   appId: string,
   onWalletEvent: (eventType: string, detail: unknown) => void,
-): Promise<{ external: ExternalWallet; internal: InternalWallet }> {
-  const network = getNetworkByChainId(chainInfo.chainId.toNumber(), chainInfo.version.toNumber());
-  if (!network) {
-    throw new Error(
-      `Unknown network: chainId=${chainInfo.chainId.toNumber()}, version=${chainInfo.version.toNumber()}`,
-    );
-  }
+): Promise<{ external: ExternalWallet; internal: InternalWallet; sessionId: string }> {
+  // Captured after the lifted getOrCreateSession resolves. Events can only
+  // fire after wallet construction, which can only happen after the session's
+  // shared resources resolve, so by the time `wrappedOnWalletEvent` is invoked
+  // this reference is guaranteed to be set.
+  let sessionDb: WalletDB | null = null;
 
-  const node = createAztecNodeClient(network.nodeUrl!);
+  const wrappedOnWalletEvent = (eventType: string, detail: unknown) => {
+    if (eventType === "wallet-update") {
+      // Sync only the relevant cookie based on the interaction type.
+      let type: string | undefined;
+      try {
+        type = JSON.parse(detail as string)?.type;
+      } catch {
+        /* ignore parse errors */
+      }
 
-  // Auto-detect version if 0
-  if (chainInfo.version.equals(new Fr(0))) {
-    const { rollupVersion } = await node.getNodeInfo();
-    chainInfo = { ...chainInfo, version: new Fr(rollupVersion) };
-  }
-
-  const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
-  let session = RUNNING_SESSIONS.get(sessionId);
-
-  if (!session) {
-    const log = createLogger("wallet:session");
-    log.info(`[PXE-INIT] Creating NEW session with shared PXE instance for sessionId=${sessionId}`);
-
-    const pxeInit = (async () => {
-      const l1Contracts = await node.getL1ContractAddresses();
-      const rollupAddress = l1Contracts.rollupAddress;
-
-      const configOverrides: Partial<PXEConfig> = {
-        dataDirectory: `./pxe-${rollupAddress}`,
-        proverEnabled: true,
-      };
-
-      const options: PXECreationOptions = {
-        loggers: {
-          store: createLogger("pxe:data:lmdb"),
-          pxe: createLogger("pxe:service"),
-          prover: createLogger("bb:native"),
-        },
-        store: await createStore(
-          `pxe-${rollupAddress}`,
-          {
-            dataDirectory: configOverrides.dataDirectory,
-            dataStoreMapSizeKb: 2e10,
-          },
-          2,
-          createLogger("pxe:data:lmdb"),
-        ),
-      };
-
-      const walletDBLogger = createLogger("wallet:data:lmdb");
-      const walletDBStore = await createStore(
-        `wallet-${rollupAddress}`,
-        {
-          dataDirectory: `wallet-${rollupAddress}`,
-          dataStoreMapSizeKb: 2e10,
-        },
-        2,
-        walletDBLogger,
-      );
-      const db = WalletDB.init(walletDBStore, walletDBLogger);
-
-      const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
-
-      const pendingAuthorizations = new Map<
-        string,
-        {
-          promise: PromiseWithResolvers<AuthorizationResponse>;
-          request: AuthorizationRequest;
+      if (sessionDb) {
+        if (!IS_IFRAME && (type === "createAccount" || type === "deployAccount")) {
+          scheduleAccountSync(sessionDb);
+        } else if (!IS_IFRAME && type === "registerSender") {
+          scheduleContactSync(sessionDb);
+        } else if (type === "requestCapabilities" || type === "capabilityChange") {
+          scheduleCapabilitySync(sessionDb);
         }
-      >();
+      }
 
-      if (_cookiePassphrase) {
+      // Don't forward internal-only events to the UI.
+      if (type === "capabilityChange") return;
+    }
+    onWalletEvent(eventType, detail);
+  };
+
+  // `getOrCreateSession` resolves `version=0` internally, so its returned
+  // `sessionId` is the canonical key. We use that for both `getSharedResources`
+  // and the `cookieBootstrapBySession` keying — recomputing one from the
+  // (possibly version-0) input `chainInfo` would diverge.
+  const pair = await getOrCreateSession(chainInfo, appId, wrappedOnWalletEvent);
+  const { sessionId } = pair;
+  const resources = await getSharedResources(sessionId);
+  sessionDb = resources.db;
+
+  // ─── One-shot per-session cookie bootstrap ───
+  // The original `wallet-service.ts` ran this inline inside the lifted `pxeInit`
+  // block, but the lifted module no longer knows about cookies. Run it here on
+  // the first call per session id, gated on the passphrase being set.
+  if (_cookiePassphrase) {
+    let bootstrap = cookieBootstrapBySession.get(sessionId);
+    if (!bootstrap) {
+      bootstrap = (async () => {
+        const { db, pxe } = resources;
+
         // Import capabilities from cookie (full overwrite: cookie is authoritative).
         await bootstrapCapabilitiesFromCookie(db);
 
-        if (!IS_IFRAME) {
-          // Accounts and contacts are standalone-only (source of truth).
+        if (IS_IFRAME) {
+          // Iframe: import accounts and contacts from cookies into PXE.
+          // Must be serialized to avoid concurrent PXE operations on the same
+          // IndexedDB (IDB transactions auto-close on browser, causing
+          // "object not usable" errors).
+          await bootstrapAccountsFromCookie(sessionId, pair.internal);
+          await bootstrapContactsFromCookie(db, pxe);
+        } else {
+          // Standalone: accounts and contacts are the source of truth — push
+          // the current state to the cookie so the iframe can pick it up.
           await syncAccountsToCookie(db);
           await syncContactsToCookie(db);
         }
+
         // Export capabilities to cookie (includes both local + newly imported).
         await syncCapabilitiesToCookie(db);
-      }
-
-      return { pxe, node, db, pendingAuthorizations };
-    })();
-
-    session = { sharedResources: pxeInit, bootstrapDone: null, wallets: new Map() };
-    RUNNING_SESSIONS.set(sessionId, session);
-  } else {
-    createLogger("wallet:session").info(
-      `[PXE-INIT] Reusing existing shared PXE instance for sessionId=${sessionId}`,
-    );
+      })();
+      cookieBootstrapBySession.set(sessionId, bootstrap);
+    }
+    await bootstrap;
   }
 
-  const sharedResources = await session.sharedResources;
-
-  if (!session.wallets.has(appId)) {
-    const walletInit = async () => {
-      const externalLog = createLogger(`wallet:external:${appId}`);
-      const internalLog = createLogger(`wallet:internal:${appId}`);
-
-      const externalWallet = new ExternalWallet(
-        sharedResources.pxe,
-        sharedResources.node,
-        sharedResources.db,
-        sharedResources.pendingAuthorizations,
-        appId,
-        chainInfo,
-        externalLog,
-      );
-
-      const internalWallet = new InternalWallet(
-        sharedResources.pxe,
-        sharedResources.node,
-        sharedResources.db,
-        sharedResources.pendingAuthorizations,
-        appId,
-        chainInfo,
-        internalLog,
-      );
-
-      const wireEvents = (wallet: ExternalWallet | InternalWallet) => {
-        wallet.addEventListener("wallet-update", (event: Event) => {
-          const detail = (event as CustomEvent).detail;
-
-          // Sync only the relevant cookie based on the interaction type.
-          let type: string | undefined;
-          try {
-            type = JSON.parse(detail)?.type;
-          } catch {
-            /* ignore parse errors */
-          }
-
-          if (!IS_IFRAME && (type === "createAccount" || type === "deployAccount")) {
-            scheduleAccountSync(sharedResources.db);
-          } else if (!IS_IFRAME && type === "registerSender") {
-            scheduleContactSync(sharedResources.db);
-          } else if (type === "requestCapabilities" || type === "capabilityChange") {
-            scheduleCapabilitySync(sharedResources.db);
-          }
-
-          // Don't forward internal-only events to the UI.
-          if (type === "capabilityChange") return;
-
-          onWalletEvent("wallet-update", detail);
-        });
-        wallet.addEventListener("authorization-request", (event: Event) => {
-          onWalletEvent("authorization-request", (event as CustomEvent).detail);
-        });
-        wallet.addEventListener("proof-debug-export-request", (event: Event) => {
-          onWalletEvent("proof-debug-export-request", (event as CustomEvent).detail);
-        });
-      };
-
-      wireEvents(externalWallet);
-      wireEvents(internalWallet);
-
-      // In iframe mode, bootstrap accounts and contacts from cookies into PXE.
-      // Runs once per session — first appId triggers it, others await the same promise.
-      // Must be serialized to avoid concurrent PXE operations on the same IndexedDB
-      // (IDB transactions auto-close on browser, causing "object not usable" errors).
-      if (IS_IFRAME && _cookiePassphrase && !session.bootstrapDone) {
-        session.bootstrapDone = (async () => {
-          await bootstrapAccountsFromCookie(chainInfo, internalWallet);
-          await bootstrapContactsFromCookie(sharedResources.db, sharedResources.pxe);
-        })();
-      }
-      if (session.bootstrapDone) {
-        await session.bootstrapDone;
-      }
-
-      return { external: externalWallet, internal: internalWallet };
-    };
-
-    session.wallets.set(appId, walletInit());
-  }
-
-  return session.wallets.get(appId)!;
+  return pair;
 }
 
 /**
@@ -294,10 +185,13 @@ export async function getOrCreateSession(
  * Requires passphrase to have been set via setCookiePassphrase().
  * Skips accounts that already exist in the DB.
  *
+ * @param sessionId - The canonical sessionId returned from
+ *   `getOrCreateSession`. Pass the resolved sessionId, not one recomputed
+ *   from a (possibly version=0) chainInfo.
  * @param wallet - An InternalWallet instance used to register accounts with PXE.
  */
 export async function bootstrapAccountsFromCookie(
-  chainInfo: ChainInfo,
+  sessionId: string,
   wallet: InternalWallet,
 ): Promise<number> {
   const log = createLogger("wallet:cookie");
@@ -314,7 +208,7 @@ export async function bootstrapAccountsFromCookie(
     return 0;
   }
 
-  const { db } = await getSharedResources(chainInfo);
+  const { db } = await getSharedResources(sessionId);
   const existingAccounts = await db.listAccounts();
   const existingAddresses = new Set(existingAccounts.map((a) => a.item.toString()));
 
@@ -484,45 +378,4 @@ async function bootstrapCapabilitiesFromCookie(db: WalletDB): Promise<number> {
     `Bootstrapped capabilities for ${apps.length} app(s) (${imported} entries) from cookies`,
   );
   return imported;
-}
-
-/** Returns the current sessions map (for debugging / UI inspection) */
-export function getRunningSessionIds(): string[] {
-  return Array.from(RUNNING_SESSIONS.keys());
-}
-
-/**
- * Returns the shared resources for a session (pxe, node, db, pendingAuthorizations).
- * Used by the UI wallet-api to resolve authorization requests directly.
- */
-export async function getSharedResources(chainInfo: ChainInfo): Promise<{
-  pxe: PXE;
-  node: AztecNode;
-  db: WalletDB;
-  pendingAuthorizations: Map<
-    string,
-    {
-      promise: PromiseWithResolvers<AuthorizationResponse>;
-      request: AuthorizationRequest;
-    }
-  >;
-}> {
-  const sessionId = `${chainInfo.chainId.toNumber()}-${chainInfo.version.toNumber()}`;
-  let session = RUNNING_SESSIONS.get(sessionId);
-
-  // If version is 0 (unresolved), find the session by chainId prefix
-  if (!session && chainInfo.version.toNumber() === 0) {
-    const prefix = `${chainInfo.chainId.toNumber()}-`;
-    for (const [key, value] of RUNNING_SESSIONS) {
-      if (key.startsWith(prefix) && key !== sessionId) {
-        session = value;
-        break;
-      }
-    }
-  }
-
-  if (!session) {
-    throw new Error(`No session found for sessionId=${sessionId}`);
-  }
-  return session.sharedResources;
 }

@@ -17,6 +17,33 @@ The wallet uses **Native Messaging** for secure communication between the browse
 - **Native Host**: A small binary (`native-host`) that bridges extension ↔ Electron via stdio/socket
 - **Electron App**: Runs the wallet-worker process that handles account management and signing
 
+## Wallet flavors
+
+This repo contains five wallet flavors that share a common core in `shared/`:
+
+| Flavor                       | Where wallet logic runs                                  | Directory           |
+| ---------------------------- | -------------------------------------------------------- | ------------------- |
+| Native (Electron)            | Worker thread inside an Electron app                     | `app/`              |
+| Web standalone               | Browser page at the wallet's own origin                  | `web/`              |
+| Web iframe                   | Browser page embedded by dApps via postMessage           | `web/` (same build) |
+| Extension (relay)            | Forwards to the Electron app via Native Messaging        | `extension/`        |
+| Extension (self-contained)   | Inside the extension itself (offscreen document)         | `extension-wallet/` |
+
+The relay extension and self-contained extension can be installed side-by-side; they appear as two separate wallet options in dApp wallet pickers (different `WALLET_ID`s).
+
+### Self-contained extension wallet
+
+The `extension-wallet/` directory contains a MetaMask-shaped extension where the wallet logic runs inside the extension. No Electron app required.
+
+```bash
+cd extension-wallet
+yarn install
+yarn dev           # Chrome
+yarn dev:firefox   # Firefox
+```
+
+See `extension-wallet/README.md` for the architecture and `docs/superpowers/specs/2026-04-28-browser-extension-wallet-design.md` for the full design.
+
 ## Updating to Latest Nightly
 
 ```bash

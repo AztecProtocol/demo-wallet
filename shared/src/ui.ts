@@ -2,10 +2,12 @@
 // Import @demo-wallet/shared/core for wallet logic, config, and IPC types
 export * from "./ui/App.tsx";
 export * from "./ui/renderer.tsx";
+export * from "./ui/StandaloneShell.tsx";
 export * from "./ui/styles.ts";
 export * from "./ui/contexts/NetworkContext.tsx";
 export * from "./ui/utils/format.ts";
 // UI components
+export * from "./ui/components/PinDialog.tsx";
 export * from "./ui/components/dialogs/AuthorizationDialog.tsx";
 export * from "./ui/components/dialogs/EditAccountAuthorizationDialog.tsx";
 export * from "./ui/components/dialogs/EditAddressBookAuthorizationDialog.tsx";

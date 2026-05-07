@@ -14,7 +14,7 @@
     "compile": "tsc --noEmit",
     "typecheck": "yarn exec tsc --noEmit",
     "test": "vitest run",
-    "postinstall": "wxt prepare"
+    "postinstall": "node scripts/restore-sqlite3mc-vendor.mjs && wxt prepare"
   },
   "dependencies": {
     "@aztec/accounts": "v4.3.0-nightly.20260506",

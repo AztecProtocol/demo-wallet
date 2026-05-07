@@ -111,6 +111,16 @@ Both extensions can be installed side-by-side. They use different `WALLET_ID`s (
 
 - **At-rest encryption is deferred.** The vault uses Argon2id + a probe-based password check, but account secrets are stored in plaintext in IndexedDB. This is intentional pending the in-progress IndexedDB replacement; the lock UX is preserved so the surface area doesn't change when encryption is added later.
 
+## Workarounds
+
+### `@aztec/sqlite3mc-wasm` vendor restore
+
+The published `@aztec/sqlite3mc-wasm@4.3.0-nightly.20260506` tarball is missing its WASM/MJS artifacts — the upstream `vendor/jswasm/` is gitignored and didn't make it into the npm bundle, so the package's own `dest/index.js` can't resolve `'../vendor/jswasm/sqlite3-bundler-friendly.mjs'` at bundle time.
+
+We work around this by keeping a verified copy of the artifacts at `vendor/sqlite3mc-wasm/jswasm/` (sourced from sqlite3mc v2.2.4 + sqlite 3.50.4, the version pinned by aztec-packages at the v4.3.0-nightly.20260506 tag) and copying them into `node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm/` via `scripts/restore-sqlite3mc-vendor.mjs`, wired into `postinstall`. The script verifies every file against the SHA256SUMS the package itself ships, so vendored-file corruption or upstream manifest drift fails fast.
+
+To remove this workaround once the upstream packaging gap is fixed: drop `vendor/sqlite3mc-wasm/`, `scripts/restore-sqlite3mc-vendor.mjs`, and the `node scripts/restore-sqlite3mc-vendor.mjs &&` prefix from the `postinstall` script.
+
 ## Design
 
 See `docs/superpowers/specs/2026-04-28-browser-extension-wallet-design.md` for the full design.

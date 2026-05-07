@@ -49,6 +49,7 @@ import {
   getRunningSessionIds,
   getSharedResources,
   InternalWalletInterfaceSchema,
+  setStoreFactory,
 } from "@demo-wallet/shared/core";
 import { VaultState } from "../vault/vault-state";
 import { PortServer, type MethodHandlerMap } from "../ipc/port-server";
@@ -64,6 +65,13 @@ export class WalletHost {
   }
 
   start() {
+    // Route every kv-store opened by shared session code through the vault.
+    // The vault holds the in-memory Argon2id key and lazily opens encrypted
+    // sqlite-opfs files on demand. If the vault is locked when a session is
+    // first created, the factory throws and the error propagates to the
+    // caller as "Vault is locked".
+    setStoreFactory(async (name) => await this.vault.getStore(name));
+
     this.server.start();
     this.vault.onChange((state) => {
       if (state === "locked") {

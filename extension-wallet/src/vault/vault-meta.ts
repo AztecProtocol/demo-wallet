@@ -1,64 +1,50 @@
-import { createStore } from "@aztec/kv-store/indexeddb";
-import { createLogger } from "@aztec/aztec.js/log";
-import type { KdfParams, VaultProbe } from "./kdf";
+import type { KdfParams } from "./kdf";
 
-const STORE_NAME = "vault-meta";
-const META_KEY = "v1";
+/**
+ * Vault metadata persists unencrypted because we need the salt + KDF params
+ * to re-derive the encryption key from the user's password on each unlock.
+ * They aren't secrets. Living in `chrome.storage.local` keeps the dependency
+ * footprint small (no IndexedDB just for this) and survives extension reload.
+ *
+ * The previous version lived in an IndexedDB store and also held a
+ * `vaultProbe` (a known plaintext encrypted with the password key) used to
+ * detect wrong passwords. With sqlite3mc encryption-at-rest the probe is
+ * unnecessary — opening the encrypted store with the wrong key fails, which
+ * is itself a sufficient probe.
+ */
+
+const STORAGE_KEY = "vault-meta";
 
 export interface VaultMeta {
   kdfSalt: Uint8Array;
   kdfParams: KdfParams;
-  vaultProbe: VaultProbe;
 }
 
 interface SerializedMeta {
+  /** chrome.storage.local can't carry Uint8Array directly; serialize as number[]. */
   kdfSalt: number[];
   kdfParams: KdfParams;
-  vaultProbe: { iv: number[]; ciphertext: number[] };
 }
 
-let cachedStore: Awaited<ReturnType<typeof createStore>> | null = null;
-
-async function getMetaMap() {
-  if (!cachedStore) {
-    cachedStore = await createStore(
-      STORE_NAME,
-      { dataDirectory: STORE_NAME, dataStoreMapSizeKb: 1024 },
-      1,
-      createLogger("vault-meta"),
-    );
-  }
-  return cachedStore.openMap<string, string>("meta");
+export async function hasVaultMeta(): Promise<boolean> {
+  const result = await chrome.storage.local.get(STORAGE_KEY);
+  return result[STORAGE_KEY] !== undefined;
 }
 
 export async function readVaultMeta(): Promise<VaultMeta | null> {
-  const map = await getMetaMap();
-  const raw = await map.getAsync(META_KEY);
+  const result = await chrome.storage.local.get(STORAGE_KEY);
+  const raw = result[STORAGE_KEY] as SerializedMeta | undefined;
   if (!raw) return null;
-  const parsed = JSON.parse(raw) as SerializedMeta;
   return {
-    kdfSalt: Uint8Array.from(parsed.kdfSalt),
-    kdfParams: parsed.kdfParams,
-    vaultProbe: {
-      iv: Uint8Array.from(parsed.vaultProbe.iv),
-      ciphertext: Uint8Array.from(parsed.vaultProbe.ciphertext),
-    },
+    kdfSalt: Uint8Array.from(raw.kdfSalt),
+    kdfParams: raw.kdfParams,
   };
 }
 
 export async function writeVaultMeta(meta: VaultMeta): Promise<void> {
-  const map = await getMetaMap();
   const serialized: SerializedMeta = {
     kdfSalt: Array.from(meta.kdfSalt),
     kdfParams: meta.kdfParams,
-    vaultProbe: {
-      iv: Array.from(meta.vaultProbe.iv),
-      ciphertext: Array.from(meta.vaultProbe.ciphertext),
-    },
   };
-  await map.set(META_KEY, JSON.stringify(serialized));
-}
-
-export async function hasVaultMeta(): Promise<boolean> {
-  return (await readVaultMeta()) !== null;
+  await chrome.storage.local.set({ [STORAGE_KEY]: serialized });
 }

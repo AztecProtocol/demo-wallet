@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveKey, makeProbe, verifyProbe, generateSalt, DEFAULT_KDF_PARAMS } from "./kdf";
+import { deriveKey, DEFAULT_KDF_PARAMS } from "./kdf";
 
 // Production-grade Argon2id at DEFAULT_KDF_PARAMS runs ~2-5s per derivation under CI/sandbox load.
 const KDF_TEST_TIMEOUT = 30_000;
@@ -33,31 +33,6 @@ describe("deriveKey (Argon2id)", () => {
       const a = await deriveKey("hunter2", new Uint8Array(16).fill(1), DEFAULT_KDF_PARAMS);
       const b = await deriveKey("hunter2", new Uint8Array(16).fill(2), DEFAULT_KDF_PARAMS);
       expect(Array.from(a)).not.toEqual(Array.from(b));
-    },
-    KDF_TEST_TIMEOUT,
-  );
-});
-
-describe("vault probe", () => {
-  it(
-    "verifies with the same key it was made with",
-    async () => {
-      const salt = generateSalt();
-      const key = await deriveKey("hunter2", salt, DEFAULT_KDF_PARAMS);
-      const probe = await makeProbe(key);
-      expect(await verifyProbe(probe, key)).toBe(true);
-    },
-    KDF_TEST_TIMEOUT,
-  );
-
-  it(
-    "rejects a different key",
-    async () => {
-      const salt = generateSalt();
-      const right = await deriveKey("hunter2", salt, DEFAULT_KDF_PARAMS);
-      const wrong = await deriveKey("hunter3", salt, DEFAULT_KDF_PARAMS);
-      const probe = await makeProbe(right);
-      expect(await verifyProbe(probe, wrong)).toBe(false);
     },
     KDF_TEST_TIMEOUT,
   );

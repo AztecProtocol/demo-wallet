@@ -3,8 +3,11 @@ import type { KdfParams } from "./kdf";
 /**
  * Vault metadata persists unencrypted because we need the salt + KDF params
  * to re-derive the encryption key from the user's password on each unlock.
- * They aren't secrets. The SW writes them to `chrome.storage.local`; other
- * contexts proxy through it.
+ * Neither needs to be secret: the salt's only purpose is defeating bulk
+ * amortization across vaults (so an attacker can't precompute one rainbow
+ * table that cracks many users), and the KDF tuning params have to be known
+ * to reproduce the same key on unlock but don't help an attacker guess
+ * faster.
  *
  * **Why proxy through the SW**: Chrome's offscreen documents are documented
  * to have `chrome.storage` access, but in practice some Chromium builds don't
@@ -52,9 +55,9 @@ interface ProxyWriteReply {
 
 function hasDirectStorage(): boolean {
   return (
-    typeof chrome !== "undefined"
-    && typeof chrome.storage !== "undefined"
-    && typeof chrome.storage.local !== "undefined"
+    typeof chrome !== "undefined" &&
+    typeof chrome.storage !== "undefined" &&
+    typeof chrome.storage.local !== "undefined"
   );
 }
 

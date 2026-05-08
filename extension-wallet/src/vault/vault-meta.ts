@@ -11,16 +11,11 @@ import type { KdfParams } from "./kdf";
  *
  * **Why proxy through the SW**: Chrome's offscreen documents are documented
  * to have `chrome.storage` access, but in practice some Chromium builds don't
- * expose it (we've observed this in the wild — `typeof chrome.storage` is
+ * expose it (we've observed this in the wild: `typeof chrome.storage` is
  * `"undefined"` even with the `storage` permission declared). The SW always
  * has it, so when we detect we're in a context without `chrome.storage` we
  * round-trip through the SW. Contexts that do have it (SW, expanded view)
  * use it directly and avoid the extra hop.
- *
- * The previous version held a `vaultProbe` (a known plaintext encrypted with
- * the password key) used to detect wrong passwords. With sqlite3mc
- * encryption-at-rest the probe is unnecessary — opening the encrypted store
- * with the wrong key fails, which is itself a sufficient probe.
  */
 
 const STORAGE_KEY = "vault-meta";

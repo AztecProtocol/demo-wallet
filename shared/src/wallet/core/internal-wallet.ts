@@ -154,10 +154,7 @@ export class InternalWallet extends DemoWallet {
         skipInstancePublication: true,
       };
 
-      const executionPayload = await deployMethod.request({
-        ...opts,
-        deployer: AztecAddress.ZERO,
-      });
+      const executionPayload = await deployMethod.request(opts);
 
       const feeOptions = await this.completeFeeOptions({
         from: opts.from,
@@ -171,6 +168,7 @@ export class InternalWallet extends DemoWallet {
         feeOptions,
         additionalScopes: [address],
         skipTxValidation: true,
+        sendMessagesAs: address,
       });
 
       // Mark simulation complete so the live timeline can measure its duration
@@ -212,6 +210,7 @@ export class InternalWallet extends DemoWallet {
         ...(await toSendOptions(opts)),
         additionalScopes: [address],
         fee: { ...opts.fee, gasSettings },
+        sendMessagesAs: address,
       };
       await this.sendTx(executionPayload, sendOptions, interaction);
 
@@ -236,6 +235,9 @@ export class InternalWallet extends DemoWallet {
     opts: SendOptions<W>,
     interaction?: WalletInteraction<WalletInteractionType>,
   ): Promise<SendReturn<W>> {
+    if (!interaction) {
+      throw new Error("InternalWallet.sendTx requires an interaction to track progress");
+    }
     const fee = await this.completeFeeOptions({
       from: opts.from,
       feePayer: executionPayload.feePayer,
@@ -260,10 +262,10 @@ export class InternalWallet extends DemoWallet {
         status: "PROVING",
       }),
     );
-    const provenTx = await this.pxe.proveTx(
-      txRequest,
-      this.scopesFrom(opts.from, opts.additionalScopes),
-    );
+    const provenTx = await this.pxe.proveTx(txRequest, {
+      scopes: this.scopesFrom(opts.from, opts.additionalScopes),
+      senderForTags: this.senderForTagsFrom(opts.from, opts.sendMessagesAs),
+    });
     const provingTime = Date.now() - provingStartTime;
 
     const offchainOutput = extractOffchainOutput(
@@ -284,7 +286,7 @@ export class InternalWallet extends DemoWallet {
       }),
     );
     this.log.debug(`Sending transaction ${txHash}`);
-    await this.aztecNode.sendTx(tx).catch((err) => {
+    await this.aztecNode.sendTx(tx).catch((err: Error) => {
       throw this.contextualizeError(err, JSON.stringify(tx));
     });
     const sendingTime = Date.now() - sendingStartTime;
@@ -296,11 +298,10 @@ export class InternalWallet extends DemoWallet {
       await this.interactionManager.storeAndEmit(
         interaction.update({ description: timingSummary }),
       );
-      if (interaction) {
-        const rawStats = provenTx.stats;
+      if (provenTx.stats) {
         await this.db.updateTxPayloadStats(interaction.id, {
-          ...rawStats,
-          timings: { ...rawStats.timings, sending: sendingTime },
+          ...provenTx.stats,
+          timings: { ...provenTx.stats.timings, sending: sendingTime },
         });
       }
       return { txHash, ...offchainOutput } as SendReturn<W>;
@@ -318,12 +319,11 @@ export class InternalWallet extends DemoWallet {
 
     const timingSummary = `Prove: ${formatDuration(provingTime)} | Send: ${formatDuration(sendingTime)} | Mine: ${formatDuration(miningTime)}`;
     await this.interactionManager.storeAndEmit(interaction.update({ description: timingSummary }));
-    if (interaction) {
-      const rawStats = provenTx.stats;
+    if (provenTx.stats) {
       await this.db.updateTxPayloadStats(interaction.id, {
-        ...rawStats,
+        ...provenTx.stats,
         timings: {
-          ...rawStats.timings,
+          ...provenTx.stats.timings,
           sending: sendingTime,
           mining: miningTime,
         },

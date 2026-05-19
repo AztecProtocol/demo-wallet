@@ -166,7 +166,7 @@ export function InteractionsList({
 }: InteractionsListProps) {
   const { walletAPI } = useContext(WalletContext);
   const [selectedTrace, setSelectedTrace] = useState<DecodedExecutionTrace | null>(null);
-  const [selectedStats, setSelectedStats] = useState<ExecutionStats | null>(null);
+  const [selectedStats, setSelectedStats] = useState<ExecutionStats | undefined>(undefined);
   const [selectedFrom, setSelectedFrom] = useState<string | null>(null);
   const [selectedFeePayer, setSelectedFeePayer] = useState<string | null>(null);
   const [traceDialogOpen, setTraceDialogOpen] = useState(false);

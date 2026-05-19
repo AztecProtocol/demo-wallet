@@ -25,7 +25,7 @@ export function ContractClassesCapabilityDetails({
 
   return (
     <Box>
-      {(capability.classes as unknown[]).map((classId) => {
+      {(capability.classes as { toString(): string }[]).map((classId) => {
         const classIdStr = classId.toString();
         const shortClassId = `${classIdStr.slice(0, 12)}...${classIdStr.slice(-8)}`;
         const isSelected = selectedClasses.has(classIdStr);

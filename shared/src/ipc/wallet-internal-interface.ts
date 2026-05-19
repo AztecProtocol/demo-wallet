@@ -172,7 +172,6 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
     .args(z.string(), z.enum(AccountTypes), schemas.Fr, schemas.Fr, schemas.Buffer),
   // @ts-expect-error Annoying zod error
   deployAccount: z.function().args(schemas.AztecAddress),
-  // @ts-expect-error - Type inference for enriched InternalAccount with type field
   getAccounts: z
     .function()
     .args()
@@ -187,7 +186,6 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       ),
     ),
   getInteractions: z.function().args().returns(z.array(WalletInteractionSchema)),
-  // @ts-expect-error - zod type inference
   deleteInteraction: z.function().args(z.string()).returns(z.void()),
   clearInteractions: z.function().args().returns(z.void()),
   // @ts-expect-error - zod type inference
@@ -215,7 +213,6 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
   ),
   // App authorization management
   listAuthorizedApps: z.function().args().returns(z.array(z.string())),
-  // @ts-expect-error - zod type inference
   getAppCapabilities: z
     .function()
     .args(z.string())
@@ -225,16 +222,13 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
         granted: z.array(z.any()),
       }),
     ),
-  // @ts-expect-error - zod type inference
   resolveContractNames: z.function().args(z.array(z.string())).returns(z.record(z.string())),
-  // @ts-expect-error - zod type inference
   capabilityToStorageKeys: z.function().args(z.any()).returns(z.array(z.string())),
   // @ts-expect-error - zod type inference
   storeCapabilityGrants: z
     .function()
     .args(z.string(), z.array(z.any()), z.array(z.any()).optional())
     .returns(z.void()),
-  // @ts-expect-error - zod type inference
   revokeCapability: z.function().args(z.string(), z.any()).returns(z.void()),
   // @ts-expect-error - zod type inference
   updateAccountAuthorization: z

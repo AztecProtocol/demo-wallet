@@ -54,6 +54,7 @@ import { hasAccountsCookie, readAccountsCookie } from "../wallet/sync-cookies.ts
 import { EmojiVerification } from "./components/EmojiVerification.tsx";
 import { PinDialog } from "./components/PinDialog.tsx";
 import { Fr } from "@aztec/aztec.js/fields";
+import { createLogger } from "@aztec/foundation/log";
 
 const themeOptions: ThemeOptions = {
   breakpoints: {
@@ -390,6 +391,7 @@ function IframeContent() {
       walletName: "Aztec Web Demo Wallet",
       walletVersion: "0.1.0",
       allowedOrigins: [],
+      logger: createLogger("demo-web-wallet:iframe-connection"),
     };
 
     const handler = new IframeConnectionHandler(config, {

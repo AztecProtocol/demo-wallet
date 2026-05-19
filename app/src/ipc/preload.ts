@@ -66,13 +66,13 @@ contextBridge.exposeInMainWorld("walletAPI", {
   revokeAppAuthorizations(stringifiedArgs: string): Promise<void> {
     return ipcRenderer.invoke("revokeAppAuthorizations", stringifiedArgs);
   },
-  onWalletUpdate(callback) {
-    const listener = (_event: any, eventData: any) => callback(eventData);
+  onWalletUpdate(callback: (eventData: unknown) => void) {
+    const listener = (_event: unknown, eventData: unknown) => callback(eventData);
     ipcRenderer.on("wallet-update", listener);
     return () => ipcRenderer.off("wallet-update", listener);
   },
-  onAuthorizationRequest(callback) {
-    const listener = (_event: any, eventData: any) => callback(eventData);
+  onAuthorizationRequest(callback: (eventData: unknown) => void) {
+    const listener = (_event: unknown, eventData: unknown) => callback(eventData);
     ipcRenderer.on("authorization-request", listener);
     return () => ipcRenderer.off("authorization-request", listener);
   },
@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld("walletAPI", {
   ): Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }> {
     return ipcRenderer.invoke("saveProofDebugData", base64Data);
   },
-  onProofDebugExportRequest(callback) {
+  onProofDebugExportRequest(callback: (eventData: unknown) => void) {
     return ipcRenderer.on("proof-debug-export-request", (_event, eventData) => callback(eventData));
   },
 });

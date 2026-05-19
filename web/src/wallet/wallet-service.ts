@@ -33,7 +33,7 @@ import {
   type PXEConfig,
   type PXECreationOptions,
 } from "@aztec/pxe/client/lazy";
-import { createStore } from "@aztec/kv-store/indexeddb";
+import { AztecSQLiteOPFSStore } from "@aztec/kv-store/sqlite-opfs";
 import {
   writeAccountsCookie,
   readAccountsCookie,
@@ -134,36 +134,35 @@ export async function getOrCreateSession(
       const rollupAddress = l1Contracts.rollupAddress;
 
       const configOverrides: Partial<PXEConfig> = {
-        dataDirectory: `./pxe-${rollupAddress}`,
         proverEnabled: true,
       };
 
+      // SQLite-on-OPFS via the SAH Pool VFS. The SAH Pool holds an exclusive
+      // lock on its directory, so each store gets its own poolDirectory scoped
+      // by rollup address.
+      const pxeStoreLogger = createLogger("pxe:data:sqlite-opfs");
+      const pxeStore = await AztecSQLiteOPFSStore.open(
+        pxeStoreLogger,
+        `pxe_data_${rollupAddress}`,
+        false,
+        `.aztec-kv-pxe-${rollupAddress}`,
+      );
+
       const options: PXECreationOptions = {
         loggers: {
-          store: createLogger("pxe:data:lmdb"),
+          store: pxeStoreLogger,
           pxe: createLogger("pxe:service"),
           prover: createLogger("bb:native"),
         },
-        store: await createStore(
-          `pxe-${rollupAddress}`,
-          {
-            dataDirectory: configOverrides.dataDirectory,
-            dataStoreMapSizeKb: 2e10,
-          },
-          2,
-          createLogger("pxe:data:lmdb"),
-        ),
+        store: pxeStore,
       };
 
-      const walletDBLogger = createLogger("wallet:data:lmdb");
-      const walletDBStore = await createStore(
-        `wallet-${rollupAddress}`,
-        {
-          dataDirectory: `wallet-${rollupAddress}`,
-          dataStoreMapSizeKb: 2e10,
-        },
-        2,
+      const walletDBLogger = createLogger("wallet:data:sqlite-opfs");
+      const walletDBStore = await AztecSQLiteOPFSStore.open(
         walletDBLogger,
+        `wallet_data_${rollupAddress}`,
+        false,
+        `.aztec-kv-wallet-${rollupAddress}`,
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
 

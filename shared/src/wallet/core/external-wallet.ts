@@ -151,6 +151,7 @@ export class ExternalWallet extends DemoWallet {
       this.completeFeeOptions.bind(this),
       this.contextualizeError.bind(this),
       this.scopesFrom.bind(this),
+      this.senderForTagsFrom.bind(this),
     );
   }
 

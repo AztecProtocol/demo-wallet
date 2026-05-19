@@ -375,7 +375,10 @@ app.on("ready", async () => {
   ];
   for (const method of internalMethods) {
     ipcMain.handle(method, async (_event, args) => {
-      return walletProxy[method](...(args ? JSON.parse(args) : []));
+      const fn = walletProxy[method as keyof typeof walletProxy] as (
+        ...a: unknown[]
+      ) => unknown;
+      return fn(...(args ? JSON.parse(args) : []));
     });
   }
 

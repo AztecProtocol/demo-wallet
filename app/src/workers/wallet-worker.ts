@@ -13,6 +13,7 @@ import {
   getNetworkByChainId,
 } from "@demo-wallet/shared/core";
 import { createProxyLogger } from "../utils/logger.ts";
+import type { Logger } from "@aztec/foundation/log";
 import type { AuthorizationRequest, AuthorizationResponse } from "@demo-wallet/shared/core";
 import {
   createPXE,
@@ -28,7 +29,6 @@ import { z } from "zod";
 import { homedir } from "node:os";
 import { inspect } from "node:util";
 import type { PromiseWithResolvers } from "@aztec/foundation/promise";
-import type { Logger } from "pino";
 import { BackendType } from "@aztec/bb.js";
 
 const ChainInfoSchema = z.object({
@@ -168,11 +168,11 @@ async function init(
 
       // Wire up events from both wallets to internal port
       const setupWalletEvents = (wallet: ExternalWallet | InternalWallet) => {
-        wallet.addEventListener("wallet-update", (event: CustomEvent) => {
+        wallet.addEventListener("wallet-update", (event: Event) => {
           internalPort.postMessage({
             origin: "wallet",
             type: "wallet-update",
-            content: event.detail,
+            content: (event as CustomEvent).detail,
             chainInfo: {
               chainId: chainInfo.chainId.toString(),
               version: chainInfo.version.toString(),
@@ -180,11 +180,11 @@ async function init(
           });
         });
 
-        wallet.addEventListener("authorization-request", (event: CustomEvent) => {
+        wallet.addEventListener("authorization-request", (event: Event) => {
           internalPort.postMessage({
             origin: "wallet",
             type: "authorization-request",
-            content: event.detail,
+            content: (event as CustomEvent).detail,
             chainInfo: {
               chainId: chainInfo.chainId.toString(),
               version: chainInfo.version.toString(),
@@ -192,11 +192,11 @@ async function init(
           });
         });
 
-        wallet.addEventListener("proof-debug-export-request", (event: CustomEvent) => {
+        wallet.addEventListener("proof-debug-export-request", (event: Event) => {
           internalPort.postMessage({
             origin: "wallet",
             type: "proof-debug-export-request",
-            content: event.detail,
+            content: (event as CustomEvent).detail,
             chainInfo: {
               chainId: chainInfo.chainId.toString(),
               version: chainInfo.version.toString(),
@@ -231,7 +231,10 @@ const handleEvent = async (
   if (!schemaHasMethod(schema, type)) {
     throw new Error(`Unknown method: ${type}`);
   }
-  const sanitizedArgs = await parseWithOptionals(args, schema[type].parameters());
+  const sanitizedArgs = await parseWithOptionals(
+    args,
+    schema[type].parameters() as Parameters<typeof parseWithOptionals>[1],
+  );
   let result;
   let error;
   try {
@@ -254,7 +257,7 @@ const handleEvent = async (
 };
 
 async function main() {
-  let userLog;
+  let userLog: Logger | undefined;
   process.on("unhandledRejection", (error: Error) => {
     console.error("Unhandled rejection in worker:", error);
     if (userLog) {
@@ -276,9 +279,10 @@ async function main() {
   process.parentPort.once("message", async (message: any) => {
     if (message.data.type === "ports" && message.ports?.length) {
       const [externalPort, internalPort, logPort] = message.ports;
-      userLog = createProxyLogger("wallet:worker", logPort);
+      const log = createProxyLogger("wallet:worker", logPort);
+      userLog = log;
 
-      externalPort.on("message", async (event) => {
+      externalPort.on("message", async (event: Electron.MessageEvent) => {
         const { origin, content } = event.data;
         if (origin !== "native-host") {
           return;
@@ -287,14 +291,14 @@ async function main() {
         try {
           messageContent = JSON.parse(content);
         } catch {
-          userLog.debug(`Unable to parse message ${content}`);
+          log.debug(`Unable to parse message ${content}`);
           return;
         }
         const { type, messageId, args, appId, chainInfo } = messageContent;
         if (appId === "this") {
           throw new Error("External messages cannot have this as appId");
         }
-        userLog.debug("Received external message:", event.data);
+        log.debug("Received external message:", event.data);
         const parsedChainInfo = ChainInfoSchema.parse(chainInfo);
         const wallets = await init(
           parsedChainInfo as unknown as ChainInfo,
@@ -303,15 +307,15 @@ async function main() {
           logPort,
         );
         // Use external wallet for external requests
-        handleEvent(externalPort, wallets.external, WalletSchema, type, messageId, args, userLog);
+        handleEvent(externalPort, wallets.external, WalletSchema, type, messageId, args, log);
       });
-      internalPort.on("message", async (event) => {
+      internalPort.on("message", async (event: Electron.MessageEvent) => {
         const { type, messageId, args, appId: originalAppId, chainInfo } = event.data;
         if (!messageId) {
           return;
         }
         const parsedChainInfo = ChainInfoSchema.parse(chainInfo);
-        userLog.debug("Received internal message:", {
+        log.debug("Received internal message:", {
           type,
           messageId,
           args,
@@ -345,7 +349,7 @@ async function main() {
           type,
           messageId,
           args,
-          userLog,
+          log,
         );
       });
       externalPort.start();

@@ -155,6 +155,7 @@ export class SimulateTxOperation extends ExternalOperation<
               additionalScopes: opts.additionalScopes,
               skipTxValidation: opts.skipTxValidation,
               skipFeeEnforcement: opts.skipFeeEnforcement ?? true,
+              sendMessagesAs: opts.sendMessagesAs,
             },
           )
         : Promise.resolve(null),

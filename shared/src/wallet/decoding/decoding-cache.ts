@@ -57,6 +57,9 @@ export class DecodingCache {
     }
 
     const artifact = await this.pxe.getContractArtifact(contractClassId);
+    if (!artifact) {
+      throw new Error(`Contract artifact not found for class id ${key}`);
+    }
     this.artifactCache.set(key, artifact);
     return artifact;
   }

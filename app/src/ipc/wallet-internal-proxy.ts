@@ -80,7 +80,7 @@ export class WalletInternalProxy {
             });
           };
         } else {
-          return target[prop];
+          return target[prop as keyof WalletInternalProxy];
         }
       },
     }) as unknown as InternalWalletInterface;

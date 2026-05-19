@@ -16,7 +16,7 @@ export function createProxyLogger(prefix: string, logPort: MessagePortMain): Log
           target[loggingFn].call(this, ...[data[0], data[1]]);
         };
       } else {
-        return target[prop];
+        return target[prop as keyof Logger];
       }
     },
   });

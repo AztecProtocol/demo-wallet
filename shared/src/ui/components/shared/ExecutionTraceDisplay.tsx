@@ -50,15 +50,13 @@ function ExecutionStatsDisplay({ stats, compact }: ExecutionStatsDisplayProps) {
   };
 
   // Only show if there are round trips to display
-  if (!stats?.nodeRPCCalls?.roundTrips?.roundTripDurations?.length) {
+  const roundTrips = stats?.nodeRPCCalls?.roundTrips;
+  if (!roundTrips?.roundTripDurations?.length) {
     return null;
   }
 
-  const totalRpcTime = stats.nodeRPCCalls.roundTrips.roundTripDurations.reduce(
-    (sum, d) => sum + d,
-    0,
-  );
-  const tripCount = stats.nodeRPCCalls.roundTrips.roundTripDurations.length;
+  const totalRpcTime = roundTrips.roundTripDurations.reduce((sum, d) => sum + d, 0);
+  const tripCount = roundTrips.roundTripDurations.length;
 
   if (compact) {
     return (
@@ -97,8 +95,8 @@ function ExecutionStatsDisplay({ stats, compact }: ExecutionStatsDisplayProps) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {stats.nodeRPCCalls.roundTrips.roundTripDurations.map((duration, index) => {
-                const methods = stats.nodeRPCCalls.roundTrips.roundTripMethods[index] || [];
+              {roundTrips.roundTripDurations.map((duration, index) => {
+                const methods = roundTrips.roundTripMethods[index] || [];
                 return (
                   <TableRow key={index}>
                     <TableCell sx={{ fontFamily: "monospace" }}>#{index + 1}</TableCell>

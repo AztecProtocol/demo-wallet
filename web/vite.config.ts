@@ -1,5 +1,5 @@
 import { defineConfig, Plugin, searchForWorkspaceRoot } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import { PolyfillOptions, nodePolyfills } from "vite-plugin-node-polyfills";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -38,14 +38,7 @@ export default defineConfig({
       allow: [searchForWorkspaceRoot(import.meta.dirname)],
     },
   },
-  optimizeDeps: {
-    // These packages contain native WASM/binary assets - exclude from pre-bundling
-    exclude: ["@aztec/noir-acvm_js", "@aztec/noir-noirc_abi", "@aztec/bb.js"],
-  },
-  plugins: [
-    react({ jsxImportSource: "@emotion/react" }),
-    nodePolyfillsFix({ include: ["buffer", "path"] }),
-  ],
+  plugins: [react({ jsxImportSource: "@emotion/react" }), nodePolyfillsFix({ include: ["buffer", "path"] })],
   define: {
     "process.env": JSON.stringify({
       LOG_LEVEL: process.env.LOG_LEVEL,

@@ -173,8 +173,9 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     executionPayload: ExecutionPayload,
     opts: SimulateViaEntrypointOptions,
   ): Promise<TxSimulationResultWithAppOffset> {
-    const { from, feeOptions, additionalScopes, skipTxValidation, skipFeeEnforcement } = opts;
+    const { from, feeOptions, additionalScopes, skipTxValidation, skipFeeEnforcement, sendMessagesAs } = opts;
     const scopes = this.scopesFrom(from, additionalScopes);
+    const senderForTags = this.senderForTagsFrom(from, sendMessagesAs);
 
     const feeExecutionPayload = await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
     const finalExecutionPayload = feeExecutionPayload
@@ -220,6 +221,7 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
       skipTxValidation,
       overrides,
       scopes,
+      senderForTags,
     });
     const appCallOffset = await this.computeAppCallOffset(from, feeOptions);
     return TxSimulationResultWithAppOffset.fromResultAndOffset(result, appCallOffset);

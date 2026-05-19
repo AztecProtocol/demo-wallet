@@ -181,19 +181,20 @@ export class WalletDB {
   }
 
   async retrieveAccount(address: AztecAddress | string) {
-    const secretKeyBuffer = await this.accounts.getAsync(`${address.toString()}:sk`);
-    if (!secretKeyBuffer) {
-      throw new Error(
-        `Could not find ${address}:sk. Account "${address.toString}" does not exist on this wallet.`,
-      );
+    const addrStr = address.toString();
+    const [secretKeyBuffer, saltBuffer, typeBuffer, signingKey, deployedBuf] = await Promise.all([
+      this.accounts.getAsync(`${addrStr}:sk`),
+      this.accounts.getAsync(`${addrStr}:salt`),
+      this.accounts.getAsync(`${addrStr}:type`),
+      this.accounts.getAsync(`${addrStr}:signingKey`),
+      this.accounts.getAsync(`${addrStr}:deployed`),
+    ]);
+    if (!secretKeyBuffer || !saltBuffer || !typeBuffer || !signingKey) {
+      throw new Error(`Account "${addrStr}" does not exist on this wallet.`);
     }
     const secretKey = Fr.fromBuffer(secretKeyBuffer);
-    const salt = Fr.fromBuffer(await this.accounts.getAsync(`${address.toString()}:salt`)!);
-    const type = (await this.accounts.getAsync(`${address.toString()}:type`)!).toString(
-      "utf8",
-    ) as AccountType;
-    const signingKey = await this.accounts.getAsync(`${address.toString()}:signingKey`)!;
-    const deployedBuf = await this.accounts.getAsync(`${address.toString()}:deployed`);
+    const salt = Fr.fromBuffer(saltBuffer);
+    const type = typeBuffer.toString("utf8") as AccountType;
     const deployed = deployedBuf?.toString("utf8") === "true";
     return { address, secretKey, salt, type, signingKey, deployed };
   }
@@ -252,7 +253,9 @@ export class WalletDB {
     await this.accounts.delete(`${address.toString()}:signingKey`);
     const accounts = await this.listAccounts();
     const account = accounts.find((account) => address.equals(account.item));
-    await this.aliases.delete(account?.alias);
+    if (account) {
+      await this.aliases.delete(account.alias);
+    }
   }
 
   async storeInteraction<T extends WalletInteractionType>(interaction: WalletInteraction<T>) {
@@ -486,7 +489,7 @@ export class WalletDB {
             : contractClassesCap.classes.map((classId: any) => classId.toString());
 
         if (contractClassesCap.canGetMetadata) {
-          keys.push(...classes.map((c) => `getContractClassMetadata:${c}`));
+          keys.push(...classes.map((c: string) => `getContractClassMetadata:${c}`));
         }
         break;
       }

@@ -31,6 +31,7 @@ import {
 import { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
+import type { ContractArtifact } from "@aztec/stdlib/abi";
 import {
   type ContractOverrides,
   ExecutionPayload,
@@ -94,16 +95,21 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
    * simulation that relies on buildAccountOverrides.
    */
   async initStubClasses(): Promise<void> {
-    const { id: schnorrClassId } = await getContractClassFromArtifact(
-      StubSchnorrAccountContractArtifact,
-    );
-    await this.pxe.registerContractClass(StubSchnorrAccountContractArtifact);
+    // Register each stub class with PXE only if it isn't already known. The PXE is shared
+    // across wallets and sessions, so registering unconditionally produces redundant
+    // "Added contract class" work on every wallet bootstrap.
+    const registerOnce = async (artifact: ContractArtifact): Promise<Fr> => {
+      const { id } = await getContractClassFromArtifact(artifact);
+      const existing = await this.pxe.getContractArtifact(id);
+      if (!existing) {
+        await this.pxe.registerContractClass(artifact);
+      }
+      return id;
+    };
 
+    const schnorrClassId = await registerOnce(StubSchnorrAccountContractArtifact);
     // ecdsa stubs (k1 and r1) share the same class id
-    const { id: ecdsaClassId } = await getContractClassFromArtifact(
-      StubEcdsaAccountContractArtifact,
-    );
-    await this.pxe.registerContractClass(StubEcdsaAccountContractArtifact);
+    const ecdsaClassId = await registerOnce(StubEcdsaAccountContractArtifact);
 
     this.stubClassIds.set("schnorr", schnorrClassId);
     this.stubClassIds.set("schnorr_initializerless", schnorrClassId);

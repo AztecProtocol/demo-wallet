@@ -47,7 +47,7 @@ const pendingRequests = new Map<string, string>();
 const chunkReassembler = new ChunkReassembler();
 
 export default defineBackground(async () => {
-  let nativePort: browser.runtime.Port | null = null;
+  let nativePort: Browser.runtime.Port | null = null;
   let backendConnected = false;
 
   // Storage helper functions (must be inside defineBackground for browser API access)
@@ -127,6 +127,7 @@ export default defineBackground(async () => {
       walletId: WALLET_ID,
       walletName: WALLET_NAME,
       walletVersion: WALLET_VERSION,
+      logger: console,
     },
     {
       sendToTab: (tabId, message) => browser.tabs.sendMessage(tabId, message),

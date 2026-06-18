@@ -126,7 +126,7 @@ export class SimulateTxOperation extends ExternalOperation<
     try {
       blockHeader = await this.pxe.getSyncedBlockHeader();
     } catch {
-      blockHeader = (await this.node.getBlockHeader())!;
+      blockHeader = (await this.node.getBlockData("latest"))!.header;
     }
 
     const simulationOrigin = opts.from === NO_FROM ? AztecAddress.ZERO : opts.from;

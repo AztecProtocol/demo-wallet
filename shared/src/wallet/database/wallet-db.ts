@@ -15,7 +15,12 @@ import { WalletInteraction, type WalletInteractionType } from "../types/wallet-i
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import { TxSimulationResult } from "@aztec/stdlib/tx";
 
-export const AccountTypes = ["schnorr", "ecdsasecp256r1", "ecdsasecp256k1"] as const;
+export const AccountTypes = [
+  "schnorr",
+  "schnorr_initializerless",
+  "ecdsasecp256r1",
+  "ecdsasecp256k1",
+] as const;
 export type AccountType = (typeof AccountTypes)[number];
 
 /** Per-function timing from simulation/proving */

@@ -81,7 +81,7 @@ const DecodedExecutionTraceSchema = z.union([
 const FunctionTimingSchema = z.object({
   functionName: z.string(),
   time: z.number(),
-  oracles: z.record(z.object({ times: z.array(z.number()) })).optional(),
+  oracles: z.record(z.string(), z.object({ times: z.array(z.number()) })).optional(),
 });
 
 const StatsTimingsSchema = z.object({
@@ -102,7 +102,7 @@ const ExecutionStatsSchema = z.object({
   timings: StatsTimingsSchema,
   nodeRPCCalls: z
     .object({
-      perMethod: z.record(z.object({ times: z.array(z.number()) })),
+      perMethod: z.record(z.string(), z.object({ times: z.array(z.number()) })),
       roundTrips: z.object({
         roundTripDurations: z.array(z.number()),
         roundTripMethods: z.array(z.array(z.string())),
@@ -166,80 +166,79 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
 
 export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface> = {
   ...WalletSchema,
-  // @ts-expect-error Annoying zod error
-  createAccount: z
-    .function()
-    .args(z.string(), z.enum(AccountTypes), schemas.Fr, schemas.Fr, schemas.Buffer),
-  // @ts-expect-error Annoying zod error
-  deployAccount: z.function().args(schemas.AztecAddress),
-  getAccounts: z
-    .function()
-    .args()
-    .returns(
-      z.array(
-        z.object({
-          alias: z.string(),
-          item: schemas.AztecAddress,
-          type: z.enum(AccountTypes),
-          deployed: z.boolean(),
-        }),
-      ),
-    ),
-  getInteractions: z.function().args().returns(z.array(WalletInteractionSchema)),
-  deleteInteraction: z.function().args(z.string()).returns(z.void()),
-  clearInteractions: z.function().args().returns(z.void()),
-  // @ts-expect-error - zod type inference
-  getExecutionTrace: z
-    .function()
-    .args(z.string())
-    .returns(
-      optional(
-        z.object({
-          trace: DecodedExecutionTraceSchema.optional(),
-          stats: ExecutionStatsSchema.optional(),
-          from: z.string().optional(),
-          embeddedPaymentMethodFeePayer: z.string().optional(),
-        }),
-      ),
-    ),
-  // @ts-expect-error - zod type inference
-  resolveAuthorization: z.function().args(
-    z.object({
-      id: z.string(),
-      approved: z.boolean(),
-      appId: z.string(),
-      itemResponses: z.record(z.any()),
-    }),
-  ),
-  // App authorization management
-  listAuthorizedApps: z.function().args().returns(z.array(z.string())),
-  getAppCapabilities: z
-    .function()
-    .args(z.string())
-    .returns(
+  createAccount: z.function({
+    input: z.tuple([z.string(), z.enum(AccountTypes), schemas.Fr, schemas.Fr, schemas.Buffer]),
+    output: z.void(),
+  }),
+  deployAccount: z.function({ input: z.tuple([schemas.AztecAddress]), output: z.void() }),
+  getAccounts: z.function({
+    input: z.tuple([]),
+    output: z.array(
       z.object({
-        requested: z.array(z.any()),
-        granted: z.array(z.any()),
+        alias: z.string(),
+        item: schemas.AztecAddress,
+        type: z.enum(AccountTypes),
+        deployed: z.boolean(),
       }),
     ),
-  resolveContractNames: z.function().args(z.array(z.string())).returns(z.record(z.string())),
-  capabilityToStorageKeys: z.function().args(z.any()).returns(z.array(z.string())),
-  // @ts-expect-error - zod type inference
-  storeCapabilityGrants: z
-    .function()
-    .args(z.string(), z.array(z.any()), z.array(z.any()).optional())
-    .returns(z.void()),
-  revokeCapability: z.function().args(z.string(), z.any()).returns(z.void()),
-  // @ts-expect-error - zod type inference
-  updateAccountAuthorization: z
-    .function()
-    .args(z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))),
-  // @ts-expect-error - zod type inference
-  updateAddressBookAuthorization: z
-    .function()
-    .args(z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))),
-  // @ts-expect-error - zod type inference
-  revokeAuthorization: z.function().args(z.string()),
-  // @ts-expect-error - zod type inference
-  revokeAppAuthorizations: z.function().args(z.string()),
+  }),
+  getInteractions: z.function({ input: z.tuple([]), output: z.array(WalletInteractionSchema) }),
+  deleteInteraction: z.function({ input: z.tuple([z.string()]), output: z.void() }),
+  clearInteractions: z.function({ input: z.tuple([]), output: z.void() }),
+  // @ts-expect-error - zod type inference for the optional union return type
+  getExecutionTrace: z.function({
+    input: z.tuple([z.string()]),
+    output: optional(
+      z.object({
+        trace: DecodedExecutionTraceSchema.optional(),
+        stats: ExecutionStatsSchema.optional(),
+        from: z.string().optional(),
+        embeddedPaymentMethodFeePayer: z.string().optional(),
+      }),
+    ),
+  }),
+  // @ts-expect-error - zod type inference for the itemResponses record
+  resolveAuthorization: z.function({
+    input: z.tuple([
+      z.object({
+        id: z.string(),
+        approved: z.boolean(),
+        appId: z.string(),
+        itemResponses: z.record(z.string(), z.any()),
+      }),
+    ]),
+    output: z.void(),
+  }),
+  // App authorization management
+  listAuthorizedApps: z.function({ input: z.tuple([]), output: z.array(z.string()) }),
+  getAppCapabilities: z.function({
+    input: z.tuple([z.string()]),
+    output: z.object({
+      requested: z.array(z.any()),
+      granted: z.array(z.any()),
+    }),
+  }),
+  resolveContractNames: z.function({
+    input: z.tuple([z.array(z.string())]),
+    output: z.record(z.string(), z.string()),
+  }),
+  capabilityToStorageKeys: z.function({
+    input: z.tuple([z.any()]),
+    output: z.array(z.string()),
+  }),
+  storeCapabilityGrants: z.function({
+    input: z.tuple([z.string(), z.array(z.any()), z.array(z.any()).optional()]),
+    output: z.void(),
+  }),
+  revokeCapability: z.function({ input: z.tuple([z.string(), z.any()]), output: z.void() }),
+  updateAccountAuthorization: z.function({
+    input: z.tuple([z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))]),
+    output: z.void(),
+  }),
+  updateAddressBookAuthorization: z.function({
+    input: z.tuple([z.string(), z.array(z.object({ alias: z.string(), item: z.string() }))]),
+    output: z.void(),
+  }),
+  revokeAuthorization: z.function({ input: z.tuple([z.string()]), output: z.void() }),
+  revokeAppAuthorizations: z.function({ input: z.tuple([z.string()]), output: z.void() }),
 };

@@ -18,18 +18,27 @@ export const NATIVE_HOST_NAME = "com.aztec.keychain";
 const FIREFOX_EXTENSION_ID = "aztec-keychain@aztec.network";
 
 /**
- * Get the system-wide native messaging manifest path for Chrome.
- * This is the location Chrome checks when running with a custom --user-data-dir
- * (which WXT uses in dev mode).
+ * Get the system-wide native messaging manifest directories for Chromium-family browsers.
+ * These are the locations a browser checks when running with a custom --user-data-dir
+ * (which WXT uses in dev mode). The exact directory is browser-specific — Google Chrome,
+ * Chromium, and Brave each use a different path — so we return all candidates.
  */
-function getSystemWideManifestPath(): string | null {
+function getSystemWideManifestDirs(): string[] {
   switch (process.platform) {
     case "darwin":
-      return "/Library/Google/Chrome/NativeMessagingHosts";
+      return [
+        "/Library/Google/Chrome/NativeMessagingHosts",
+        "/Library/Application Support/Chromium/NativeMessagingHosts",
+        "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+      ];
     case "linux":
-      return "/etc/opt/chrome/native-messaging-hosts";
+      return [
+        "/etc/opt/chrome/native-messaging-hosts", // Google Chrome
+        "/etc/chromium/native-messaging-hosts", // Chromium (Arch/Debian)
+        "/etc/brave/native-messaging-hosts", // Brave
+      ];
     default:
-      return null; // Windows uses registry
+      return []; // Windows uses registry
   }
 }
 
@@ -46,14 +55,18 @@ export function checkSystemWideManifest(nativeHostPath: string, chromeExtensionI
     return;
   }
 
-  const systemPath = getSystemWideManifestPath();
-  if (!systemPath) {
+  const systemDirs = getSystemWideManifestDirs();
+  if (systemDirs.length === 0) {
     return; // Windows uses registry, different handling needed
   }
 
-  const manifestPath = join(systemPath, `${NATIVE_HOST_NAME}.json`);
+  // The manifest only needs to be present in the dir for the browser actually being used.
+  // If it's installed in ANY candidate dir, assume the dev set it up for their browser.
+  const installedDirs = systemDirs.filter((dir) =>
+    fs.existsSync(join(dir, `${NATIVE_HOST_NAME}.json`)),
+  );
 
-  if (!fs.existsSync(manifestPath)) {
+  if (installedDirs.length === 0) {
     const extensionId = chromeExtensionId || "<EXTENSION_ID>";
 
     const manifest = JSON.stringify(
@@ -91,14 +104,10 @@ export function checkSystemWideManifest(nativeHostPath: string, chromeExtensionI
       "║                                                                              ║",
     );
     console.error(
-      "║   The manifest must be installed at:                                         ║",
-    );
-    console.error(`║   ${manifestPath.padEnd(72)}║`);
-    console.error(
-      "║                                                                              ║",
+      "║   Install it in the system-wide dir for YOUR browser (Chrome / Chromium /    ║",
     );
     console.error(
-      "║   Run the command below to install it.                                       ║",
+      "║   Brave). Run the command below to install it for all of them at once.       ║",
     );
     console.error(
       "║                                                                              ║",
@@ -107,18 +116,29 @@ export function checkSystemWideManifest(nativeHostPath: string, chromeExtensionI
       "╚══════════════════════════════════════════════════════════════════════════════╝",
     );
     console.error("");
-    console.error("Copy and paste this command:");
+    console.error("Candidate system-wide locations (browser-specific):");
+    for (const dir of systemDirs) {
+      console.error(`  - ${join(dir, `${NATIVE_HOST_NAME}.json`)}`);
+    }
     console.error("");
-    console.error(`sudo mkdir -p ${systemPath} && sudo tee ${manifestPath} << 'EOF'`);
-    console.error(manifest);
-    console.error("EOF");
+    console.error("Copy and paste this command (installs for every Chromium-family browser):");
+    console.error("");
+    const dirList = systemDirs.join(" ");
+    console.error(`MANIFEST=$(cat << 'EOF'\n${manifest}\nEOF\n)`);
+    console.error(
+      `for d in ${dirList}; do sudo mkdir -p "$d" && echo "$MANIFEST" | sudo tee "$d/${NATIVE_HOST_NAME}.json" >/dev/null; done`,
+    );
     console.error("");
 
     // Exit with error
     process.exit(1);
   }
 
-  console.log(`System-wide native messaging manifest found: ${manifestPath}`);
+  console.log(
+    `System-wide native messaging manifest found: ${installedDirs
+      .map((dir) => join(dir, `${NATIVE_HOST_NAME}.json`))
+      .join(", ")}`,
+  );
 }
 
 /**

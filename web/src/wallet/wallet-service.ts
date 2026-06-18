@@ -227,6 +227,12 @@ export async function getOrCreateSession(
         internalLog,
       );
 
+      // Register account stub contract classes with PXE so simulations can override
+      // real account contracts. Idempotent at the PXE level; each wallet keeps its own
+      // stubClassIds map. Required before any buildAccountOverrides call.
+      await externalWallet.initStubClasses();
+      await internalWallet.initStubClasses();
+
       const wireEvents = (wallet: ExternalWallet | InternalWallet) => {
         wallet.addEventListener("wallet-update", (event: Event) => {
           const detail = (event as CustomEvent).detail;

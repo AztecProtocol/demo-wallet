@@ -2,7 +2,7 @@ import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { type ChainInfo } from "@aztec/aztec.js/account";
 import { WalletSchema } from "@aztec/aztec.js/wallet";
 import { Fr } from "@aztec/aztec.js/fields";
-import { parseWithOptionals, schemaHasMethod } from "@aztec/foundation/schemas";
+import { getSchemaParameters, parseWithOptionals, schemaHasMethod } from "@aztec/foundation/schemas";
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import {
@@ -166,6 +166,12 @@ async function init(
         internalWalletLogger,
       );
 
+      // Register account stub contract classes with PXE so simulations can override
+      // real account contracts. Idempotent at the PXE level; each wallet keeps its own
+      // stubClassIds map. Required before any buildAccountOverrides call.
+      await externalWallet.initStubClasses();
+      await internalWallet.initStubClasses();
+
       // Wire up events from both wallets to internal port
       const setupWalletEvents = (wallet: ExternalWallet | InternalWallet) => {
         wallet.addEventListener("wallet-update", (event: Event) => {
@@ -233,7 +239,7 @@ const handleEvent = async (
   }
   const sanitizedArgs = await parseWithOptionals(
     args,
-    schema[type].parameters() as Parameters<typeof parseWithOptionals>[1],
+    getSchemaParameters(schema[type]) as Parameters<typeof parseWithOptionals>[1],
   );
   let result;
   let error;

@@ -26,11 +26,11 @@ import {
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
-  getGasLimits,
 } from "@aztec/aztec.js/contracts";
 import { waitForTx } from "@aztec/aztec.js/node";
 import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
-import { GasSettings } from "@aztec/stdlib/gas";
+import { Gas, GasSettings } from "@aztec/stdlib/gas";
+import { getGasLimits } from "@aztec/wallet-sdk/base-wallet";
 
 // Enriched account type for internal use
 export type InternalAccount = Aliased<AztecAddress> & {
@@ -108,6 +108,13 @@ export class InternalWallet extends DemoWallet {
         alias,
         signingKey,
       });
+
+      // Initializerless accounts commit their state into the address and never require
+      // an on-chain deployment tx, so they are immediately usable. Mark them deployed so
+      // the UI doesn't offer a (meaningless) deploy action.
+      if (type === "schnorr_initializerless") {
+        await this.db.markAccountDeployed(accountManager.address);
+      }
 
       await this.interactionManager.storeAndEmit(
         interaction.update({
@@ -195,7 +202,9 @@ export class InternalWallet extends DemoWallet {
           executionPayload.authWitnesses.push(authwit);
         }
       }
-      const estimated = getGasLimits(simulationResult);
+      const { txsLimits } = await this.aztecNode.getNodeInfo();
+      const maxTxGasLimits = new Gas(txsLimits.gas.daGas, txsLimits.gas.l2Gas);
+      const estimated = getGasLimits(simulationResult.gasUsed, maxTxGasLimits);
       this.log.verbose(
         `Estimated gas limits for tx: DA=${estimated.gasLimits.daGas} L2=${estimated.gasLimits.l2Gas} teardownDA=${estimated.teardownGasLimits.daGas} teardownL2=${estimated.teardownGasLimits.l2Gas}`,
       );

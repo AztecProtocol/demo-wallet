@@ -33,7 +33,7 @@ interface LivePhaseTiming {
 // The end of simulation is marked by "REQUESTING AUTHORIZATION" (prepare completes).
 // Auth wait time is intentionally excluded (not a phase).
 const SEND_TX_PHASE_DEFS: PhaseDef[] = [
-  { statusKey: "SIMULATING", name: "Simulation", color: "#ff9800", nextStatusKey: "PROVING" },
+  { statusKey: "SIMULATING", name: "Simulation", color: "#ce93d8", nextStatusKey: "PROVING" },
   { statusKey: "PROVING", name: "Proving", color: "#f48fb1", nextStatusKey: "SENDING" },
   { statusKey: "SENDING", name: "Sending", color: "#2196f3", nextStatusKey: "SENT" },
   { statusKey: "SENT", name: "Mining", color: "#4caf50", nextStatusKey: null },
@@ -42,7 +42,7 @@ const SEND_TX_PHASE_DEFS: PhaseDef[] = [
 // simulateTx / simulateUtility — the interaction is created at simulation start (timestamp),
 // so we can show a live SIMULATING phase directly from interaction.timestamp.
 const SIMULATE_TX_PHASE_DEFS: PhaseDef[] = [
-  { statusKey: "SIMULATING", name: "Simulation", color: "#ff9800", nextStatusKey: null },
+  { statusKey: "SIMULATING", name: "Simulation", color: "#ce93d8", nextStatusKey: null },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -345,7 +345,7 @@ export function TxProgressTimeline({
     const simulationSegment: LivePhaseTiming = {
       name: "Simulation",
       duration: Math.max(0, simEnd - simStart),
-      color: "#ff9800",
+      color: "#ce93d8",
     };
     return (
       <Box sx={{ mt: 1 }}>

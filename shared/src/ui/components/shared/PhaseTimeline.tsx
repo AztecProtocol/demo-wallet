@@ -99,7 +99,7 @@ export function extractPhasesFromStats(
   const t = stats.timings;
 
   if (t.simulation && t.simulation > 0) {
-    phases.push({ name: "Simulation", duration: t.simulation, color: "#ff9800" });
+    phases.push({ name: "Simulation", duration: t.simulation, color: "#ce93d8" });
   }
 
   if (t.sync > 0) {
@@ -124,7 +124,9 @@ export function extractPhasesFromStats(
   }
 
   if (!t.proving && t.validation && t.validation > 0) {
-    phases.push({ name: "Validation", duration: t.validation, color: "#ce93d8" });
+    // Reuse the orange freed up by Simulation (now reference purple) so Validation
+    // stays distinct from Simulation in the same breakdown bar.
+    phases.push({ name: "Validation", duration: t.validation, color: "#ff9800" });
   }
 
   if (t.proving && t.proving > 0) {

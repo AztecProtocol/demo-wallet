@@ -1,4 +1,4 @@
-import { Fr } from "@aztec/aztec.js/fields";
+import { Fq, Fr } from "@aztec/aztec.js/fields";
 import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import { useContext, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
@@ -7,6 +7,11 @@ import Typography from "@mui/material/Typography";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
 import { randomBytes } from "@aztec/foundation/crypto/random";
 import Link from "@mui/material/Link";
 import { AccountBox } from "./components/AccountBox.tsx";
@@ -14,12 +19,43 @@ import { DraggableFab } from "../../shared/DraggableFab.tsx";
 import { WalletContext } from "../../../renderer";
 import { useNetwork } from "../../../contexts/NetworkContext";
 import type { InternalAccount } from "../../../../wallet/core/internal-wallet";
+import type { AccountType } from "../../../../wallet/database/wallet-db";
+
+/** Account types offered in the create-account dialog, with user-facing labels. */
+const ACCOUNT_TYPE_OPTIONS: {
+  type: AccountType;
+  label: string;
+  description: string;
+}[] = [
+  {
+    type: "schnorr_initializerless",
+    label: "Schnorr (initializerless)",
+    description: "No deployment needed — usable immediately",
+  },
+  {
+    type: "schnorr",
+    label: "Schnorr",
+    description: "Requires an on-chain deployment transaction",
+  },
+  {
+    type: "ecdsasecp256r1",
+    label: "ECDSA (secp256r1)",
+    description: "Requires an on-chain deployment transaction",
+  },
+  {
+    type: "ecdsasecp256k1",
+    label: "ECDSA (secp256k1)",
+    description: "Requires an on-chain deployment transaction",
+  },
+];
 
 export function AccountsManager() {
   const [accounts, setAccounts] = useState<InternalAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creatingType, setCreatingType] = useState<AccountType | null>(null);
 
   const { walletAPI, embeddedMode, onRefreshAccounts } = useContext(WalletContext);
   const { currentNetwork } = useNetwork();
@@ -46,18 +82,27 @@ export function AccountsManager() {
     }
   };
 
-  const handleCreateAccount = async () => {
+  const handleCreateAccount = async (type: AccountType) => {
+    const option = ACCOUNT_TYPE_OPTIONS.find((o) => o.type === type);
+    setCreatingType(type);
     try {
+      // Schnorr signing keys are Grumpkin scalars (Fq): random 32 bytes frequently
+      // exceed the field modulus, so derive a valid Fq. ECDSA keys are raw 32-byte buffers.
+      const isSchnorr = type === "schnorr" || type === "schnorr_initializerless";
+      const signingKey = isSchnorr ? Fq.random().toBuffer() : randomBytes(32);
       await walletAPI.createAccount(
-        `ECDSAR1 ${accounts.length}`,
-        "ecdsasecp256r1",
+        `${option?.label ?? type} ${accounts.length}`,
+        type,
         Fr.random(),
         Fr.random(),
-        randomBytes(32),
+        signingKey,
       );
+      setCreateDialogOpen(false);
       await loadAccounts();
     } catch (err: any) {
       setError(err.message || "Failed to create account");
+    } finally {
+      setCreatingType(null);
     }
   };
 
@@ -142,7 +187,29 @@ export function AccountsManager() {
       </Box>
 
       {/* Draggable FAB for creating accounts — hidden in embedded mode */}
-      {!embeddedMode && <DraggableFab onClick={handleCreateAccount} />}
+      {!embeddedMode && <DraggableFab onClick={() => setCreateDialogOpen(true)} />}
+
+      {/* Account-type chooser */}
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => creatingType === null && setCreateDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Create account</DialogTitle>
+        <List sx={{ pt: 0 }}>
+          {ACCOUNT_TYPE_OPTIONS.map((option) => (
+            <ListItemButton
+              key={option.type}
+              disabled={creatingType !== null}
+              onClick={() => handleCreateAccount(option.type)}
+            >
+              <ListItemText primary={option.label} secondary={option.description} />
+              {creatingType === option.type && <CircularProgress size={20} />}
+            </ListItemButton>
+          ))}
+        </List>
+      </Dialog>
       <Snackbar
         open={error !== null}
         autoHideDuration={6000}

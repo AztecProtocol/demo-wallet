@@ -16,15 +16,21 @@ import type { AccountType, WalletDB } from "../database/wallet-db";
 import type { PromiseWithResolvers } from "@aztec/foundation/promise";
 import type { AuthorizationRequest, AuthorizationResponse } from "../types/authorization";
 import { EcdsaKAccountContract, EcdsaRAccountContract } from "@aztec/accounts/ecdsa";
-import { SchnorrAccountContract } from "@aztec/accounts/schnorr";
+import {
+  SchnorrAccountContract,
+  SchnorrInitializerlessAccountContract,
+} from "@aztec/accounts/schnorr";
 import {
   createStubSchnorrAccount,
   StubSchnorrAccountContractArtifact,
-} from "@aztec/accounts/stub/schnorr";
+} from "@aztec/accounts/schnorr/stub";
 import {
   createStubEcdsaAccount,
   StubEcdsaAccountContractArtifact,
-} from "@aztec/accounts/stub/ecdsa";
+} from "@aztec/accounts/ecdsa/stub";
+import { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
+import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
+import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import {
   type ContractOverrides,
@@ -32,7 +38,7 @@ import {
   SimulationOverrides,
   mergeExecutionPayloads,
 } from "@aztec/stdlib/tx";
-import { getContractInstanceFromInstantiationParams } from "@aztec/stdlib/contract";
+import { getContractClassFromArtifact } from "@aztec/stdlib/contract";
 import { BaseWallet, type SimulateViaEntrypointOptions } from "@aztec/wallet-sdk/base-wallet";
 import { DefaultEntrypoint } from "@aztec/entrypoints/default";
 import { type DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
@@ -52,6 +58,10 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
   protected decodingCache: DecodingCache;
   protected interactionManager: InteractionManager;
   protected authorizationManager: AuthorizationManager;
+
+  // Stub class ids per account type, populated by initStubClasses() on wallet startup
+  // so simulations can override account contracts without redundant class registration.
+  protected stubClassIds = new Map<AccountType, Fr>();
 
   constructor(
     pxe: PXE,
@@ -80,7 +90,39 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
   }
 
   /**
+   * Hashes and registers the stub class for every supported account type with PXE,
+   * populating stubClassIds. Must be called once on wallet initialization before any
+   * simulation that relies on buildAccountOverrides.
+   */
+  async initStubClasses(): Promise<void> {
+    // Register each stub class with PXE only if it isn't already known. The PXE is shared
+    // across wallets and sessions, so registering unconditionally produces redundant
+    // "Added contract class" work on every wallet bootstrap.
+    const registerOnce = async (artifact: ContractArtifact): Promise<Fr> => {
+      const { id } = await getContractClassFromArtifact(artifact);
+      const existing = await this.pxe.getContractArtifact(id);
+      if (!existing) {
+        await this.pxe.registerContractClass(artifact);
+      }
+      return id;
+    };
+
+    const schnorrClassId = await registerOnce(StubSchnorrAccountContractArtifact);
+    // ecdsa stubs (k1 and r1) share the same class id
+    const ecdsaClassId = await registerOnce(StubEcdsaAccountContractArtifact);
+
+    this.stubClassIds.set("schnorr", schnorrClassId);
+    this.stubClassIds.set("schnorr_initializerless", schnorrClassId);
+    this.stubClassIds.set("ecdsasecp256k1", ecdsaClassId);
+    this.stubClassIds.set("ecdsasecp256r1", ecdsaClassId);
+  }
+
+  /**
    * Creates an AccountManager for a given account type and signing key.
+   *
+   * Initializerless accounts (`schnorr_initializerless`) commit the signing public key
+   * into the contract address via an immutables hash and never require an on-chain
+   * deployment — their state is materialized locally by simulating the constructor.
    */
   async getAccountManager(
     type: AccountType,
@@ -89,9 +131,16 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     signingKey: Buffer,
   ): Promise<AccountManager> {
     let contract;
+    let immutablesHash;
+    let publicKey;
     switch (type) {
       case "schnorr":
         contract = new SchnorrAccountContract(Fq.fromBuffer(signingKey));
+        break;
+      case "schnorr_initializerless":
+        contract = new SchnorrInitializerlessAccountContract(Fq.fromBuffer(signingKey));
+        publicKey = await new Schnorr().computePublicKey(Fq.fromBuffer(signingKey));
+        immutablesHash = await poseidon2Hash([publicKey.x, publicKey.y]);
         break;
       case "ecdsasecp256k1":
         contract = new EcdsaKAccountContract(signingKey);
@@ -103,19 +152,36 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
         throw new Error(`Unknown account type ${type}`);
     }
 
-    const accountManager = await AccountManager.create(this, secret, contract, salt);
+    const accountManager = await AccountManager.create(this, secret, contract, {
+      salt,
+      immutablesHash,
+    });
 
     const instance = accountManager.getInstance();
     const existingInstance = await this.pxe.getContractInstance(instance.address);
     if (!existingInstance) {
       const existingArtifact = await this.pxe.getContractArtifact(instance.currentContractClassId);
+      const artifact =
+        existingArtifact ?? (await accountManager.getAccountContract().getContractArtifact());
       await this.registerContract(
         instance,
-        !existingArtifact
-          ? await accountManager.getAccountContract().getContractArtifact()
-          : undefined,
+        !existingArtifact ? artifact : undefined,
         accountManager.getSecretKey(),
       );
+      if (type === "schnorr_initializerless") {
+        const constructor = artifact.functions.find((f) => f.name === "constructor");
+        if (!constructor) {
+          throw new Error(
+            "Could not create SchnorrInitializerlessAccountContract: constructor ABI not found",
+          );
+        }
+        // Materialize the account's public key into local state. No tx is sent.
+        const storeCall = new ContractFunctionInteraction(this, instance.address, constructor, [
+          publicKey!.x,
+          publicKey!.y,
+        ]);
+        await storeCall.simulate({ from: instance.address });
+      }
     }
 
     return accountManager;
@@ -143,22 +209,29 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     const filtered = accounts.filter((acc) => scopes.some((addr) => addr.equals(acc.item)));
 
     for (const account of filtered) {
-      try {
-        const { type } = await this.db.retrieveAccount(account.item);
-        const isEcdsa = type === "ecdsasecp256k1" || type === "ecdsasecp256r1";
-        const artifact: ContractArtifact = isEcdsa
-          ? StubEcdsaAccountContractArtifact
-          : StubSchnorrAccountContractArtifact;
-        const stubConstructorArgs =
-          type === "schnorr" ? [Fr.ZERO, Fr.ZERO] : [Buffer.alloc(32), Buffer.alloc(32)];
-        const instance = await getContractInstanceFromInstantiationParams(artifact, {
-          salt: Fr.random(),
-          constructorArgs: stubConstructorArgs,
-        });
-        contracts[account.item.toString()] = { instance, artifact };
-      } catch {
-        // Skip accounts that can't be resolved
+      const address = account.item;
+      const { type } = await this.db.retrieveAccount(address);
+      const stubClassId = this.stubClassIds.get(type);
+      if (!stubClassId) {
+        throw new Error(
+          `Stub class for account type '${type}' was not registered at wallet init. ` +
+            `This is a bug — initStubClasses should cover every supported AccountType.`,
+        );
       }
+
+      const originalAccount = await this.getAccountFromAddress(address);
+      const completeAddress = originalAccount.getCompleteAddress();
+      const contractInstance = await this.pxe.getContractInstance(completeAddress.address);
+      if (!contractInstance) {
+        throw new Error(
+          `No contract instance found for address: ${completeAddress.address} during ` +
+            `account override building. This is a bug!`,
+        );
+      }
+
+      contracts[address.toString()] = {
+        instance: { ...contractInstance, currentContractClassId: stubClassId },
+      };
     }
 
     return contracts;
@@ -184,7 +257,7 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     const chainInfo = await this.getChainInfo();
 
     const accountOverrides = await this.buildAccountOverrides(scopes);
-    const overrides = new SimulationOverrides(accountOverrides);
+    const overrides = new SimulationOverrides({ contracts: accountOverrides });
 
     let txRequest;
     if (from === NO_FROM) {

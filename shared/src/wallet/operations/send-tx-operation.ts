@@ -18,14 +18,17 @@ import {
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
-  getGasLimits,
 } from "@aztec/aztec.js/contracts";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import type { CallIntent } from "@aztec/aztec.js/authorization";
-import { GasSettings } from "@aztec/stdlib/gas";
+import { Gas, GasSettings } from "@aztec/stdlib/gas";
 import { serializePrivateExecutionSteps } from "@aztec/stdlib/kernel";
-import type { CompleteFeeOptionsConfig, FeeOptions } from "@aztec/wallet-sdk/base-wallet";
+import {
+  type CompleteFeeOptionsConfig,
+  type FeeOptions,
+  getGasLimits,
+} from "@aztec/wallet-sdk/base-wallet";
 import type { WalletDB } from "../database/wallet-db";
 
 // Arguments tuple for the operation (with generic for wait type)
@@ -159,10 +162,9 @@ export class SendTxOperation<
     // to avoid running out of gas during estimation.
     // Note: Strip the 'wait' property since SimulateOptions doesn't have it
     const { wait: _wait, ...simulateOpts } = opts;
-    const prepared = await this.simulateTxOp.prepare(executionPayload, {
-      ...simulateOpts,
-      fee: { ...simulateOpts.fee, estimateGas: true },
-    });
+    // In v5 the simulate op estimates gas internally (completeFeeOptions with forEstimation),
+    // so the removed `estimateGas` fee flag is no longer needed.
+    const prepared = await this.simulateTxOp.prepare(executionPayload, simulateOpts);
 
     // Decode simulation results
     const { callAuthorizations, executionTrace } = prepared.displayData!.decoded;
@@ -187,7 +189,12 @@ export class SendTxOperation<
       feePayer: executionPayload.feePayer,
       gasSettings: opts.fee?.gasSettings,
     });
-    const estimated = getGasLimits(prepared.executionData!.simulationResult);
+    const { txsLimits } = await this.aztecNode.getNodeInfo();
+    const maxTxGasLimits = new Gas(txsLimits.gas.daGas, txsLimits.gas.l2Gas);
+    const estimated = getGasLimits(
+      prepared.executionData!.simulationResult.gasUsed,
+      maxTxGasLimits,
+    );
     const gasSettings = GasSettings.from({
       ...opts.fee?.gasSettings,
       maxFeesPerGas: feeOptions.gasSettings.maxFeesPerGas,

@@ -1,4 +1,4 @@
-import { schemaHasMethod, type Fr } from "@aztec/foundation/schemas";
+import { getSchemaReturnType, schemaHasMethod, type Fr } from "@aztec/foundation/schemas";
 import {
   type InternalWalletInterface,
   InternalWalletInterfaceSchema,
@@ -37,9 +37,9 @@ export class WalletApi {
               args.unshift(chainId, version);
               const safeArgs = jsonStringify(args);
               const result = await window.walletAPI[prop](safeArgs);
-              return InternalWalletInterfaceSchema[prop.toString() as keyof InternalWalletInterface]
-                .returnType()
-                .parseAsync(result);
+              return getSchemaReturnType(
+                InternalWalletInterfaceSchema[prop.toString() as keyof InternalWalletInterface],
+              ).parseAsync(result);
             };
           } else if (prop.toString() === "onWalletUpdate") {
             return (callback: any) => {

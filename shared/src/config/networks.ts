@@ -24,10 +24,10 @@ export const NETWORKS: NetworkConfig[] = [
     id: "testnet",
     name: "Testnet",
     chainId: 11155111,
-    version: 4127419662,
+    version: 0, // Auto-detect rollup version from the node (changed for v5)
     description: "Aztec Labs Testnet",
     color: "#f38721",
-    nodeUrl: "https://rpc.testnet.aztec-labs.com/",
+    nodeUrl: "https://canonical.testnet.rpc.aztec-labs.com",
   },
 ];
 

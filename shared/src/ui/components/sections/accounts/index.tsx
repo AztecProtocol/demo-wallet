@@ -1,4 +1,4 @@
-import { Fr } from "@aztec/aztec.js/fields";
+import { Fq, Fr } from "@aztec/aztec.js/fields";
 import type { AztecAddress } from "@aztec/aztec.js/addresses";
 import { useContext, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
@@ -86,12 +86,16 @@ export function AccountsManager() {
     const option = ACCOUNT_TYPE_OPTIONS.find((o) => o.type === type);
     setCreatingType(type);
     try {
+      // Schnorr signing keys are Grumpkin scalars (Fq): random 32 bytes frequently
+      // exceed the field modulus, so derive a valid Fq. ECDSA keys are raw 32-byte buffers.
+      const isSchnorr = type === "schnorr" || type === "schnorr_initializerless";
+      const signingKey = isSchnorr ? Fq.random().toBuffer() : randomBytes(32);
       await walletAPI.createAccount(
         `${option?.label ?? type} ${accounts.length}`,
         type,
         Fr.random(),
         Fr.random(),
-        randomBytes(32),
+        signingKey,
       );
       setCreateDialogOpen(false);
       await loadAccounts();

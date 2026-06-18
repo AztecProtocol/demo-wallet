@@ -215,11 +215,25 @@ Replace:
 | Electron App | `~/keychain/aztec-keychain-debug.log` |
 | Native Host  | `~/keychain/native-host.log`          |
 
-### Dev Mode Setup (Linux + Chrome)
+### Dev Mode Setup (Linux + Chromium-family browsers)
+
+The system-wide native messaging dir is **browser-specific**. Install the manifest in the
+dir for the browser WXT actually launches:
+
+| Browser       | System-wide dir                              |
+| ------------- | -------------------------------------------- |
+| Google Chrome | `/etc/opt/chrome/native-messaging-hosts/`    |
+| Chromium      | `/etc/chromium/native-messaging-hosts/`      |
+| Brave         | `/etc/brave/native-messaging-hosts/`         |
+
+> On Arch-based distros (e.g. CachyOS) the default browser is usually **Chromium**, which
+> uses `/etc/chromium/native-messaging-hosts/` — not Chrome's `/etc/opt/chrome/...`.
+
+Install it for every Chromium-family browser at once (the Electron app prints this exact
+command at startup if the manifest is missing):
 
 ```bash
-sudo mkdir -p /etc/opt/chrome/native-messaging-hosts
-sudo tee /etc/opt/chrome/native-messaging-hosts/com.aztec.keychain.json << 'EOF'
+MANIFEST=$(cat << 'EOF'
 {
   "name": "com.aztec.keychain",
   "description": "Aztec Keychain Native Messaging Host",
@@ -228,6 +242,10 @@ sudo tee /etc/opt/chrome/native-messaging-hosts/com.aztec.keychain.json << 'EOF'
   "allowed_origins": ["chrome-extension://<EXTENSION_ID>/"]
 }
 EOF
+)
+for d in /etc/opt/chrome/native-messaging-hosts /etc/chromium/native-messaging-hosts /etc/brave/native-messaging-hosts; do
+  sudo mkdir -p "$d" && echo "$MANIFEST" | sudo tee "$d/com.aztec.keychain.json" >/dev/null
+done
 ```
 
 </details>
@@ -339,12 +357,14 @@ To avoid the "this app is damaged" message.
 
 ### WXT dev mode can't connect (Chrome)
 
-In dev mode, Chrome uses a custom `--user-data-dir` and only checks **system-wide** manifest locations:
+In dev mode, the browser uses a custom `--user-data-dir` and only checks **system-wide** manifest locations. The exact dir depends on the browser:
 
-- macOS: `/Library/Google/Chrome/NativeMessagingHosts/`
-- Linux: `/etc/opt/chrome/native-messaging-hosts/`
+- macOS (Chrome): `/Library/Google/Chrome/NativeMessagingHosts/`
+- Linux (Chrome): `/etc/opt/chrome/native-messaging-hosts/`
+- Linux (Chromium): `/etc/chromium/native-messaging-hosts/`
+- Linux (Brave): `/etc/brave/native-messaging-hosts/`
 
-You must manually install the manifest there with `sudo`.
+You must manually install the manifest there with `sudo`. If unsure which browser WXT launches, install it for all of them (see the Linux dev-mode setup command above).
 
 ### Manifest not being found
 

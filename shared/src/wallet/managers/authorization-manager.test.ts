@@ -7,8 +7,8 @@ import { WalletDB } from "../database/wallet-db";
 import type { AuthorizationItem, AuthorizationResponse } from "../types/authorization";
 
 const logger = createLogger("test:auth-manager");
-const contractAddr = AztecAddress.fromBigInt(42n).toString();
-const contractAddr2 = AztecAddress.fromBigInt(43n).toString();
+const contractAddr = AztecAddress.fromBigIntUnsafe(42n).toString();
+const contractAddr2 = AztecAddress.fromBigIntUnsafe(43n).toString();
 
 let store: Awaited<ReturnType<typeof openTmpStore>>;
 let db: WalletDB;

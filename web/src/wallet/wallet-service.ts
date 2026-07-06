@@ -329,7 +329,7 @@ export async function bootstrapAccountsFromCookie(
     const salt = Fr.fromString(portable.salt);
     const signingKey = Buffer.from(portable.signingKey, "hex");
 
-    const address = AztecAddress.fromString(portable.address);
+    const address = AztecAddress.fromStringUnsafe(portable.address);
     if (!existingAddresses.has(portable.address)) {
       await db.storeAccount(address, {
         type: portable.type,
@@ -382,7 +382,7 @@ async function bootstrapContactsFromCookie(db: WalletDB, pxe: PXE): Promise<numb
   for (const contact of portableContacts) {
     const address = AztecAddress.fromBuffer(Buffer.from(contact.address));
     await db.storeSender(address, contact.alias);
-    await pxe.registerSender(address);
+    await pxe.registerTaggingSecretSource({ kind: "address-derived", sender: address });
     imported++;
   }
 

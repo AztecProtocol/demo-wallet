@@ -305,12 +305,14 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
   }
 
   protected async getAddressBookInternal(): Promise<Aliased<AztecAddress>[]> {
-    const senders = await this.pxe.getSenders();
+    const senders = (await this.pxe.getTaggingSecretSources({ kind: "address-derived" })).map(
+      (source) => source.sender,
+    );
     const storedSenders = await this.db.listSenders();
 
     for (const storedSender of storedSenders) {
       if (senders.findIndex((sender) => sender.equals(storedSender.item)) === -1) {
-        await this.pxe.registerSender(storedSender.item);
+        await this.pxe.registerTaggingSecretSource({ kind: "address-derived", sender: storedSender.item });
       }
     }
 

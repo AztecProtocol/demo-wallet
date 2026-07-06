@@ -427,7 +427,7 @@ export function AuthorizationDialog({
                                 const account = isNoFrom
                                   ? undefined
                                   : accountList.find((a) =>
-                                      a.item.equals(AztecAddress.fromString(fromAddress)),
+                                      a.item.equals(AztecAddress.fromStringUnsafe(fromAddress)),
                                     );
                                 const internalAlias = isNoFrom
                                   ? "External entrypoint"

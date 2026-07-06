@@ -82,7 +82,7 @@ export class TxCallStackDecoder {
 
     if (valueStr && valueStr.startsWith("0x") && valueStr.length === 66) {
       try {
-        const addr = AztecAddress.fromString(valueStr);
+        const addr = AztecAddress.fromStringUnsafe(valueStr);
         const alias = await this.cache.getAddressAlias(addr);
         formatted = `${alias} (${formatted.slice(0, 10)}...${formatted.slice(-8)})`;
       } catch {
@@ -378,7 +378,7 @@ export class TxCallStackDecoder {
       if (returnValue?.values && returnValue.values.length > 0) {
         // Try to decode return values using the function ABI
         publicCall.returnValues = await this.decodePublicCallReturnValues(
-          AztecAddress.fromString(publicCall.contract.address),
+          AztecAddress.fromStringUnsafe(publicCall.contract.address),
           publicCall.function,
           returnValue.values,
         );

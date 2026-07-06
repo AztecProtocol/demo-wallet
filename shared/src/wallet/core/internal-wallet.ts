@@ -68,7 +68,7 @@ export class InternalWallet extends DemoWallet {
     // Store sender in database
     await this.db.storeSender(address, alias);
     // Register with PXE
-    const result = await this.pxe.registerSender(address);
+    await this.pxe.registerTaggingSecretSource({ kind: "address-derived", sender: address });
     // Emit wallet-update so the UI and cookie sync pick up the new contact
     const interaction = WalletInteraction.from({
       type: "registerSender",
@@ -77,7 +77,7 @@ export class InternalWallet extends DemoWallet {
       title: `Registered contact ${alias}`,
     });
     await this.interactionManager.storeAndEmit(interaction);
-    return result;
+    return address;
   }
 
   override async getAddressBook(): Promise<Aliased<AztecAddress>[]> {
@@ -429,7 +429,7 @@ export class InternalWallet extends DemoWallet {
   async resolveContractNames(addresses: string[]): Promise<Record<string, string>> {
     const result: Record<string, string> = {};
     for (const addrStr of addresses) {
-      result[addrStr] = await this.decodingCache.getAddressAlias(AztecAddress.fromString(addrStr));
+      result[addrStr] = await this.decodingCache.getAddressAlias(AztecAddress.fromStringUnsafe(addrStr));
     }
     return result;
   }

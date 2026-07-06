@@ -126,7 +126,7 @@ export class CallAuthorizationFormatter {
           const valueStr = param.value.toString();
           if (valueStr.startsWith("0x") && valueStr.length === 66) {
             try {
-              const addr = AztecAddress.fromString(valueStr);
+              const addr = AztecAddress.fromStringUnsafe(valueStr);
               const alias = await this.cache.getAddressAlias(addr);
               formattedValue = `${alias} (${formattedValue.slice(0, 10)}...${formattedValue.slice(-8)})`;
             } catch {

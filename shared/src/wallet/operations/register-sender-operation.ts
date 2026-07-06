@@ -111,9 +111,9 @@ export class RegisterSenderOperation extends ExternalOperation<
     await this.db.storeSender(executionData.address, executionData.alias);
 
     // Register with PXE
-    const result = await this.pxe.registerSender(executionData.address);
+    await this.pxe.registerTaggingSecretSource({ kind: "address-derived", sender: executionData.address });
 
     await this.emitProgress("SUCCESS", undefined, true);
-    return result;
+    return executionData.address;
   }
 }

@@ -136,7 +136,7 @@ export class GetAccountsOperation extends ExternalOperation<
 
     return this.selectedAccounts.map((acc) => ({
       alias: acc.alias,
-      item: AztecAddress.fromString(acc.item),
+      item: AztecAddress.fromStringUnsafe(acc.item),
     }));
   }
 }

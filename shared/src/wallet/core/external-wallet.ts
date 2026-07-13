@@ -21,8 +21,12 @@ import { type AztecNode } from "@aztec/aztec.js/node";
 import { type Logger } from "@aztec/aztec.js/log";
 import type { AuthWitness } from "@aztec/stdlib/auth-witness";
 import { FunctionCall, type ContractArtifact } from "@aztec/stdlib/abi";
-import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
+import type {
+  ContractInstancePreimage,
+  ContractInstancePreimageWithAddress,
+} from "@aztec/stdlib/contract";
 import { Fr } from "@aztec/foundation/curves/bn254";
+import { type MasterSecretKeys } from "@aztec/stdlib/keys";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   type UtilityExecutionResult,
@@ -289,12 +293,12 @@ export class ExternalWallet extends DemoWallet {
    * Uses the RegisterContractOperation for clean separation of concerns.
    */
   override async registerContract(
-    instance: ContractInstanceWithAddress,
+    instance: ContractInstancePreimage,
     artifact?: ContractArtifact,
-    secretKey?: Fr,
-  ): Promise<ContractInstanceWithAddress> {
+    secretKeyOrKeys?: Fr | MasterSecretKeys,
+  ): Promise<void> {
     const op = this.createRegisterContractOperation();
-    return await op.executeStandalone(instance, artifact, secretKey);
+    await op.executeStandalone(instance, artifact, secretKeyOrKeys);
   }
 
   override async registerSender(address: AztecAddress, alias: string): Promise<AztecAddress> {
@@ -352,7 +356,7 @@ export class ExternalWallet extends DemoWallet {
     methods: T,
   ): Promise<BatchResults<T>> {
     type BatchMethodResult =
-      | ContractInstanceWithAddress
+      | ContractInstancePreimageWithAddress
       | TxHash
       | TxReceipt
       | AztecAddress

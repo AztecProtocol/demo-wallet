@@ -3,7 +3,10 @@ import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { Aliased } from "@aztec/aztec.js/wallet";
 import type { WalletDB } from "../database/wallet-db";
-import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
+import type {
+  ContractInstancePreimage,
+  ContractInstancePreimageWithAddress,
+} from "@aztec/stdlib/contract";
 
 /**
  * Cache for contract metadata, artifacts, and address aliases to reduce expensive PXE queries.
@@ -15,7 +18,7 @@ import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
  * in memory, so subsequent alias lookups never touch IndexedDB between PXE calls.
  */
 export class DecodingCache {
-  private instanceCache = new Map<string, ContractInstanceWithAddress>();
+  private instanceCache = new Map<string, ContractInstancePreimageWithAddress>();
   private artifactCache = new Map<string, ContractArtifact>();
   private addressAliasCache = new Map<string, string>();
 
@@ -31,7 +34,7 @@ export class DecodingCache {
   /**
    * Get contract metadata (instance) for an address, with caching.
    */
-  async getContractInstance(address: AztecAddress): Promise<ContractInstanceWithAddress> {
+  async getContractInstance(address: AztecAddress): Promise<ContractInstancePreimageWithAddress> {
     const key = address.toString();
 
     if (this.instanceCache.has(key)) {
@@ -132,7 +135,7 @@ export class DecodingCache {
     // Try to get contract metadata for more info (PXE-only calls now, no wallet-db interleaving)
     try {
       const instance = await this.getContractInstance(address);
-      const artifact = await this.getContractArtifact(instance.currentContractClassId);
+      const artifact = await this.getContractArtifact(instance.originalContractClassId);
       if (artifact) {
         this.addressAliasCache.set(key, artifact.name);
         return artifact.name;
@@ -153,7 +156,7 @@ export class DecodingCache {
    * Uses caching internally via getAddressAlias and getContractArtifact.
    */
   async resolveContractName(
-    instance: ContractInstanceWithAddress,
+    instance: ContractInstancePreimage,
     artifact: ContractArtifact | undefined,
     address: AztecAddress,
   ): Promise<string> {
@@ -166,9 +169,9 @@ export class DecodingCache {
     }
 
     // If we still don't have a name, try the artifact cache using the instance's contract class ID
-    if (!contractName && instance?.currentContractClassId) {
+    if (!contractName && instance?.originalContractClassId) {
       try {
-        const cachedArtifact = await this.getContractArtifact(instance.currentContractClassId);
+        const cachedArtifact = await this.getContractArtifact(instance.originalContractClassId);
         if (cachedArtifact) {
           contractName = cachedArtifact.name;
         }

@@ -163,8 +163,7 @@ export class TxCallStackDecoder {
     let returnValues: Array<{ name: string; value: string }> = [];
 
     try {
-      const instance = await this.cache.getContractInstance(callContext.contractAddress);
-      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      const artifact = await this.cache.getContractArtifactForAddress(callContext.contractAddress);
       const functionAbi = await getFunctionArtifact(artifact, callContext.functionSelector);
       functionName = functionAbi.name;
 
@@ -291,8 +290,7 @@ export class TxCallStackDecoder {
 
       // Try to resolve function name and decode arguments from contract ABI
       try {
-        const instance = await this.cache.getContractInstance(request.contractAddress);
-        const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+        const artifact = await this.cache.getContractArtifactForAddress(request.contractAddress);
         const allAbis = await getAllFunctionAbis(artifact);
         const abisWithSelector = await Promise.all(
           allAbis.map(async (abi) => ({
@@ -405,8 +403,7 @@ export class TxCallStackDecoder {
     const frValues = returnValues.map((v) => Fr.fromPlainObject(v));
 
     try {
-      const instance = await this.cache.getContractInstance(contractAddress);
-      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      const artifact = await this.cache.getContractArtifactForAddress(contractAddress);
 
       // Use getAllFunctionAbis to get all functions including non-dispatch public functions
       const allAbis = getAllFunctionAbis(artifact);
@@ -510,10 +507,8 @@ export class TxCallStackDecoder {
     }
 
     try {
-      // Retrieve contract instance and artifact
-      const instance = await this.cache.getContractInstance(contractAddress);
-
-      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      // Retrieve contract artifact (upgrade-aware: resolves the current class id)
+      const artifact = await this.cache.getContractArtifactForAddress(contractAddress);
 
       // Find the function in the artifact
       const functionAbi = artifact.functions.find((f) => f.name === functionName);
@@ -545,10 +540,8 @@ export class TxCallStackDecoder {
     result: Fr[],
   ): Promise<string> {
     try {
-      // Retrieve contract instance and artifact
-      const instance = await this.cache.getContractInstance(contractAddress);
-
-      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      // Retrieve contract artifact (upgrade-aware: resolves the current class id)
+      const artifact = await this.cache.getContractArtifactForAddress(contractAddress);
 
       // Find the function in the artifact
       const functionAbi = artifact.functions.find((f) => f.name === functionName);

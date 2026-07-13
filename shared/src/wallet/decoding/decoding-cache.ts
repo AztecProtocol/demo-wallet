@@ -1,5 +1,7 @@
 import type { PXE } from "@aztec/pxe/client/lazy";
+import type { AztecNode } from "@aztec/aztec.js/node";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { Aliased } from "@aztec/aztec.js/wallet";
 import type { WalletDB } from "../database/wallet-db";
@@ -21,6 +23,8 @@ export class DecodingCache {
   private instanceCache = new Map<string, ContractInstancePreimageWithAddress>();
   private artifactCache = new Map<string, ContractArtifact>();
   private addressAliasCache = new Map<string, string>();
+  /** Memoized effective (current) contract class id per address, resolved from chain state. */
+  private classIdCache = new Map<string, Fr>();
 
   /** Pre-loaded wallet-db data to avoid IndexedDB reads during PXE call chains */
   private accountsSnapshot: Aliased<AztecAddress>[] | null = null;
@@ -28,6 +32,7 @@ export class DecodingCache {
 
   constructor(
     private pxe: PXE,
+    private node: AztecNode,
     private db: WalletDB,
   ) {}
 
@@ -47,6 +52,41 @@ export class DecodingCache {
     }
     this.instanceCache.set(key, instance);
     return instance;
+  }
+
+  /**
+   * Resolve the *effective* (current) contract class id for an address, with caching.
+   *
+   * `pxe.getContractInstance` only returns the immutable address preimage, whose
+   * `originalContractClassId` is the class the contract was deployed with. If the contract has since
+   * been upgraded, the code it currently runs — and thus the artifact needed to decode its calls —
+   * belongs to a different class. That current class id is chain-tracked state, so we read it from the
+   * node. We fall back to the preimage's original class id when the contract isn't published on-chain
+   * (e.g. a purely local/private registration), where original and current are necessarily the same.
+   */
+  async getEffectiveContractClassId(address: AztecAddress): Promise<Fr> {
+    const key = address.toString();
+
+    const cached = this.classIdCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const publishedContract = await this.node.getContract(address);
+    const classId =
+      publishedContract?.currentContractClassId ??
+      (await this.getContractInstance(address)).originalContractClassId;
+
+    this.classIdCache.set(key, classId);
+    return classId;
+  }
+
+  /**
+   * Get the contract artifact for an address, resolving the current (upgrade-aware) class id.
+   */
+  async getContractArtifactForAddress(address: AztecAddress): Promise<ContractArtifact> {
+    const classId = await this.getEffectiveContractClassId(address);
+    return this.getContractArtifact(classId);
   }
 
   /**
@@ -134,8 +174,7 @@ export class DecodingCache {
 
     // Try to get contract metadata for more info (PXE-only calls now, no wallet-db interleaving)
     try {
-      const instance = await this.getContractInstance(address);
-      const artifact = await this.getContractArtifact(instance.originalContractClassId);
+      const artifact = await this.getContractArtifactForAddress(address);
       if (artifact) {
         this.addressAliasCache.set(key, artifact.name);
         return artifact.name;

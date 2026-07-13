@@ -79,7 +79,7 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     protected override log: Logger,
   ) {
     super(pxe, node);
-    this.decodingCache = new DecodingCache(pxe, db);
+    this.decodingCache = new DecodingCache(pxe, node, db);
     this.interactionManager = new InteractionManager(db);
     this.authorizationManager = new AuthorizationManager(
       appId,

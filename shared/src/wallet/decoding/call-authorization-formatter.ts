@@ -62,8 +62,7 @@ export class CallAuthorizationFormatter {
     let callAuthorizationRequest: CallAuthorizationRequest | undefined;
     try {
       callAuthorizationRequest = await CallAuthorizationRequest.fromFields(effect.data);
-      const instance = await this.cache.getContractInstance(effect.contractAddress);
-      const artifact = await this.cache.getContractArtifact(instance.originalContractClassId);
+      const artifact = await this.cache.getContractArtifactForAddress(effect.contractAddress);
       const functionAbi = await getFunctionArtifact(
         artifact,
         callAuthorizationRequest.functionSelector,

@@ -566,7 +566,7 @@ export class ExternalWallet extends DemoWallet {
     // ========================================================================
     // PHASE 4: EXECUTE - Run execute() on all authorized operations
     // ========================================================================
-    const results: { name: string; result: BatchMethodResult }[] = [];
+    const results: { name: string; result: BatchMethodResult | undefined }[] = [];
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -608,7 +608,11 @@ export class ExternalWallet extends DemoWallet {
 
       results.push({
         name: item.originalName,
-        result,
+        // registerContract's wallet-interface return type is void. The operation returns the
+        // instance internally (used as the "already registered" early-return sentinel), but the
+        // batch wire result must be undefined to satisfy the SDK's z.void().optional() schema for
+        // this method — otherwise the app rejects the response with an "expected void" error.
+        result: item.originalName === "registerContract" ? undefined : result,
       });
     }
 

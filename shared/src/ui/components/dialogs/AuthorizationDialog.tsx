@@ -545,6 +545,22 @@ export function AuthorizationDialog({
                         compact={isSmall}
                       />
                     )}
+
+                    {item.method === "respondToInteractiveHandshake" && (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        <Typography variant="body2">
+                          A sender wants to open a private (interactive-handshake) message channel
+                          with your account. Approving signs an authorization that lets them deliver
+                          messages to you without revealing your address on-chain.
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ fontFamily: "monospace", color: "text.secondary" }}
+                        >
+                          Recipient: {(item.params as { recipient?: string })?.recipient}
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </AccordionDetails>
               </Accordion>

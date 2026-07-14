@@ -22,6 +22,7 @@ import { ContactsManager } from "./components/sections/contacts/index.tsx";
 import { AuthorizedApps } from "./components/sections/authorized-apps/index.tsx";
 import { AuthorizationDialog } from "./components/dialogs/AuthorizationDialog.tsx";
 import { ProofDebugExportDialog } from "./components/dialogs/ProofDebugExportDialog.tsx";
+import { HandshakeRelayDialog } from "./components/dialogs/HandshakeRelayDialog.tsx";
 import { NetworkSelector } from "./components/NetworkSelector.tsx";
 import { TxProgressTimeline } from "./components/shared/TxProgressTimeline.tsx";
 import type { ProofDebugExportRequest } from "../wallet/types/wallet-interaction.ts";
@@ -31,6 +32,7 @@ import type {
   WalletInteractionType,
 } from "../wallet/types/wallet-interaction.ts";
 import type { AuthorizationRequest } from "../wallet/types/authorization.ts";
+import type { HandshakeRelayRequest, HandshakeRelayResponse } from "../wallet/types/handshake.ts";
 import { WalletContext } from "./renderer.tsx";
 import { useNetwork } from "./contexts/NetworkContext.tsx";
 
@@ -81,6 +83,8 @@ export function App() {
     (ProofDebugExportRequest & { debugData: string }) | null
   >(null);
 
+  const [handshakeRelay, setHandshakeRelay] = useState<HandshakeRelayRequest | null>(null);
+
   const { walletAPI } = useContext(WalletContext);
   const { currentNetwork } = useNetwork();
 
@@ -100,6 +104,7 @@ export function App() {
     setInteractions([]);
     setAuthQueue([]);
     setCompactTab("accounts");
+    setHandshakeRelay(null);
     phaseStartsRef.current.clear();
 
     loadInteractions();
@@ -148,9 +153,17 @@ export function App() {
       },
     );
 
+    const unsubHandshakeRelay = walletAPI.onHandshakeRelayRequest(
+      (request: HandshakeRelayRequest) => {
+        console.log("Handshake relay request:", request.id);
+        setHandshakeRelay(request);
+      },
+    );
+
     return () => {
       unsubWalletUpdate();
       unsubAuthRequest();
+      unsubHandshakeRelay();
     };
   }, [currentNetwork.id, walletAPI]);
 
@@ -223,6 +236,11 @@ export function App() {
     setProofDebugExportRequest(null);
   };
 
+  const handleHandshakeRelayResolve = (response: HandshakeRelayResponse) => {
+    walletAPI.resolveHandshakeRelay(response);
+    setHandshakeRelay(null);
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -284,6 +302,9 @@ export function App() {
           onExport={handleProofDebugExport}
           onCancel={handleProofDebugCancel}
         />
+      )}
+      {handshakeRelay && (
+        <HandshakeRelayDialog request={handshakeRelay} onResolve={handleHandshakeRelayResolve} />
       )}
     </>
   );

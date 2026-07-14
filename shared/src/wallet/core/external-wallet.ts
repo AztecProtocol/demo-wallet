@@ -44,6 +44,7 @@ import {
   type AuthorizationItem,
 } from "../types/authorization";
 import { DemoWallet } from "./demo-wallet";
+import { type HandshakeRelayResponse } from "../types/handshake";
 import { ExternalOperation } from "../operations/base-operation";
 import { RegisterContractOperation } from "../operations/register-contract-operation";
 import { RegisterSenderOperation } from "../operations/register-sender-operation";
@@ -74,8 +75,9 @@ export class ExternalWallet extends DemoWallet {
     appId: string,
     chainInfo: ChainInfo,
     log: Logger,
+    pendingHandshakeRelays: Map<string, PromiseWithResolvers<HandshakeRelayResponse>>,
   ) {
-    super(pxe, node, db, pendingAuthorizations, appId, chainInfo, log);
+    super(pxe, node, db, pendingAuthorizations, appId, chainInfo, log, pendingHandshakeRelays);
   }
 
   /**

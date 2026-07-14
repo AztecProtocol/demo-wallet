@@ -42,6 +42,15 @@ import { getContractClassFromArtifact } from "@aztec/stdlib/contract";
 import { BaseWallet, type SimulateViaEntrypointOptions } from "@aztec/wallet-sdk/base-wallet";
 import { DefaultEntrypoint } from "@aztec/entrypoints/default";
 import { type DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
+import { deriveMasterMessageSigningSecretKey } from "@aztec/stdlib/keys";
+import {
+  createInteractiveHandshakeResponder,
+  restoreInteractiveHandshakes,
+  parseInteractiveHandshakeRequest,
+  InteractiveHandshakeCustomRequestSchema,
+} from "@aztec/wallet-sdk/delivery";
+import { jsonStringify } from "@aztec/foundation/json-rpc";
+import type { HandshakeRelayResponse } from "../types/handshake";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -77,6 +86,10 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     protected appId: string,
     protected chainInfo: ChainInfo,
     protected override log: Logger,
+    protected pendingHandshakeRelays: Map<
+      string,
+      PromiseWithResolvers<HandshakeRelayResponse>
+    >,
   ) {
     super(pxe, node);
     this.decodingCache = new DecodingCache(pxe, node, db);
@@ -182,6 +195,11 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
         ]);
         await storeCall.simulate({ from: instance.address });
       }
+
+      // The account's keys are now registered in PXE, so its interactive handshakes — channel
+      // metadata PXE cannot rebuild from the chain — can be re-registered from backup so
+      // scanning rediscovers their messages. Idempotent; a no-op for accounts without backups.
+      await this.restoreInteractiveHandshakesForAccount(instance.address);
     }
 
     return accountManager;
@@ -317,6 +335,89 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     }
 
     return storedSenders;
+  }
+
+  // ============================================================================
+  // Interactive handshakes (Aztec v5 — @aztec/wallet-sdk/delivery)
+  // ============================================================================
+
+  /**
+   * Recipient side of an interactive handshake. Decodes the sender's request envelope (received
+   * over a QR / copy-paste relay), validates it independently against the standard
+   * HandshakeRegistry, gates on user consent through the existing authorization dialog, then
+   * registers + backs up the channel and signs — the validate → register → back up → sign order
+   * is enforced by the SDK responder. Returns the recipient's signed authorization as a relay
+   * blob to hand back to the sender.
+   *
+   * The master message-signing key is derived client-side from the account secret and never
+   * touches PXE (see `getSigningKey` below).
+   */
+  async respondToInteractiveHandshake(requestBlob: string): Promise<string> {
+    const request = InteractiveHandshakeCustomRequestSchema.parse(JSON.parse(requestBlob));
+
+    // Validate + decode for the consent dialog. Throws if this is not a standard
+    // HandshakeRegistry interactive-handshake request.
+    const parsed = parseInteractiveHandshakeRequest(request);
+
+    if (!(await this.db.listAccounts()).some((account) => account.item.equals(parsed.recipient))) {
+      throw new Error(
+        `Cannot respond to an interactive handshake for ${parsed.recipient}: not an account on this wallet`,
+      );
+    }
+
+    // Consent through the existing authorization dialog before any signature is produced.
+    await this.authorizationManager.requestAuthorization([
+      {
+        id: crypto.randomUUID(),
+        appId: this.authorizationManager.appId,
+        method: "respondToInteractiveHandshake",
+        params: {
+          recipient: parsed.recipient.toString(),
+          chainId: parsed.chainId.toString(),
+          version: parsed.version.toString(),
+          ephPkX: parsed.ephPkX.toString(),
+        },
+        timestamp: Date.now(),
+      },
+    ]);
+
+    const responder = createInteractiveHandshakeResponder({
+      pxe: this.pxe,
+      getSigningKey: async (recipient) =>
+        deriveMasterMessageSigningSecretKey((await this.db.retrieveAccount(recipient)).secretKey),
+      backup: (entry) => this.db.storeHandshakeBackup(entry),
+    });
+
+    const signature = await responder(request);
+    return jsonStringify(signature);
+  }
+
+  /**
+   * Resolves a pending sender-side handshake relay with the user's reply (the recipient's
+   * signature blob, or a cancellation). Unblocks the transport awaiting inside the PXE
+   * `resolveCustomRequest` hook. The pending map is shared with the worker's transport, so the
+   * wallet that handles the resolve does not need to be the one that opened the relay. Mirrors
+   * `resolveAuthorization`.
+   */
+  resolveHandshakeRelay(response: HandshakeRelayResponse) {
+    const handle = this.pendingHandshakeRelays.get(response.id);
+    if (handle) {
+      handle.resolve(response);
+      this.pendingHandshakeRelays.delete(response.id);
+    }
+  }
+
+  /**
+   * Re-registers an account's interactive handshakes from durable backup into PXE. Interactive
+   * handshakes are the one piece of account metadata PXE cannot rebuild from the chain, so they
+   * are restored as the account's keys are registered into PXE (see `getAccountManager`).
+   * Idempotent; a no-op for an account with no backed-up handshakes.
+   */
+  protected async restoreInteractiveHandshakesForAccount(recipient: AztecAddress): Promise<void> {
+    const entries = (await this.db.listHandshakeBackups()).filter((entry) =>
+      entry.recipient.equals(recipient),
+    );
+    await restoreInteractiveHandshakes(this.pxe, entries);
   }
 
   // ============================================================================

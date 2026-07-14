@@ -84,6 +84,21 @@ export class InternalWallet extends DemoWallet {
     return this.getAddressBookInternal();
   }
 
+  /** Sets the per-contact "private channel" (interactive handshake) preference. */
+  async setSenderPrivateChannel(address: AztecAddress, enabled: boolean): Promise<void> {
+    await this.db.setSenderPrivateChannel(address, enabled);
+  }
+
+  /** Returns a map of contact address → whether its "private channel" preference is enabled. */
+  async getSenderPrivateChannels(): Promise<Record<string, boolean>> {
+    const senders = await this.db.listSenders();
+    const result: Record<string, boolean> = {};
+    for (const sender of senders) {
+      result[sender.item.toString()] = await this.db.isSenderPrivateChannel(sender.item);
+    }
+    return result;
+  }
+
   async createAccount(
     alias: string,
     type: AccountType,

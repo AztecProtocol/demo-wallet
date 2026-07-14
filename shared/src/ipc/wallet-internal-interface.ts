@@ -14,10 +14,12 @@ import { WalletInteractionSchema } from "../wallet/types/wallet-interaction";
 import type { AuthorizationRequest, AuthorizationResponse } from "../wallet/types/authorization";
 import type { InternalAccount } from "../wallet/core/internal-wallet";
 import type { DecodedExecutionTrace } from "../wallet/decoding/tx-callstack-decoder";
+import type { HandshakeRelayRequest, HandshakeRelayResponse } from "../wallet/types/handshake";
 
 export type OnWalletUpdateListener = (interaction: WalletInteraction<any>) => void;
 export type OnAuthorizationRequestListener = (request: AuthorizationRequest) => void;
 export type OnProofDebugExportRequestListener = (request: ProofDebugExportRequest) => void;
+export type OnHandshakeRelayRequestListener = (request: HandshakeRelayRequest) => void;
 
 // Zod schema for execution trace components
 const ContractInfoSchema = z.object({
@@ -138,6 +140,12 @@ export type InternalWalletInterface = Omit<Wallet, "getAccounts"> & {
   onWalletUpdate(callback: OnWalletUpdateListener): () => void;
   onAuthorizationRequest(callback: OnAuthorizationRequestListener): () => void;
   onProofDebugExportRequest: (callback: OnProofDebugExportRequestListener) => void;
+  // Interactive handshakes (Aztec v5)
+  respondToInteractiveHandshake(requestBlob: string): Promise<string>;
+  resolveHandshakeRelay(response: HandshakeRelayResponse): void;
+  setSenderPrivateChannel(address: AztecAddress, enabled: boolean): Promise<void>;
+  getSenderPrivateChannels(): Promise<Record<string, boolean>>;
+  onHandshakeRelayRequest(callback: OnHandshakeRelayRequestListener): () => void;
   // App authorization management
   listAuthorizedApps(): Promise<string[]>;
   getAppCapabilities(appId: string): Promise<{
@@ -208,6 +216,29 @@ export const InternalWalletInterfaceSchema: ApiSchemaFor<InternalWalletInterface
       }),
     ]),
     output: z.void(),
+  }),
+  // Interactive handshakes (Aztec v5)
+  respondToInteractiveHandshake: z.function({
+    input: z.tuple([z.string()]),
+    output: z.string(),
+  }),
+  resolveHandshakeRelay: z.function({
+    input: z.tuple([
+      z.object({
+        id: z.string(),
+        approved: z.boolean(),
+        signatureBlob: z.string().optional(),
+      }),
+    ]),
+    output: z.void(),
+  }),
+  setSenderPrivateChannel: z.function({
+    input: z.tuple([schemas.AztecAddress, z.boolean()]),
+    output: z.void(),
+  }),
+  getSenderPrivateChannels: z.function({
+    input: z.tuple([]),
+    output: z.record(z.string(), z.boolean()),
   }),
   // App authorization management
   listAuthorizedApps: z.function({ input: z.tuple([]), output: z.array(z.string()) }),

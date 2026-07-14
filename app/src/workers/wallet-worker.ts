@@ -14,13 +14,18 @@ import {
 } from "@demo-wallet/shared/core";
 import { createProxyLogger } from "../utils/logger.ts";
 import type { Logger } from "@aztec/foundation/log";
-import type { AuthorizationRequest, AuthorizationResponse } from "@demo-wallet/shared/core";
+import type {
+  AuthorizationRequest,
+  AuthorizationResponse,
+  HandshakeRelayResponse,
+} from "@demo-wallet/shared/core";
 import {
   createPXE,
   getPXEConfig,
   type PXEConfig,
   type PXECreationOptions,
 } from "@aztec/pxe/server";
+import { createInteractiveHandshakeResolver, RecipientSignatureSchema } from "@aztec/wallet-sdk/delivery";
 import { schemas } from "@aztec/stdlib/schemas";
 
 import { createStore } from "@aztec/kv-store/lmdb-v2";
@@ -28,7 +33,7 @@ import { resolve, join } from "node:path";
 import { z } from "zod";
 import { homedir } from "node:os";
 import { inspect } from "node:util";
-import type { PromiseWithResolvers } from "@aztec/foundation/promise";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
 import { BackendType } from "@aztec/bb.js";
 
 const ChainInfoSchema = z.object({
@@ -44,6 +49,7 @@ type SessionData = {
     node: any;
     db: any;
     pendingAuthorizations: Map<string, any>;
+    pendingHandshakeRelays: Map<string, any>;
   }>;
   wallets: Map<string, Promise<{ external: ExternalWallet; internal: InternalWallet }>>;
 };
@@ -117,6 +123,57 @@ async function init(
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
 
+      // Interactive-handshake sender relay + per-contact delivery strategy, wired into PXE hooks.
+      const pendingHandshakeRelays = new Map<
+        string,
+        PromiseWithResolvers<HandshakeRelayResponse>
+      >();
+
+      // When a send needs the recipient's signed authorization (their contact has the "private
+      // channel" strategy), PXE calls resolveCustomRequest; we carry the request envelope out to
+      // the recipient's wallet over a manual QR / copy-paste relay and await the signature the
+      // user pastes back. The relay channel is entirely wallet-chosen; timeout/retry is a UI
+      // concern (see HandshakeRelayDialog).
+      const interactiveHandshakeTransport = async (request: any) => {
+        const id = globalThis.crypto.randomUUID();
+        const handle = promiseWithResolvers<HandshakeRelayResponse>();
+        pendingHandshakeRelays.set(id, handle);
+        internalPort.postMessage({
+          origin: "wallet",
+          type: "handshake-relay-request",
+          content: jsonStringify({
+            id,
+            appId,
+            requestBlob: jsonStringify(request),
+            timestamp: Date.now(),
+          }),
+          chainInfo: {
+            chainId: chainInfo.chainId.toString(),
+            version: chainInfo.version.toString(),
+          },
+        });
+        try {
+          const response = await handle.promise;
+          if (!response.approved || !response.signatureBlob) {
+            throw new Error("Interactive handshake relay cancelled by user");
+          }
+          return RecipientSignatureSchema.parse(JSON.parse(response.signatureBlob));
+        } finally {
+          pendingHandshakeRelays.delete(id);
+        }
+      };
+
+      // Per-recipient delivery strategy. The "private channel" toggle (persisted per contact)
+      // selects an interactive handshake (reveals nothing about the recipient on-chain); every
+      // other recipient uses the default non-interactive handshake.
+      options.hooks = {
+        resolveCustomRequest: createInteractiveHandshakeResolver(interactiveHandshakeTransport),
+        resolveTaggingSecretStrategy: async ({ recipient }) =>
+          (await db.isSenderPrivateChannel(recipient))
+            ? ({ type: "interactive-handshake" } as const)
+            : ({ type: "non-interactive-handshake" } as const),
+      };
+
       const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
 
       const pendingAuthorizations = new Map<
@@ -127,7 +184,7 @@ async function init(
         }
       >();
 
-      return { pxe, node, db, pendingAuthorizations };
+      return { pxe, node, db, pendingAuthorizations, pendingHandshakeRelays };
     })();
 
     session = {
@@ -155,6 +212,7 @@ async function init(
         appId,
         chainInfo,
         externalWalletLogger,
+        sharedResources.pendingHandshakeRelays,
       );
       const internalWallet = new InternalWallet(
         sharedResources.pxe,
@@ -164,6 +222,7 @@ async function init(
         appId,
         chainInfo,
         internalWalletLogger,
+        sharedResources.pendingHandshakeRelays,
       );
 
       // Register account stub contract classes with PXE so simulations can override

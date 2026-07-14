@@ -49,6 +49,10 @@ export class WalletApi {
             return (callback: any) => {
               return window.walletAPI.onAuthorizationRequest(safeCallback(callback));
             };
+          } else if (prop.toString() === "onHandshakeRelayRequest") {
+            return (callback: any) => {
+              return window.walletAPI.onHandshakeRelayRequest(safeCallback(callback));
+            };
           } else if (prop.toString() === "onProofDebugExportRequest") {
             return (callback: any) => {
               // Note: proof debug export doesn't need chain filtering since it's a local operation

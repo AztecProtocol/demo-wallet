@@ -10,13 +10,16 @@ import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { ContactBox } from "./components/ContactBox.tsx";
+import { RespondHandshakeDialog } from "../../dialogs/RespondHandshakeDialog.tsx";
 import { DraggableFab } from "../../shared/DraggableFab.tsx";
 import { WalletContext } from "../../../renderer";
 import { useNetwork } from "../../../contexts/NetworkContext";
 
 export function ContactsManager() {
   const [contacts, setContacts] = useState<Aliased<AztecAddress>[]>([]);
+  const [privateChannels, setPrivateChannels] = useState<Record<string, boolean>>({});
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [respondOpen, setRespondOpen] = useState(false);
   const [newContactAlias, setNewContactAlias] = useState("");
   const [newContactAddress, setNewContactAddress] = useState("");
 
@@ -24,8 +27,17 @@ export function ContactsManager() {
   const { currentNetwork } = useNetwork();
 
   const loadContacts = async () => {
-    const senders = await walletAPI.getAddressBook();
+    const [senders, channels] = await Promise.all([
+      walletAPI.getAddressBook(),
+      walletAPI.getSenderPrivateChannels(),
+    ]);
     setContacts(senders);
+    setPrivateChannels(channels);
+  };
+
+  const handleTogglePrivateChannel = async (address: AztecAddress, enabled: boolean) => {
+    setPrivateChannels((prev) => ({ ...prev, [address.toString()]: enabled }));
+    await walletAPI.setSenderPrivateChannel(address, enabled);
   };
 
   useEffect(() => {
@@ -52,9 +64,14 @@ export function ContactsManager() {
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h5" component="h2">
-          Contacts
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Typography variant="h5" component="h2">
+            Contacts
+          </Typography>
+          <Button variant="outlined" size="small" onClick={() => setRespondOpen(true)}>
+            Respond to handshake
+          </Button>
+        </Box>
         <Box
           sx={{
             display: "flex",
@@ -64,7 +81,15 @@ export function ContactsManager() {
           }}
         >
           {contacts.map((contact, index) => (
-            <ContactBox key={index} QRButton contact={contact} />
+            <ContactBox
+              key={index}
+              QRButton
+              contact={contact}
+              privateChannel={privateChannels[contact.item.toString()] ?? false}
+              onPrivateChannelChange={(enabled) =>
+                handleTogglePrivateChannel(contact.item, enabled)
+              }
+            />
           ))}
         </Box>
       </Box>
@@ -104,6 +129,8 @@ export function ContactsManager() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <RespondHandshakeDialog open={respondOpen} onClose={() => setRespondOpen(false)} />
     </>
   );
 }

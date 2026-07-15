@@ -1,7 +1,16 @@
 import { defineConfig, type Plugin } from "vite";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react-swc";
 import { PolyfillOptions, nodePolyfills } from "vite-plugin-node-polyfills";
+
+// The Aztec SDK version the wallet is built against, read from this workspace's pinned
+// @aztec/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
+const aztecSdkVersion = (
+  JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf-8")).dependencies?.[
+    "@aztec/aztec.js"
+  ] ?? "unknown"
+).replace(/^[\^~]/, "");
 
 const nodePolyfillsFix = (options?: PolyfillOptions | undefined): Plugin => {
   return {
@@ -35,4 +44,7 @@ export default defineConfig({
     react({ jsxImportSource: "@emotion/react" }),
     nodePolyfillsFix({ include: ["buffer", "path"] }),
   ],
+  define: {
+    __AZTEC_SDK_VERSION__: JSON.stringify(aztecSdkVersion),
+  },
 });

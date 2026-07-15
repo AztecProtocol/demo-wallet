@@ -33,6 +33,7 @@ import type {
 import type { AuthorizationRequest } from "../wallet/types/authorization.ts";
 import { WalletContext } from "./renderer.tsx";
 import { useNetwork } from "./contexts/NetworkContext.tsx";
+import { AZTEC_SDK_VERSION } from "./utils/version.ts";
 
 const INTERACTIONS_PANEL_WIDTH = 400;
 const INTERACTIONS_PANEL_MIN_WIDTH = 300;
@@ -580,6 +581,36 @@ export function App() {
                 </ListItemButton>
               </ListItem>
             </List>
+          </Box>
+          {/* Version footer: the Aztec SDK version the wallet is built against */}
+          <Box
+            sx={{
+              mt: "auto",
+              px: 2,
+              py: 1.5,
+              borderTop: 1,
+              borderColor: "divider",
+            }}
+          >
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", lineHeight: 1.4 }}
+            >
+              Aztec SDK
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: "block",
+                fontFamily: "monospace",
+                wordBreak: "break-all",
+                lineHeight: 1.4,
+              }}
+            >
+              {AZTEC_SDK_VERSION}
+            </Typography>
           </Box>
         </Box>
       </Box>

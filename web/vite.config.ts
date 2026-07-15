@@ -57,6 +57,14 @@ const sqliteRuntimeAssetsPlugin = (): Plugin => {
   };
 };
 
+// The Aztec SDK version the wallet is built against, read from this workspace's pinned
+// @aztec/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
+const aztecSdkVersion = (
+  JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf-8")).dependencies?.[
+    "@aztec/aztec.js"
+  ] ?? "unknown"
+).replace(/^[\^~]/, "");
+
 export default defineConfig({
   server: {
     port: 3001,
@@ -80,5 +88,6 @@ export default defineConfig({
     "process.env": JSON.stringify({
       LOG_LEVEL: process.env.LOG_LEVEL,
     }),
+    __AZTEC_SDK_VERSION__: JSON.stringify(aztecSdkVersion),
   },
 });

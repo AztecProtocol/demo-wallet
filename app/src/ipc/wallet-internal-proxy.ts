@@ -5,6 +5,7 @@ import {
   type InternalWalletInterface,
   InternalWalletInterfaceSchema,
   type OnAuthorizationRequestListener,
+  type OnHandshakeRelayRequestListener,
   type OnProofDebugExportRequestListener,
   type OnWalletUpdateListener,
 } from "@demo-wallet/shared/core";
@@ -18,6 +19,7 @@ export class WalletInternalProxy {
   private internalEventCallback!: OnWalletUpdateListener;
   private authRequestCallback!: OnAuthorizationRequestListener;
   private proofDebugExportCallback!: OnProofDebugExportRequestListener;
+  private handshakeRelayCallback!: OnHandshakeRelayRequestListener;
 
   private constructor(private internalPort: MessagePortMain) {}
 
@@ -31,6 +33,10 @@ export class WalletInternalProxy {
 
   public onProofDebugExportRequest(callback: OnProofDebugExportRequestListener) {
     this.proofDebugExportCallback = callback;
+  }
+
+  public onHandshakeRelayRequest(callback: OnHandshakeRelayRequestListener) {
+    this.handshakeRelayCallback = callback;
   }
 
   static create(internalPort: MessagePortMain) {
@@ -51,6 +57,12 @@ export class WalletInternalProxy {
 
       if (type === "proof-debug-export-request") {
         wallet.proofDebugExportCallback?.(event.data.content);
+        return;
+      }
+
+      // Whole envelope (with .content + .chainInfo) so the renderer can chain-filter + parse.
+      if (type === "handshake-relay-request") {
+        wallet.handshakeRelayCallback?.(event.data);
         return;
       }
 

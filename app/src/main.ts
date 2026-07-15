@@ -350,6 +350,11 @@ app.on("ready", async () => {
   walletProxy.onProofDebugExportRequest((event) => {
     mainWindow?.webContents.send("proof-debug-export-request", event);
   });
+  walletProxy.onHandshakeRelayRequest((event) => {
+    mainWindow?.webContents.send("handshake-relay-request", event);
+    // Focus the window: the user must relay this handshake to complete the pending send.
+    focusMainWindow();
+  });
   const internalMethods = [
     "getAccounts",
     "getAddressBook",
@@ -372,6 +377,10 @@ app.on("ready", async () => {
     "updateAddressBookAuthorization",
     "revokeAuthorization",
     "revokeAppAuthorizations",
+    "respondToInteractiveHandshake",
+    "resolveHandshakeRelay",
+    "setSenderPrivateChannel",
+    "getSenderPrivateChannels",
   ];
   for (const method of internalMethods) {
     ipcMain.handle(method, async (_event, args) => {

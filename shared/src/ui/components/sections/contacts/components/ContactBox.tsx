@@ -5,6 +5,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 
 import IconButton from "@mui/material/IconButton";
+import Switch from "@mui/material/Switch";
+import Tooltip from "@mui/material/Tooltip";
 import { useState } from "react";
 import QrCode from "@mui/icons-material/QrCode";
 import { QRDialog } from "../../../dialogs/QRDialog";
@@ -14,9 +16,16 @@ import { type AztecAddress } from "@aztec/aztec.js/addresses";
 interface ContactBoxProps {
   contact: Aliased<AztecAddress>;
   QRButton?: boolean;
+  privateChannel?: boolean;
+  onPrivateChannelChange?: (enabled: boolean) => void;
 }
 
-export function ContactBox({ contact, QRButton = false }: ContactBoxProps) {
+export function ContactBox({
+  contact,
+  QRButton = false,
+  privateChannel = false,
+  onPrivateChannelChange,
+}: ContactBoxProps) {
   const [openQR, setOpenQR] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -76,6 +85,15 @@ export function ContactBox({ contact, QRButton = false }: ContactBoxProps) {
             {contact.item ? contact.item.toString() : "Uninitialized"}
           </Typography>
         </Box>
+        {onPrivateChannelChange && contact.item && (
+          <Tooltip title="Private channel (interactive handshake)">
+            <Switch
+              size="small"
+              checked={privateChannel}
+              onChange={(e) => onPrivateChannelChange(e.target.checked)}
+            />
+          </Tooltip>
+        )}
         {contact.item && (
           <IconButton
             size="small"

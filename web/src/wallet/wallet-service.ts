@@ -17,13 +17,15 @@ import { type ChainInfo } from "@aztec/aztec.js/account";
 import { Fr } from "@aztec/aztec.js/fields";
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { createLogger } from "@aztec/aztec.js/log";
-import { type PromiseWithResolvers } from "@aztec/foundation/promise";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
+import { jsonStringify } from "@aztec/foundation/json-rpc";
 import {
   ExternalWallet,
   InternalWallet,
   WalletDB,
   type AuthorizationRequest,
   type AuthorizationResponse,
+  type HandshakeRelayResponse,
   getNetworkByChainId,
 } from "@demo-wallet/shared/core";
 import {
@@ -33,6 +35,7 @@ import {
   type PXEConfig,
   type PXECreationOptions,
 } from "@aztec/pxe/client/lazy";
+import { createInteractiveHandshakeResolver, RecipientSignatureSchema } from "@aztec/wallet-sdk/delivery";
 import { AztecSQLiteOPFSStore } from "@aztec/kv-store/sqlite-opfs";
 import {
   writeAccountsCookie,
@@ -59,6 +62,7 @@ type SessionData = {
         request: AuthorizationRequest;
       }
     >;
+    pendingHandshakeRelays: Map<string, PromiseWithResolvers<HandshakeRelayResponse>>;
   }>;
   /** One-time account/contact bootstrap from cookies. Runs once per session. */
   bootstrapDone: Promise<void> | null;
@@ -166,6 +170,39 @@ export async function getOrCreateSession(
       );
       const db = WalletDB.init(walletDBStore, walletDBLogger);
 
+      // Interactive-handshake sender relay + per-contact delivery strategy, wired into PXE hooks.
+      // Mirrors the Electron wallet-worker; on web the relay is emitted via onWalletEvent (which
+      // the browser wallet-api fans out to its listeners) instead of a MessagePort.
+      const pendingHandshakeRelays = new Map<
+        string,
+        PromiseWithResolvers<HandshakeRelayResponse>
+      >();
+      const interactiveHandshakeTransport = async (request: any) => {
+        const id = globalThis.crypto.randomUUID();
+        const handle = promiseWithResolvers<HandshakeRelayResponse>();
+        pendingHandshakeRelays.set(id, handle);
+        onWalletEvent(
+          "handshake-relay-request",
+          jsonStringify({ id, appId, requestBlob: jsonStringify(request), timestamp: Date.now() }),
+        );
+        try {
+          const response = await handle.promise;
+          if (!response.approved || !response.signatureBlob) {
+            throw new Error("Interactive handshake relay cancelled by user");
+          }
+          return RecipientSignatureSchema.parse(JSON.parse(response.signatureBlob));
+        } finally {
+          pendingHandshakeRelays.delete(id);
+        }
+      };
+      options.hooks = {
+        resolveCustomRequest: createInteractiveHandshakeResolver(interactiveHandshakeTransport),
+        resolveTaggingSecretStrategy: async ({ recipient }) =>
+          (await db.isSenderPrivateChannel(recipient))
+            ? ({ type: "interactive-handshake" } as const)
+            : ({ type: "non-interactive-handshake" } as const),
+      };
+
       const pxe = await createPXE(node, { ...getPXEConfig(), ...configOverrides }, options);
 
       const pendingAuthorizations = new Map<
@@ -189,7 +226,7 @@ export async function getOrCreateSession(
         await syncCapabilitiesToCookie(db);
       }
 
-      return { pxe, node, db, pendingAuthorizations };
+      return { pxe, node, db, pendingAuthorizations, pendingHandshakeRelays };
     })();
 
     session = { sharedResources: pxeInit, bootstrapDone: null, wallets: new Map() };
@@ -215,6 +252,7 @@ export async function getOrCreateSession(
         appId,
         chainInfo,
         externalLog,
+        sharedResources.pendingHandshakeRelays,
       );
 
       const internalWallet = new InternalWallet(
@@ -225,6 +263,7 @@ export async function getOrCreateSession(
         appId,
         chainInfo,
         internalLog,
+        sharedResources.pendingHandshakeRelays,
       );
 
       // Register account stub contract classes with PXE so simulations can override

@@ -14,6 +14,7 @@ import { type AztecAsyncMap, type AztecAsyncKVStore } from "@aztec/kv-store";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import { jsonStringify } from "@aztec/foundation/json-rpc";
 import { TxSimulationResult } from "@aztec/stdlib/tx";
+import type { InteractiveHandshakeBackupEntry } from "@aztec/wallet-sdk/delivery";
 
 export const AccountTypes = [
   "schnorr",
@@ -58,6 +59,8 @@ export class WalletDB {
     private interactions: AztecAsyncMap<string, Buffer>,
     private authorizations: AztecAsyncMap<string, Buffer>,
     private txPayloadData: AztecAsyncMap<string, string>,
+    private handshakeBackups: AztecAsyncMap<string, Buffer>,
+    private senderSettings: AztecAsyncMap<string, Buffer>,
     private logger: Logger,
   ) {}
 
@@ -68,6 +71,12 @@ export class WalletDB {
     const interactions = store.openMap<string, Buffer>("interactions");
     const authorizations = store.openMap<string, Buffer>("authorizations");
     const txPayloadData = store.openMap<string, string>("txPayloadData");
+    // Interactive-handshake channels are the one piece of PXE state that cannot be
+    // rebuilt from the chain plus account keys, so their recoverable identity is backed
+    // up here (see storeHandshakeBackup). senderSettings holds per-contact preferences
+    // such as the "private channel" toggle, keyed by address for the strategy hook.
+    const handshakeBackups = store.openMap<string, Buffer>("handshakeBackups");
+    const senderSettings = store.openMap<string, Buffer>("senderSettings");
     return new WalletDB(
       accounts,
       aliases,
@@ -75,6 +84,8 @@ export class WalletDB {
       interactions,
       authorizations,
       txPayloadData,
+      handshakeBackups,
+      senderSettings,
       logger,
     );
   }
@@ -163,6 +174,55 @@ export class WalletDB {
   async storeSender(address: AztecAddress, alias: string) {
     await this.aliases.set(`senders:${alias}`, Buffer.from(address.toString()));
     this.logger.info(`Sender stored in database with alias ${alias}`);
+  }
+
+  /**
+   * Sets the per-contact "private channel" preference. When enabled, outgoing messages to
+   * this recipient use an interactive handshake (see the resolveTaggingSecretStrategy hook
+   * in the wallet worker), which reveals nothing about the recipient on-chain at the cost
+   * of a manual authorization relay. Keyed by address so the strategy hook, which only sees
+   * the recipient address, can look it up directly.
+   */
+  async setSenderPrivateChannel(address: AztecAddress, enabled: boolean) {
+    await this.senderSettings.set(
+      `${address.toString()}:privateChannel`,
+      Buffer.from(enabled ? "true" : "false"),
+    );
+    this.logger.info(`Private channel for ${address.toString()} set to ${enabled}`);
+  }
+
+  /** Whether the "private channel" (interactive handshake) preference is set for a recipient. */
+  async isSenderPrivateChannel(address: AztecAddress): Promise<boolean> {
+    const buf = await this.senderSettings.getAsync(`${address.toString()}:privateChannel`);
+    return buf?.toString("utf8") === "true";
+  }
+
+  /**
+   * Durably persists an interactive handshake's recoverable identity — the one piece of
+   * wallet state that cannot be rebuilt from the chain plus account keys. Idempotent for the
+   * same entry. The responder releases the recipient's signature only after this resolves, so
+   * a rejection aborts the handshake with no channel established.
+   *
+   * Value is a self-contained fixed-width buffer (32-byte recipient + 32-byte ephPkX), so
+   * listing does not depend on the key format. Mirrors EmbeddedWallet's WalletDB.
+   */
+  async storeHandshakeBackup({ recipient, ephPkX }: InteractiveHandshakeBackupEntry) {
+    await this.handshakeBackups.set(
+      `${recipient.toString()}:${ephPkX.toString()}`,
+      Buffer.concat([recipient.toBuffer(), ephPkX.toBuffer()]),
+    );
+  }
+
+  /** Retrieves every persisted interactive-handshake backup entry. */
+  async listHandshakeBackups(): Promise<InteractiveHandshakeBackupEntry[]> {
+    const entries: InteractiveHandshakeBackupEntry[] = [];
+    for await (const [, value] of this.handshakeBackups.entriesAsync()) {
+      entries.push({
+        recipient: AztecAddress.fromBuffer(value.subarray(0, 32)),
+        ephPkX: Fr.fromBuffer(value.subarray(32)),
+      });
+    }
+    return entries;
   }
 
   async storeAccountMetadata(
@@ -260,6 +320,11 @@ export class WalletDB {
     const account = accounts.find((account) => address.equals(account.item));
     if (account) {
       await this.aliases.delete(account.alias);
+    }
+    // A deleted account's handshake channels are unrecoverable by design; drop their backups.
+    const prefix = `${address.toString()}:`;
+    for await (const key of this.handshakeBackups.keysAsync({ start: prefix, end: `${prefix}￿` })) {
+      await this.handshakeBackups.delete(key);
     }
   }
 

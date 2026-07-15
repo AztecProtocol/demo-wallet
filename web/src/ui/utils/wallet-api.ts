@@ -15,10 +15,12 @@ import { getOrCreateSession } from "../../wallet/wallet-service.ts";
 type WalletUpdateListener = (event: any) => void;
 type AuthorizationRequestListener = (event: any) => void;
 type ProofDebugExportListener = (event: any) => void;
+type HandshakeRelayRequestListener = (event: any) => void;
 
 const walletUpdateListeners = new Set<WalletUpdateListener>();
 const authorizationRequestListeners = new Set<AuthorizationRequestListener>();
 const proofDebugExportListeners = new Set<ProofDebugExportListener>();
+const handshakeRelayRequestListeners = new Set<HandshakeRelayRequestListener>();
 
 export function emitWalletUpdate(detail: unknown) {
   const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
@@ -34,6 +36,11 @@ function emitAuthorizationRequest(detail: unknown) {
 function emitProofDebugExportRequest(detail: unknown) {
   const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
   proofDebugExportListeners.forEach((cb) => cb(parsed));
+}
+
+function emitHandshakeRelayRequest(detail: unknown) {
+  const parsed = typeof detail === "string" ? JSON.parse(detail) : detail;
+  handshakeRelayRequestListeners.forEach((cb) => cb(parsed));
 }
 
 // Cache: chainId-version → InternalWallet
@@ -56,6 +63,7 @@ async function getInternalWallet(
       if (eventType === "wallet-update") emitWalletUpdate(detail);
       else if (eventType === "authorization-request") emitAuthorizationRequest(detail);
       else if (eventType === "proof-debug-export-request") emitProofDebugExportRequest(detail);
+      else if (eventType === "handshake-relay-request") emitHandshakeRelayRequest(detail);
     }).then(({ internal }) => internal);
     walletCache.set(key, p);
   }
@@ -88,6 +96,12 @@ export class WalletApi {
           return (callback: ProofDebugExportListener) => {
             proofDebugExportListeners.add(callback);
             return () => proofDebugExportListeners.delete(callback);
+          };
+        }
+        if (propStr === "onHandshakeRelayRequest") {
+          return (callback: HandshakeRelayRequestListener) => {
+            handshakeRelayRequestListeners.add(callback);
+            return () => handshakeRelayRequestListeners.delete(callback);
           };
         }
         if (propStr === "saveProofDebugData") {

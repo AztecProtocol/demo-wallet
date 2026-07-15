@@ -79,6 +79,24 @@ contextBridge.exposeInMainWorld("walletAPI", {
   resolveAuthorization(stringifiedArgs: string) {
     return ipcRenderer.invoke("resolveAuthorization", stringifiedArgs);
   },
+  // Interactive handshakes
+  respondToInteractiveHandshake(stringifiedArgs: string): Promise<string> {
+    return ipcRenderer.invoke("respondToInteractiveHandshake", stringifiedArgs);
+  },
+  resolveHandshakeRelay(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("resolveHandshakeRelay", stringifiedArgs);
+  },
+  setSenderPrivateChannel(stringifiedArgs: string): Promise<void> {
+    return ipcRenderer.invoke("setSenderPrivateChannel", stringifiedArgs);
+  },
+  getSenderPrivateChannels(stringifiedArgs: string): Promise<Record<string, boolean>> {
+    return ipcRenderer.invoke("getSenderPrivateChannels", stringifiedArgs);
+  },
+  onHandshakeRelayRequest(callback: (eventData: unknown) => void) {
+    const listener = (_event: unknown, eventData: unknown) => callback(eventData);
+    ipcRenderer.on("handshake-relay-request", listener);
+    return () => ipcRenderer.off("handshake-relay-request", listener);
+  },
   // Proof debug export
   saveProofDebugData(
     base64Data: string,

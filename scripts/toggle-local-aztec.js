@@ -87,6 +87,11 @@ const PACKAGE_MAPPINGS = {
   "@aztec/sequencer-client": "yarn-project/sequencer-client",
   "@aztec/simulator": "yarn-project/simulator",
   "@aztec/slasher": "yarn-project/slasher",
+  // Transitive dependency of @aztec/wallet-sdk (its delivery/interactive-handshake
+  // helpers import the HandshakeRegistry constants). With the `link:` protocol Yarn
+  // resolves a linked package's deps from this repo's tree, so every @aztec/* the
+  // linked packages import must be mapped here or `yarn install` cannot resolve it.
+  "@aztec/standard-contracts": "yarn-project/standard-contracts",
   "@aztec/stdlib": "yarn-project/stdlib",
   "@aztec/telemetry-client": "yarn-project/telemetry-client",
   "@aztec/test-wallet": "yarn-project/test-wallet",

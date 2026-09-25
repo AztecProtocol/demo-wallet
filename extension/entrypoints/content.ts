@@ -1,4 +1,4 @@
-import { ContentScriptConnectionHandler } from "@aztec/wallet-sdk/extension/handlers";
+import { ContentScriptConnectionHandler } from "@aztec-labs/wallet-sdk/extension/handlers";
 
 /**
  * Content script that acts as a pure message relay between the web page and the background script.

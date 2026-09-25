@@ -5,10 +5,10 @@ const { execSync } = require("child_process");
 // Read package.json to get bb.js version
 const packageJsonPath = path.join(__dirname, "../package.json");
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-const bbJsVersion = packageJson.dependencies["@aztec/bb.js"];
+const bbJsVersion = packageJson.dependencies["@aztec-foundation/bb.js"];
 
 if (!bbJsVersion) {
-  console.error("✗ @aztec/bb.js version not found in package.json");
+  console.error("✗ @aztec-foundation/bb.js version not found in package.json");
   process.exit(1);
 }
 
@@ -53,7 +53,7 @@ function getPlatformArch() {
 // Main function
 async function main() {
   // Source paths
-  const BB_FOLDER = path.resolve(__dirname, "../../node_modules/@aztec/bb.js");
+  const BB_FOLDER = path.resolve(__dirname, "../../node_modules/@aztec-foundation/bb.js");
 
   const BB_WASM_SOURCE = path.join(
     BB_FOLDER,

@@ -1,22 +1,22 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import type {
   ContractInstancePreimage,
   ContractInstancePreimageWithAddress,
-} from "@aztec/stdlib/contract";
+} from "@aztec-labs/stdlib/contract";
 import {
   computeContractAddressFromInstance,
   computePartialAddress,
   getContractClassFromArtifact,
-} from "@aztec/stdlib/contract";
-import type { ContractArtifact } from "@aztec/stdlib/abi";
-import { Fr } from "@aztec/foundation/curves/bn254";
+} from "@aztec-labs/stdlib/contract";
+import type { ContractArtifact } from "@aztec-labs/stdlib/abi";
+import { Fr } from "@aztec-labs/foundation/curves/bn254";
 import {
   deriveKeys,
   deriveKeysFromMasterSecretKeys,
   type MasterSecretKeys,
-} from "@aztec/stdlib/keys";
-import type { PXE } from "@aztec/pxe/client/lazy";
+} from "@aztec-labs/stdlib/keys";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import type { InteractionManager } from "../managers/interaction-manager";

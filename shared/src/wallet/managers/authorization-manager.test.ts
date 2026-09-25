@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { openTmpStore } from "@aztec/kv-store/lmdb-v2";
-import { createLogger } from "@aztec/foundation/log";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { openTmpStore } from "@aztec-labs/kv-store/lmdb-v2";
+import { createLogger } from "@aztec-labs/foundation/log";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import { AuthorizationManager } from "./authorization-manager";
 import { WalletDB } from "../database/wallet-db";
 import type { AuthorizationItem, AuthorizationResponse } from "../types/authorization";

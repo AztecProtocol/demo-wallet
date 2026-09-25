@@ -4,15 +4,15 @@ import type {
   WalletCapabilities,
   GrantedCapability,
   CAPABILITY_VERSION,
-} from "@aztec/aztec.js/wallet";
+} from "@aztec-labs/aztec.js/wallet";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { RequestCapabilitiesParams } from "../types/authorization";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import type { PXE } from "@aztec/pxe/client/lazy";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
 
 // Arguments tuple for the operation
 type RequestCapabilitiesArgs = [AppCapabilities];

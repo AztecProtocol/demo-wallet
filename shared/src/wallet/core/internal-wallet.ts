@@ -1,13 +1,13 @@
-import { NO_FROM, type Account } from "@aztec/aztec.js/account";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { NO_FROM, type Account } from "@aztec-labs/aztec.js/account";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import {
   type Aliased,
   type DeployAccountOptions,
   type SendOptions,
   type GrantedCapability,
   TxSimulationResultWithAppOffset,
-} from "@aztec/aztec.js/wallet";
-import { type Fr } from "@aztec/aztec.js/fields";
+} from "@aztec-labs/aztec.js/wallet";
+import { type Fr } from "@aztec-labs/aztec.js/fields";
 import type { AccountType } from "../database/wallet-db";
 import {
   WalletInteraction,
@@ -15,7 +15,7 @@ import {
   type WalletInteractionType,
 } from "../types/wallet-interaction";
 
-import { collectOffchainEffects, type ExecutionPayload, TxStatus } from "@aztec/stdlib/tx";
+import { collectOffchainEffects, type ExecutionPayload, TxStatus } from "@aztec-labs/stdlib/tx";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { TxDecodingService } from "../decoding/tx-decoding-service";
 
@@ -26,11 +26,11 @@ import {
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
-} from "@aztec/aztec.js/contracts";
-import { waitForTx } from "@aztec/aztec.js/node";
-import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
-import { Gas, GasSettings } from "@aztec/stdlib/gas";
-import { getGasLimits } from "@aztec/wallet-sdk/base-wallet";
+} from "@aztec-labs/aztec.js/contracts";
+import { waitForTx } from "@aztec-labs/aztec.js/node";
+import { CallAuthorizationRequest } from "@aztec-labs/aztec.js/authorization";
+import { Gas, GasSettings } from "@aztec-labs/stdlib/gas";
+import { getGasLimits } from "@aztec-labs/wallet-sdk/base-wallet";
 
 // Enriched account type for internal use
 export type InternalAccount = Aliased<AztecAddress> & {
@@ -272,7 +272,7 @@ export class InternalWallet extends DemoWallet {
       }),
     );
     const provenTx = await this.pxe.proveTx(txRequest, {
-      scopes: this.scopesFrom(opts.from, opts.additionalScopes),
+      scopes: this.scopesFrom(opts.from, opts.additionalScopes ?? [], opts.sendMessagesAs),
       senderForTags: this.senderForTagsFrom(opts.from, opts.sendMessagesAs),
     });
     const provingTime = Date.now() - provingStartTime;

@@ -7,7 +7,7 @@ import type {
   AppCapabilities,
   CAPABILITY_VERSION,
   Capability,
-} from "@aztec/aztec.js/wallet";
+} from "@aztec-labs/aztec.js/wallet";
 import type {
   AuthorizationItem,
   RequestCapabilitiesParams,

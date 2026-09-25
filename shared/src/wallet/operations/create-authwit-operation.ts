@@ -1,9 +1,9 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import type { IntentInnerHash, CallIntent } from "@aztec/aztec.js/authorization";
-import type { ChainInfo } from "@aztec/aztec.js/account";
-import { Fr } from "@aztec/foundation/curves/bn254";
+import type { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import type { AuthWitness } from "@aztec-labs/stdlib/auth-witness";
+import type { IntentInnerHash, CallIntent } from "@aztec-labs/aztec.js/authorization";
+import type { ChainInfo } from "@aztec-labs/aztec.js/account";
+import { Fr } from "@aztec-labs/foundation/curves/bn254";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";

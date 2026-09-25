@@ -1,5 +1,5 @@
-import type { Capability, ContractFunctionPattern } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { Capability, ContractFunctionPattern } from "@aztec-labs/aztec.js/wallet";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import React from "react";
 import { CheckCircle, Lock, Storage, PlayArrow, Send, DataObject, Code } from "@mui/icons-material";
 

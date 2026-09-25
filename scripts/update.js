@@ -63,9 +63,9 @@ function findWorkspacePackageJsons() {
 async function fetchLatestNightly() {
   log(COLORS.yellow, "Fetching latest nightly from npm...");
   try {
-    const output = exec("npm view @aztec/aztec.js versions --json", { silent: true });
+    const output = exec("npm view @aztec-labs/aztec.js versions --json", { silent: true });
     const versions = JSON.parse(output);
-    const nightlies = versions.filter((v) => v.match(/^4\.\d+\.\d+-nightly\.\d+$/));
+    const nightlies = versions.filter((v) => v.match(/^6\.\d+\.\d+-nightly\.\d+$/));
     const latest = nightlies[nightlies.length - 1];
     if (!latest) throw new Error("No nightly versions found");
     return latest;
@@ -104,7 +104,13 @@ async function fetchRollupVersion(nodeUrl) {
   log(COLORS.yellow, `Fetching rollup version from ${nodeUrl}...`);
   const res = await fetch(nodeUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // Gateway-fronted nodes (staging-public) reject requests without a key
+      ...(process.env.VITE_STAGING_PUBLIC_API_KEY && {
+        "x-aztec-api-key": process.env.VITE_STAGING_PUBLIC_API_KEY,
+      }),
+    },
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
@@ -127,7 +133,10 @@ function updatePackageJsonFiles(version) {
 
   for (const path of packageJsons) {
     const original = readFileSync(path, "utf-8");
-    const updated = original.replace(/"(@aztec\/[^"]+)": "v[^"]+"/g, `"$1": "v${version}"`);
+    const updated = original.replace(
+      /"(@aztec-(?:labs|foundation)\/[^"]+)": "v?\d[^"]*"/g,
+      `"$1": "${version}"`,
+    );
     if (updated !== original) {
       writeFileSync(path, updated, "utf-8");
       log(COLORS.green, `  ✓ ${relative(ROOT, path)}`);
@@ -164,9 +173,7 @@ function setRollupVersionInFile(networkId, rollupVersion) {
 async function updateRollupVersions() {
   log(COLORS.yellow, "[3/4] Updating rollup versions for non-local networks...");
 
-  const networks = parseNetworks().filter(
-    (n) => n.chainId !== LOCAL_CHAIN_ID && n.nodeUrl,
-  );
+  const networks = parseNetworks().filter((n) => n.chainId !== LOCAL_CHAIN_ID && n.nodeUrl);
 
   if (networks.length === 0) {
     log(COLORS.yellow, "  (no remote networks found — nothing to update)\n");
@@ -227,7 +234,7 @@ function parseArgs() {
     } else if (a === "--help" || a === "-h") {
       console.log("Usage: node scripts/update.js [OPTIONS]");
       console.log("\nOptions:");
-      console.log("  --version VERSION    Nightly version (e.g., 4.3.0-nightly.20260423)");
+      console.log("  --version VERSION    Nightly version (e.g., 6.0.0-nightly.20260829)");
       console.log("  --skip-install       Skip running yarn install");
       console.log("  --skip-aztec-up      Skip Aztec CLI installation");
       console.log("  --help, -h           Show this help message");

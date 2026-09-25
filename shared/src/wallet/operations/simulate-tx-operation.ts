@@ -1,8 +1,8 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { type ExecutionPayload, BlockHeader } from "@aztec/stdlib/tx";
-import type { PXE } from "@aztec/pxe/client/lazy";
-import { NO_FROM } from "@aztec/aztec.js/account";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import { type ExecutionPayload, BlockHeader } from "@aztec-labs/stdlib/tx";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
+import { NO_FROM } from "@aztec-labs/aztec.js/account";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB, StoredStats } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
@@ -12,8 +12,8 @@ import { TxDecodingService } from "../decoding/tx-decoding-service";
 import type { ReadableCallAuthorization } from "../decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { hashExecutionPayload, generateSimulationTitle } from "../utils/simulation-utils";
-import { TxSimulationResultWithAppOffset, type SimulateOptions } from "@aztec/aztec.js/wallet";
-import type { Logger } from "@aztec/aztec.js/log";
+import { TxSimulationResultWithAppOffset, type SimulateOptions } from "@aztec-labs/aztec.js/wallet";
+import type { Logger } from "@aztec-labs/aztec.js/log";
 import {
   type FeeOptions,
   type CompleteFeeOptionsConfig,
@@ -21,9 +21,9 @@ import {
   extractOptimizablePublicStaticCalls,
   simulateViaNode,
   buildMergedSimulationResult,
-} from "@aztec/wallet-sdk/base-wallet";
-import type { AztecNode } from "@aztec/aztec.js/node";
-import type { ChainInfo } from "@aztec/entrypoints/interfaces";
+} from "@aztec-labs/wallet-sdk/base-wallet";
+import type { AztecNode } from "@aztec-labs/aztec.js/node";
+import type { ChainInfo } from "@aztec-labs/entrypoints/interfaces";
 
 // Readable transaction information with decoded data
 interface ReadableTxInformation {

@@ -26,7 +26,7 @@ node scripts/update.js --skip-install                               # skip yarn 
 node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```
 
-Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
+Updates `@aztec-labs/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
 
 ## Development Setup
 
@@ -35,6 +35,16 @@ Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `exte
 - Node.js v22
 - yarn
 - A running Aztec local node (or access to a remote node)
+
+### Network API keys
+
+The `staging-public` network (`https://staging-public.rpc.aztec-labs.com`, Sepolia L1) sits behind an API gateway. The key is baked in at build time from `VITE_STAGING_PUBLIC_API_KEY` and sent as the `x-aztec-api-key` header on every node request. Export it before starting/building, or put it in a gitignored `.env.local` next to the Vite config you're running (`app/` or `web/`):
+
+```bash
+echo 'VITE_STAGING_PUBLIC_API_KEY=<your key>' > app/.env.local
+```
+
+For the web wallet deploy, set it as an environment variable in the Vercel project (picked up by `vercel pull`).
 
 ### Running in Development Mode
 

@@ -38,6 +38,7 @@ jobs:
     with:
       release-mode: true
       retention-days: 30
+    secrets: inherit
 
   create-release:
     name: Create GitHub Release

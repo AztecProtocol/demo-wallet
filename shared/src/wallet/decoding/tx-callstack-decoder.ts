@@ -1,17 +1,17 @@
-import type { TxSimulationResult, PrivateCallExecutionResult } from "@aztec/stdlib/tx";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import type { TxSimulationResult, PrivateCallExecutionResult } from "@aztec-labs/stdlib/tx";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import {
   getFunctionArtifact,
   type AbiDecoded,
   FunctionSelector,
   getAllFunctionAbis,
   type FunctionAbi,
-} from "@aztec/stdlib/abi";
-import { decodeFromAbi } from "@aztec/aztec.js/abi";
+} from "@aztec-labs/stdlib/abi";
+import { decodeEachFromAbi, decodeFromAbi, getFunctionReturnType } from "@aztec-labs/aztec.js/abi";
 import { formatAbiValue } from "./utils";
 import type { DecodingCache } from "./decoding-cache";
-import { Fr } from "@aztec/foundation/curves/bn254";
-import { PRIVATE_CONTEXT_INPUTS_LENGTH } from "@aztec/constants";
+import { Fr } from "@aztec-labs/foundation/curves/bn254";
+import { PRIVATE_CONTEXT_INPUTS_LENGTH } from "@aztec-labs/constants";
 
 export type ExecutionEvent = PrivateCallEvent | PublicCallEvent;
 
@@ -180,7 +180,7 @@ export class TxCallStackDecoder {
       }
 
       // Decode return values - reuse the generic return value decoding helper
-      if (functionAbi.returnTypes.length > 0) {
+      if (getFunctionReturnType(functionAbi)) {
         returnValues = await this.decodeAndFormatReturnValues(functionAbi, call.returnValues);
       }
     } catch {
@@ -441,14 +441,11 @@ export class TxCallStackDecoder {
       return [];
     }
 
-    // Decode the Fr[] args using the function's parameter types
-    const decoded = decodeFromAbi(
+    // Decode the Fr[] args using the function's parameter types (one decoded value per param)
+    const decodedArgs = decodeEachFromAbi(
       functionAbi.parameters.map((p) => p.type),
       args,
     );
-
-    // decodeFromAbi returns a single value if there's one param, or an array for multiple
-    const decodedArgs = Array.isArray(decoded) ? decoded : [decoded];
 
     // Format each decoded argument with address resolution
     return await Promise.all(
@@ -471,14 +468,15 @@ export class TxCallStackDecoder {
     functionAbi: FunctionAbi,
     returnValues: Fr[],
   ): Promise<Array<{ name: string; value: string }>> {
-    if (!functionAbi.returnTypes || functionAbi.returnTypes.length === 0) {
+    const returnType = getFunctionReturnType(functionAbi);
+    if (!returnType) {
       return [];
     }
 
-    // Decode the Fr[] return values using the function's return types
-    const decoded = decodeFromAbi(functionAbi.returnTypes, returnValues);
+    // Decode the Fr[] return values using the function's return type
+    const decoded = decodeFromAbi(returnType, returnValues);
 
-    // decodeFromAbi returns a single value if there's one return type, or an array for multiple
+    // Multiple return values come back as a single tuple, which decodes to an array
     const decodedReturns = Array.isArray(decoded) ? decoded : [decoded];
 
     // Use "result" for single return value (like utilities), indexed names for multiple
@@ -550,7 +548,7 @@ export class TxCallStackDecoder {
       }
 
       // If the function has no return type, return empty string
-      if (!functionAbi.returnTypes || functionAbi.returnTypes.length === 0) {
+      if (!getFunctionReturnType(functionAbi)) {
         return "void";
       }
 

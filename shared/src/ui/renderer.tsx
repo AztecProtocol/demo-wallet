@@ -6,7 +6,7 @@ import { App } from "./App.tsx";
 import type { InternalWalletInterface } from "../ipc/wallet-internal-interface.ts";
 import { NetworkProvider, useNetwork } from "./contexts/NetworkContext.tsx";
 import { networkToChainInfo } from "../config/networks.ts";
-import type { Fr } from "@aztec/foundation/schemas";
+import type { Fr } from "@aztec-labs/foundation/schemas";
 
 const themeOptions: ThemeOptions = {
   breakpoints: {

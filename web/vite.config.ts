@@ -26,7 +26,7 @@ const nodePolyfillsFix = (options?: PolyfillOptions): Plugin => {
   };
 };
 
-// Emits @aztec/sqlite3mc-wasm's runtime-loaded files into assets/ under their
+// Emits @aztec-labs/sqlite3mc-wasm's runtime-loaded files into assets/ under their
 // ORIGINAL names. Since SQLite3MultipleCiphers 2.3.5 (aztec-packages#24293)
 // the sqlite3mc loader resolves sqlite3.wasm through Module['locateFile'] with
 // a *dynamic* path the bundler can't rewrite, so production builds request an
@@ -43,7 +43,7 @@ const sqliteRuntimeAssetsPlugin = (): Plugin => {
       for (const file of RUNTIME_FILES) {
         let resolved: string;
         try {
-          resolved = require.resolve(`@aztec/sqlite3mc-wasm/vendor/jswasm/${file}`);
+          resolved = require.resolve(`@aztec-labs/sqlite3mc-wasm/vendor/jswasm/${file}`);
         } catch {
           return; // package not installed
         }
@@ -58,10 +58,10 @@ const sqliteRuntimeAssetsPlugin = (): Plugin => {
 };
 
 // The Aztec SDK version the wallet is built against, read from this workspace's pinned
-// @aztec/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
+// @aztec-labs/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
 const aztecSdkVersion = (
   JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf-8")).dependencies?.[
-    "@aztec/aztec.js"
+    "@aztec-labs/aztec.js"
   ] ?? "unknown"
 ).replace(/^[\^~]/, "");
 

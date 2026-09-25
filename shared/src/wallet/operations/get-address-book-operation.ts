@@ -1,6 +1,6 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import type { Aliased } from "@aztec/aztec.js/wallet";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";

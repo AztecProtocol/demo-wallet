@@ -1,8 +1,13 @@
-import { decodeFromAbi } from "@aztec/aztec.js/abi";
-import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { FunctionCall, getFunctionArtifact, type AbiDecoded } from "@aztec/stdlib/abi";
-import type { OffchainEffect } from "@aztec/stdlib/tx";
+import { decodeEachFromAbi } from "@aztec-labs/aztec.js/abi";
+import { CallAuthorizationRequest } from "@aztec-labs/aztec.js/authorization";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import {
+  FunctionCall,
+  getFunctionArtifact,
+  getFunctionReturnType,
+  type AbiDecoded,
+} from "@aztec-labs/stdlib/abi";
+import type { OffchainEffect } from "@aztec-labs/stdlib/tx";
 import type { DecodingCache } from "./decoding-cache";
 
 export interface ReadableCallAuthorization {
@@ -67,10 +72,10 @@ export class CallAuthorizationFormatter {
         artifact,
         callAuthorizationRequest.functionSelector,
       );
-      const callData = decodeFromAbi(
+      const callData = decodeEachFromAbi(
         functionAbi.parameters.map((param) => param.type),
         callAuthorizationRequest.args,
-      ) as AbiDecoded[];
+      );
       const parameters = functionAbi.parameters.map((param, i) => ({
         name: param.name,
         value: callData[i],
@@ -88,7 +93,7 @@ export class CallAuthorizationFormatter {
           functionAbi.isStatic,
           false,
           callAuthorizationRequest.args,
-          functionAbi.returnTypes,
+          getFunctionReturnType(functionAbi),
         ),
       };
     } catch {

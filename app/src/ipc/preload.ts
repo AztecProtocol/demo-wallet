@@ -1,7 +1,7 @@
-import type { Aliased } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import { contextBridge, ipcRenderer } from "electron";
-import type { TxHash, TxReceipt } from "@aztec/stdlib/tx";
+import type { TxHash, TxReceipt } from "@aztec-labs/stdlib/tx";
 import type { WalletInteraction, WalletInteractionType } from "@demo-wallet/shared/core";
 
 contextBridge.exposeInMainWorld("walletAPI", {

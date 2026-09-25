@@ -1,7 +1,7 @@
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Alert from "@mui/material/Alert";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import type { AuthorizationItem } from "../../../wallet/types/authorization";
 import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../../../wallet/decoding/tx-callstack-decoder";

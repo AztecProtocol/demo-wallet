@@ -1,4 +1,4 @@
-import { Fr } from "@aztec/aztec.js/fields";
+import { Fr } from "@aztec-labs/aztec.js/fields";
 
 export interface NetworkConfig {
   id: string;
@@ -8,6 +8,8 @@ export interface NetworkConfig {
   description: string;
   color: string;
   nodeUrl?: string;
+  /** Sent as the `x-aztec-api-key` header on every node request, for nodes behind an API gateway. */
+  apiKey?: string;
 }
 
 export const NETWORKS: NetworkConfig[] = [
@@ -21,13 +23,16 @@ export const NETWORKS: NetworkConfig[] = [
     nodeUrl: "http://localhost:8080",
   },
   {
-    id: "testnet",
-    name: "Testnet",
+    // Stand-in for testnet on the v6 line until an official v6 testnet exists. Sepolia L1.
+    id: "staging-public",
+    name: "Staging Public",
     chainId: 11155111,
-    version: 0, // Auto-detect rollup version from the node (changed for v5)
-    description: "Aztec Labs Testnet",
+    version: 0, // Auto-detect rollup version from the node
+    description: "Aztec Labs public staging network",
     color: "#f38721",
-    nodeUrl: "https://canonical.testnet.rpc.aztec-labs.com",
+    nodeUrl: "https://staging-public.rpc.aztec-labs.com",
+    // Injected at build time; the node's gateway rejects requests without it
+    apiKey: import.meta.env.VITE_STAGING_PUBLIC_API_KEY,
   },
 ];
 

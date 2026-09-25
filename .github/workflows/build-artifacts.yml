@@ -147,6 +147,8 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
           CI: true
           CHROME_EXTENSION_ID: ${{ needs.build-extension.outputs.chrome-extension-id }}
+          # Baked into the bundle; staging-public's gateway rejects node requests without it
+          VITE_STAGING_PUBLIC_API_KEY: ${{ secrets.STAGING_PUBLIC_API_KEY }}
 
       - name: Upload build artifacts (development)
         if: ${{ !inputs.release-mode }}

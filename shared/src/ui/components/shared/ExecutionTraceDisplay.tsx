@@ -4,7 +4,7 @@ import { FunctionCallDisplay } from "./FunctionCallDisplay";
 import { PrivateCallDisplay } from "./PrivateCallDisplay";
 import { PublicCallDisplay } from "./PublicCallDisplay";
 import { SimulationPhaseTimeline, type ExecutionStats } from "./PhaseTimeline";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Table from "@mui/material/Table";

@@ -38,7 +38,7 @@ export function ContactsManager() {
     }
 
     try {
-      const address = AztecAddress.fromString(newContactAddress);
+      const address = AztecAddress.fromStringUnsafe(newContactAddress);
       await walletAPI.registerSender(address, newContactAlias);
       await loadContacts();
       setAddDialogOpen(false);

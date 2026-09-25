@@ -222,7 +222,7 @@ export class WalletDB {
       if (alias.startsWith("accounts:")) {
         allAccounts.push({
           alias: alias.replace("accounts:", ""),
-          item: AztecAddress.fromString(item.toString()),
+          item: AztecAddress.fromStringUnsafe(item.toString()),
         });
       }
     }
@@ -245,7 +245,7 @@ export class WalletDB {
     const result = [];
     for await (const [alias, item] of this.aliases.entriesAsync()) {
       if (alias.startsWith("senders:")) {
-        result.push({ alias, item: AztecAddress.fromString(item.toString()) });
+        result.push({ alias, item: AztecAddress.fromStringUnsafe(item.toString()) });
       }
     }
     return result;
@@ -660,7 +660,7 @@ export class WalletDB {
         const data = await this.retrievePersistentAuthorization(appId, "getAccounts");
         accounts = (data?.accounts || []).map((acc: any) => ({
           alias: acc.alias,
-          item: typeof acc.item === "string" ? AztecAddress.fromString(acc.item) : acc.item,
+          item: typeof acc.item === "string" ? AztecAddress.fromStringUnsafe(acc.item) : acc.item,
         }));
       }
 
@@ -708,7 +708,7 @@ export class WalletDB {
         for (const a of allAddrs) {
           const hasReg = registerAddrs.has(a);
           const hasMeta = metadataAddrs.has(a);
-          const addr = AztecAddress.fromString(a);
+          const addr = AztecAddress.fromStringUnsafe(a);
           if (hasReg && hasMeta) bothAddrs.push(addr);
           else if (hasReg) registerOnlyAddrs.push(addr);
           else metadataOnlyAddrs.push(addr);
@@ -766,7 +766,7 @@ export class WalletDB {
         } else {
           const patterns = simulateTxKeys.map((k) => {
             const parts = k.split(":");
-            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
+            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromStringUnsafe(parts[1]);
             const func = parts[2] || "*";
             return { contract, function: func };
           });
@@ -781,7 +781,7 @@ export class WalletDB {
         } else {
           const patterns = simulateUtilityKeys.map((k) => {
             const parts = k.split(":");
-            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
+            const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromStringUnsafe(parts[1]);
             const func = parts[2] || "*";
             return { contract, function: func };
           });
@@ -803,7 +803,7 @@ export class WalletDB {
       } else {
         const patterns = sendTxKeys.map((k) => {
           const parts = k.split(":");
-          const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromString(parts[1]);
+          const contract = parts[1] === "*" ? ("*" as const) : AztecAddress.fromStringUnsafe(parts[1]);
           const func = parts[2] || "*";
           return { contract, function: func };
         });
@@ -826,7 +826,7 @@ export class WalletDB {
             alias: contact.alias,
             item:
               typeof contact.item === "string"
-                ? AztecAddress.fromString(contact.item)
+                ? AztecAddress.fromStringUnsafe(contact.item)
                 : contact.item,
           }));
           dataCap.addressBook = { contacts };
@@ -839,7 +839,7 @@ export class WalletDB {
         const contractAddrs = privateEventsKeys.map((k) => k.split(":")[1]);
         const contracts = contractAddrs.includes("*")
           ? ("*" as const)
-          : contractAddrs.filter((c) => c !== "*").map((c) => AztecAddress.fromString(c));
+          : contractAddrs.filter((c) => c !== "*").map((c) => AztecAddress.fromStringUnsafe(c));
 
         dataCap.privateEvents = { contracts };
       }

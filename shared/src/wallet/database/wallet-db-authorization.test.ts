@@ -20,8 +20,8 @@ afterEach(async () => {
 });
 
 const APP_ID = "test-app";
-const addr1 = AztecAddress.fromBigInt(1n);
-const addr2 = AztecAddress.fromBigInt(2n);
+const addr1 = AztecAddress.fromBigIntUnsafe(1n);
+const addr2 = AztecAddress.fromBigIntUnsafe(2n);
 
 describe("capabilityToStorageKeys", () => {
   it("converts each capability type to correct keys", () => {

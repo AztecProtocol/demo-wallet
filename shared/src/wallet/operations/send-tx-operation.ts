@@ -272,7 +272,7 @@ export class SendTxOperation<
     await this.emitProgress("PROVING");
 
     const from =
-      executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromString(executionData.from!);
+      executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromStringUnsafe(executionData.from!);
 
     let provenTx: TxProvingResult;
     try {

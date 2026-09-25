@@ -91,7 +91,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
             const contractAddress = key.split(":")[1];
             try {
               const instance = await this.pxe.getContractInstance(
-                AztecAddress.fromString(contractAddress),
+                AztecAddress.fromStringUnsafe(contractAddress),
               );
               if (instance) {
                 // Contract is registered in PXE, treat as granted even if no persistent auth
@@ -129,7 +129,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
             const accounts = (storedData.accounts as Array<{ alias: string; item: string }>).map(
               (acc) => ({
                 alias: acc.alias,
-                item: AztecAddress.fromString(acc.item),
+                item: AztecAddress.fromStringUnsafe(acc.item),
               }),
             );
 
@@ -248,7 +248,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
               const contractAddress = key.split(":")[1];
               try {
                 const instance = await this.pxe.getContractInstance(
-                  AztecAddress.fromString(contractAddress),
+                  AztecAddress.fromStringUnsafe(contractAddress),
                 );
                 if (instance) {
                   // Contract is registered in PXE, treat as granted
@@ -324,7 +324,7 @@ export class RequestCapabilitiesOperation extends ExternalOperation<
     // Resolve contract names using the decoding cache
     const contractNames = new Map<string, string>();
     for (const addressStr of contractAddresses) {
-      const address = AztecAddress.fromString(addressStr);
+      const address = AztecAddress.fromStringUnsafe(addressStr);
       const name = await this.decodingCache.getAddressAlias(address);
       contractNames.set(addressStr, name);
     }

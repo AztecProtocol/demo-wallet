@@ -131,7 +131,7 @@ export class GetAddressBookOperation extends ExternalOperation<
 
     return this.selectedContacts.map((contact) => ({
       alias: contact.alias,
-      item: AztecAddress.fromString(contact.item),
+      item: AztecAddress.fromStringUnsafe(contact.item),
     }));
   }
 }

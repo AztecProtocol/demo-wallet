@@ -1,9 +1,21 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
-import { computePartialAddress, getContractClassFromArtifact } from "@aztec/stdlib/contract";
+import type {
+  ContractInstancePreimage,
+  ContractInstancePreimageWithAddress,
+} from "@aztec/stdlib/contract";
+import {
+  computeContractAddressFromInstance,
+  computePartialAddress,
+  getContractClassFromArtifact,
+} from "@aztec/stdlib/contract";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
-import type { Fr } from "@aztec/foundation/curves/bn254";
+import { Fr } from "@aztec/foundation/curves/bn254";
+import {
+  deriveKeys,
+  deriveKeysFromMasterSecretKeys,
+  type MasterSecretKeys,
+} from "@aztec/stdlib/keys";
 import type { PXE } from "@aztec/pxe/client/lazy";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { DecodingCache } from "../decoding/decoding-cache";
@@ -13,19 +25,19 @@ import type { WalletDB } from "../database/wallet-db";
 
 // Arguments tuple for the operation
 type RegisterContractArgs = [
-  instance: ContractInstanceWithAddress,
+  instance: ContractInstancePreimage,
   artifact?: ContractArtifact,
-  secretKey?: Fr,
+  secretKeyOrKeys?: Fr | MasterSecretKeys,
 ];
 
 // Result type for the operation
-type RegisterContractResult = ContractInstanceWithAddress;
+type RegisterContractResult = ContractInstancePreimageWithAddress;
 
 // Execution data stored between prepare and execute phases
 interface RegisterContractExecutionData {
-  instance: ContractInstanceWithAddress;
+  instance: ContractInstancePreimage;
   artifact?: ContractArtifact;
-  secretKey?: Fr;
+  secretKeyOrKeys?: Fr | MasterSecretKeys;
 }
 
 // Display data for authorization UI
@@ -62,18 +74,18 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async check(
-    instance: ContractInstanceWithAddress,
+    instance: ContractInstancePreimage,
     artifact?: ContractArtifact,
-    _secretKey?: Fr,
+    _secretKeyOrKeys?: Fr | MasterSecretKeys,
   ): Promise<RegisterContractResult | undefined> {
     // Cache artifact early for batch operations
-    // Uses instance.currentContractClassId as key (no expensive computation)
-    if (artifact && instance.currentContractClassId) {
-      this.decodingCache.cacheArtifactForBatch(instance.currentContractClassId, artifact);
+    // Uses instance.originalContractClassId as key (no expensive computation)
+    if (artifact && instance.originalContractClassId) {
+      this.decodingCache.cacheArtifactForBatch(instance.originalContractClassId, artifact);
     }
 
-    // Resolve contract address
-    const contractAddress = instance.address;
+    // Resolve contract address from the instance preimage
+    const contractAddress = await computeContractAddressFromInstance(instance);
 
     // Check if already registered (early return case)
     const storedInstance = await this.pxe.getContractInstance(contractAddress);
@@ -85,12 +97,12 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async createInteraction(
-    instance: ContractInstanceWithAddress,
+    instance: ContractInstancePreimage,
     artifact?: ContractArtifact,
-    _secretKey?: Fr,
+    _secretKeyOrKeys?: Fr | MasterSecretKeys,
   ): Promise<WalletInteraction<WalletInteractionType>> {
     // Create interaction with simple title from args only
-    const contractAddress = instance.address;
+    const contractAddress = await computeContractAddressFromInstance(instance);
 
     const contractName = await this.decodingCache.resolveContractName(
       instance,
@@ -112,12 +124,12 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async prepare(
-    instance: ContractInstanceWithAddress,
+    instance: ContractInstancePreimage,
     artifact?: ContractArtifact,
-    secretKey?: Fr,
+    secretKeyOrKeys?: Fr | MasterSecretKeys,
   ): Promise<PrepareResult<RegisterContractDisplayData, RegisterContractExecutionData>> {
-    // Resolve contract address
-    const contractAddress = instance.address;
+    // Resolve contract address from the instance preimage
+    const contractAddress = await computeContractAddressFromInstance(instance);
 
     // Resolve contract name for display
     // This will now use the batch-cached artifacts if available
@@ -129,7 +141,7 @@ export class RegisterContractOperation extends ExternalOperation<
 
     return {
       displayData: { contractAddress, contractName },
-      executionData: { instance, artifact, secretKey },
+      executionData: { instance, artifact, secretKeyOrKeys },
       persistence: {
         storageKey: `registerContract:${contractAddress.toString()}`,
         persistData: null,
@@ -164,40 +176,41 @@ export class RegisterContractOperation extends ExternalOperation<
   }
 
   async execute(executionData: RegisterContractExecutionData): Promise<RegisterContractResult> {
-    const { instance, secretKey } = executionData;
+    const { instance, secretKeyOrKeys } = executionData;
     let { artifact } = executionData;
-    const existingInstance = await this.pxe.getContractInstance(instance.address);
 
-    if (existingInstance) {
-      // Instance already registered in the wallet
-      if (artifact) {
-        const thisContractClass = await getContractClassFromArtifact(artifact);
-        if (!thisContractClass.id.equals(existingInstance.currentContractClassId)) {
-          // wallet holds an outdated version of this contract
-          await this.pxe.updateContract(instance.address, artifact);
-          instance.currentContractClassId = thisContractClass.id;
-        }
-      }
-      // If no artifact provided, we just use the existing registration
-    } else {
+    const contractAddress = await computeContractAddressFromInstance(instance);
+    const existingInstance = await this.pxe.getContractInstance(contractAddress);
+
+    if (!existingInstance) {
       // Instance not registered yet
       if (!artifact) {
         // Try to get the artifact from the wallet's contract class storage
         const existingArtifact = await this.pxe.getContractArtifact(
-          instance.currentContractClassId,
+          instance.originalContractClassId,
         );
         if (!existingArtifact) {
           throw new Error(
-            `Cannot register contract at ${instance.address.toString()}: artifact is required but not provided, and wallet does not have the artifact for contract class ${instance.currentContractClassId.toString()}`,
+            `Cannot register contract at ${contractAddress.toString()}: artifact is required but not provided, and wallet does not have the artifact for contract class ${instance.originalContractClassId.toString()}`,
           );
         }
         artifact = existingArtifact;
       }
-      await this.pxe.registerContract({ artifact, instance });
+      // Register the contract class and instance independently. The instance's current class id
+      // is chain-tracked state derived by PXE, so there is no separate manual "update" step.
+      await this.pxe.registerContractClass(artifact);
+      await this.pxe.registerContract(instance);
     }
+    // If already registered we leave it untouched: contract upgrades are tracked from chain state.
 
-    if (secretKey) {
-      await this.pxe.registerAccount(secretKey, await computePartialAddress(instance));
+    if (secretKeyOrKeys) {
+      // PXE stores the derived privacy keys, not the account seed, so derive them here before
+      // registering the account against the instance's partial address.
+      const derivedKeys =
+        secretKeyOrKeys instanceof Fr
+          ? await deriveKeys(secretKeyOrKeys)
+          : await deriveKeysFromMasterSecretKeys(secretKeyOrKeys);
+      await this.pxe.registerAccount(derivedKeys, await computePartialAddress(instance));
     }
 
     // Automatically grant persistent authorizations for metadata queries
@@ -205,7 +218,7 @@ export class RegisterContractOperation extends ExternalOperation<
     const appId = this.authorizationManager.appId;
     await this.db.storePersistentAuthorization(
       appId,
-      `getContractMetadata:${instance.address.toString()}`,
+      `getContractMetadata:${contractAddress.toString()}`,
       null,
     );
 
@@ -221,6 +234,6 @@ export class RegisterContractOperation extends ExternalOperation<
     }
 
     await this.emitProgress("SUCCESS", undefined, true);
-    return instance;
+    return existingInstance ?? { ...instance, address: contractAddress };
   }
 }

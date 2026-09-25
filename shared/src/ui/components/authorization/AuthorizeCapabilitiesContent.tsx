@@ -217,7 +217,7 @@ export function AuthorizeCapabilitiesContent({
         const selectedAccs = accounts
           .filter((acc) => acc.selected)
           .map((acc) => ({
-            item: AztecAddress.fromString(acc.address),
+            item: AztecAddress.fromStringUnsafe(acc.address),
             alias: acc.alias,
           }));
 

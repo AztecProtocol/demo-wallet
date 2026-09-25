@@ -35,7 +35,7 @@ export function AuthorizeSendTxContent({
 
   const isNoFrom =
     from === "NO_FROM" ||
-    (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
+    (from && from.startsWith("0x") && AztecAddress.fromStringUnsafe(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (

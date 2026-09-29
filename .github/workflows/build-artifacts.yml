@@ -128,6 +128,12 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Export network API keys
+        if: ${{ inputs.release-mode }}
+        uses: ./.github/actions/export-network-api-keys
+        with:
+          secrets: ${{ toJSON(secrets) }}
+
       - name: Build Electron app (development)
         if: ${{ !inputs.release-mode }}
         working-directory: ./app
@@ -147,8 +153,6 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
           CI: true
           CHROME_EXTENSION_ID: ${{ needs.build-extension.outputs.chrome-extension-id }}
-          # Baked into the bundle; staging-public's gateway rejects node requests without it
-          VITE_STAGING_PUBLIC_API_KEY: ${{ secrets.STAGING_PUBLIC_API_KEY }}
 
       - name: Upload build artifacts (development)
         if: ${{ !inputs.release-mode }}

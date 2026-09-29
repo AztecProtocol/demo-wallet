@@ -100,16 +100,19 @@ function parseNetworks() {
   return entries;
 }
 
-async function fetchRollupVersion(nodeUrl) {
+/** Mirrors apiKeyEnvVar() in shared/src/config/networks.ts. */
+function apiKeyEnvVar(networkId) {
+  return `VITE_${networkId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+}
+
+async function fetchRollupVersion(nodeUrl, apiKey) {
   log(COLORS.yellow, `Fetching rollup version from ${nodeUrl}...`);
   const res = await fetch(nodeUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Gateway-fronted nodes (staging-public) reject requests without a key
-      ...(process.env.VITE_STAGING_PUBLIC_API_KEY && {
-        "x-aztec-api-key": process.env.VITE_STAGING_PUBLIC_API_KEY,
-      }),
+      // Gateway-fronted nodes (testnet) 403 without a valid key
+      ...(apiKey && { "x-api-key": apiKey }),
     },
     body: JSON.stringify({
       jsonrpc: "2.0",
@@ -182,7 +185,10 @@ async function updateRollupVersions() {
 
   for (const net of networks) {
     try {
-      const rollupVersion = await fetchRollupVersion(net.nodeUrl);
+      const rollupVersion = await fetchRollupVersion(
+        net.nodeUrl,
+        process.env[apiKeyEnvVar(net.id)],
+      );
       setRollupVersionInFile(net.id, rollupVersion);
       log(COLORS.green, `  ✓ ${net.id} → ${rollupVersion}`);
     } catch (error) {

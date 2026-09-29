@@ -1,9 +1,8 @@
-import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { type ChainInfo } from "@aztec/aztec.js/account";
-import { WalletSchema } from "@aztec/aztec.js/wallet";
-import { Fr } from "@aztec/aztec.js/fields";
-import { getSchemaParameters, parseWithOptionals, schemaHasMethod } from "@aztec/foundation/schemas";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
+import { type ChainInfo } from "@aztec-labs/aztec.js/account";
+import { WalletSchema } from "@aztec-labs/aztec.js/wallet";
+import { Fr } from "@aztec-labs/aztec.js/fields";
+import { getSchemaParameters, parseWithOptionals, schemaHasMethod } from "@aztec-labs/foundation/schemas";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
 import type { MessagePortMain } from "electron";
 import {
   ExternalWallet,
@@ -11,25 +10,26 @@ import {
   WalletDB,
   InternalWalletInterfaceSchema,
   getNetworkByChainId,
+  createNodeClient,
 } from "@demo-wallet/shared/core";
 import { createProxyLogger } from "../utils/logger.ts";
-import type { Logger } from "@aztec/foundation/log";
+import type { Logger } from "@aztec-labs/foundation/log";
 import type { AuthorizationRequest, AuthorizationResponse } from "@demo-wallet/shared/core";
 import {
   createPXE,
   getPXEConfig,
   type PXEConfig,
   type PXECreationOptions,
-} from "@aztec/pxe/server";
-import { schemas } from "@aztec/stdlib/schemas";
+} from "@aztec-labs/pxe/server";
+import { schemas } from "@aztec-labs/stdlib/schemas";
 
-import { createStore } from "@aztec/kv-store/lmdb-v2";
+import { createStore } from "@aztec-labs/kv-store/lmdb-v2";
 import { resolve, join } from "node:path";
 import { z } from "zod";
 import { homedir } from "node:os";
 import { inspect } from "node:util";
-import type { PromiseWithResolvers } from "@aztec/foundation/promise";
-import { BackendType } from "@aztec/bb.js";
+import type { PromiseWithResolvers } from "@aztec-labs/foundation/promise";
+import { BackendType } from "@aztec-foundation/bb.js";
 
 const ChainInfoSchema = z.object({
   chainId: schemas.Fr,
@@ -62,7 +62,7 @@ async function init(
       `Unknown network: chainId=${chainInfo.chainId.toNumber()}, version=${chainInfo.version.toNumber()}`,
     );
   }
-  const node = createAztecNodeClient(network.nodeUrl!);
+  const node = createNodeClient(network);
   if (chainInfo.version.equals(new Fr(0))) {
     const { rollupVersion } = await node.getNodeInfo();
     chainInfo.version = new Fr(rollupVersion);

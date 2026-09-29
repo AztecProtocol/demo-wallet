@@ -1,5 +1,5 @@
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { type Aliased } from "@aztec/aztec.js/wallet";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import { type Aliased } from "@aztec-labs/aztec.js/wallet";
 import { useContext, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -38,7 +38,7 @@ export function ContactsManager() {
     }
 
     try {
-      const address = AztecAddress.fromString(newContactAddress);
+      const address = AztecAddress.fromStringUnsafe(newContactAddress);
       await walletAPI.registerSender(address, newContactAlias);
       await loadContacts();
       setAddDialogOpen(false);

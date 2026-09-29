@@ -2,7 +2,7 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import type { AuthorizationItem } from "../../../wallet/types/authorization";
 import type { ReadableCallAuthorization } from "../../../wallet/decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../../../wallet/decoding/tx-callstack-decoder";
@@ -35,7 +35,7 @@ export function AuthorizeSendTxContent({
 
   const isNoFrom =
     from === "NO_FROM" ||
-    (from && from.startsWith("0x") && AztecAddress.fromString(from).equals(AztecAddress.ZERO));
+    (from && from.startsWith("0x") && AztecAddress.fromStringUnsafe(from).equals(AztecAddress.ZERO));
   const hasEmbeddedFeePayer = !!embeddedPaymentMethodFeePayer;
 
   return (

@@ -108,6 +108,20 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # Same as .github/actions/export-network-api-keys, inlined on purpose: under
+      # pull_request_target the checkout above is the PR head, so a local action would run the
+      # PR's copy with every secret. This step comes from the base ref's workflow file, and
+      # only the API keys (public in the bundle anyway) reach the PR code after it.
+      - name: Export network API keys
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          echo "$SECRETS_JSON" | jq -r '
+            to_entries[]
+            | select(.key | test("^[A-Z0-9_]+_API_KEY$"))
+            | "VITE_\(.key)<<__API_KEY_EOF__\n\(.value)\n__API_KEY_EOF__"
+          ' >> "$GITHUB_ENV"
+
       - name: Pull Vercel environment
         working-directory: ./web
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}

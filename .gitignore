@@ -3,3 +3,4 @@ node_modules
 .vercel
 .yarn/install-state.gz
 .turbo
+.env*.local

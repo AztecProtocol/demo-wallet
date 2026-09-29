@@ -1,9 +1,9 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { TxStatus } from "@aztec/stdlib/tx";
-import type { PXE } from "@aztec/pxe/client/lazy";
-import type { ExecutionPayload, TxExecutionRequest, TxProvingResult } from "@aztec/stdlib/tx";
-import { waitForTx, type AztecNode } from "@aztec/aztec.js/node";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import { TxStatus } from "@aztec-labs/stdlib/tx";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
+import type { ExecutionPayload, TxExecutionRequest, TxProvingResult } from "@aztec-labs/stdlib/tx";
+import { waitForTx, type AztecNode } from "@aztec-labs/aztec.js/node";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -11,24 +11,24 @@ import type { DecodingCache } from "../decoding/decoding-cache";
 import type { ReadableCallAuthorization } from "../decoding/call-authorization-formatter";
 import type { DecodedExecutionTrace } from "../decoding/tx-callstack-decoder";
 import { hashExecutionPayload, generateSimulationTitle } from "../utils/simulation-utils";
-import type { SendOptions } from "@aztec/aztec.js/wallet";
-import { type NoFrom, NO_FROM } from "@aztec/aztec.js/account";
+import type { SendOptions } from "@aztec-labs/aztec.js/wallet";
+import { type NoFrom, NO_FROM } from "@aztec-labs/aztec.js/account";
 import {
   NO_WAIT,
   type InteractionWaitOptions,
   type SendReturn,
   extractOffchainOutput,
-} from "@aztec/aztec.js/contracts";
+} from "@aztec-labs/aztec.js/contracts";
 import type { SimulateTxOperation } from "./simulate-tx-operation";
-import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import type { CallIntent } from "@aztec/aztec.js/authorization";
-import { Gas, GasSettings } from "@aztec/stdlib/gas";
-import { serializePrivateExecutionSteps } from "@aztec/stdlib/kernel";
+import type { AuthWitness } from "@aztec-labs/stdlib/auth-witness";
+import type { CallIntent } from "@aztec-labs/aztec.js/authorization";
+import { Gas, GasSettings } from "@aztec-labs/stdlib/gas";
+import { serializePrivateExecutionSteps } from "@aztec-labs/stdlib/kernel";
 import {
   type CompleteFeeOptionsConfig,
   type FeeOptions,
   getGasLimits,
-} from "@aztec/wallet-sdk/base-wallet";
+} from "@aztec-labs/wallet-sdk/base-wallet";
 import type { WalletDB } from "../database/wallet-db";
 
 // Arguments tuple for the operation (with generic for wait type)
@@ -105,7 +105,8 @@ export class SendTxOperation<
     private contextualizeError: (err: Error, ...context: string[]) => Error,
     private scopesFrom: (
       from: AztecAddress | NoFrom,
-      additionalScopes?: AztecAddress[],
+      additionalScopes: AztecAddress[],
+      sendMessagesAs: AztecAddress | undefined,
     ) => AztecAddress[],
     private senderForTagsFrom: (
       from: AztecAddress | NoFrom,
@@ -272,12 +273,16 @@ export class SendTxOperation<
     await this.emitProgress("PROVING");
 
     const from =
-      executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromString(executionData.from!);
+      executionData.from === NO_FROM ? NO_FROM : AztecAddress.fromStringUnsafe(executionData.from!);
 
     let provenTx: TxProvingResult;
     try {
       provenTx = await this.pxe.proveTx(executionData.txRequest, {
-        scopes: this.scopesFrom(from, executionData.additionalScopes),
+        scopes: this.scopesFrom(
+          from,
+          executionData.additionalScopes ?? [],
+          executionData.sendMessagesAs,
+        ),
         senderForTags: this.senderForTagsFrom(from, executionData.sendMessagesAs),
       });
     } catch (provingError: unknown) {
@@ -292,7 +297,11 @@ export class SendTxOperation<
         const profileResult = await this.pxe.profileTx(executionData.txRequest, {
           profileMode: "execution-steps",
           skipProofGeneration: true,
-          scopes: this.scopesFrom(from, executionData.additionalScopes),
+          scopes: this.scopesFrom(
+            from,
+            executionData.additionalScopes ?? [],
+            executionData.sendMessagesAs,
+          ),
           senderForTags: this.senderForTagsFrom(from, executionData.sendMessagesAs),
         });
 

@@ -1,47 +1,47 @@
-import { type Account, type ChainInfo, NO_FROM } from "@aztec/aztec.js/account";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { type Account, type ChainInfo, NO_FROM } from "@aztec-labs/aztec.js/account";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import {
   AccountManager,
   TxSimulationResultWithAppOffset,
   type Aliased,
-} from "@aztec/aztec.js/wallet";
-import { Fq, Fr } from "@aztec/aztec.js/fields";
-import { type AztecNode } from "@aztec/aztec.js/node";
-import { type Logger } from "@aztec/aztec.js/log";
+} from "@aztec-labs/aztec.js/wallet";
+import { Fq, Fr } from "@aztec-labs/aztec.js/fields";
+import { type AztecNode } from "@aztec-labs/aztec.js/node";
+import { type Logger } from "@aztec-labs/aztec.js/log";
 import { DecodingCache } from "../decoding/decoding-cache";
 import { InteractionManager } from "../managers/interaction-manager";
 import { AuthorizationManager } from "../managers/authorization-manager";
-import type { PXE } from "@aztec/pxe/client/lazy";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
 import type { AccountType, WalletDB } from "../database/wallet-db";
-import type { PromiseWithResolvers } from "@aztec/foundation/promise";
+import type { PromiseWithResolvers } from "@aztec-labs/foundation/promise";
 import type { AuthorizationRequest, AuthorizationResponse } from "../types/authorization";
-import { EcdsaKAccountContract, EcdsaRAccountContract } from "@aztec/accounts/ecdsa";
+import { EcdsaKAccountContract, EcdsaRAccountContract } from "@aztec-labs/accounts/ecdsa";
 import {
   SchnorrAccountContract,
   SchnorrInitializerlessAccountContract,
-} from "@aztec/accounts/schnorr";
+} from "@aztec-labs/accounts/schnorr";
 import {
   createStubSchnorrAccount,
   StubSchnorrAccountContractArtifact,
-} from "@aztec/accounts/schnorr/stub";
+} from "@aztec-labs/accounts/schnorr/stub";
 import {
   createStubEcdsaAccount,
   StubEcdsaAccountContractArtifact,
-} from "@aztec/accounts/ecdsa/stub";
-import { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
-import { Schnorr } from "@aztec/foundation/crypto/schnorr";
-import type { ContractArtifact } from "@aztec/stdlib/abi";
+} from "@aztec-labs/accounts/ecdsa/stub";
+import { ContractFunctionInteraction } from "@aztec-labs/aztec.js/contracts";
+import { poseidon2Hash } from "@aztec-labs/foundation/crypto/poseidon";
+import { Schnorr } from "@aztec-labs/foundation/crypto/schnorr";
+import type { ContractArtifact } from "@aztec-labs/stdlib/abi";
 import {
   type ContractOverrides,
   ExecutionPayload,
   SimulationOverrides,
   mergeExecutionPayloads,
-} from "@aztec/stdlib/tx";
-import { getContractClassFromArtifact } from "@aztec/stdlib/contract";
-import { BaseWallet, type SimulateViaEntrypointOptions } from "@aztec/wallet-sdk/base-wallet";
-import { DefaultEntrypoint } from "@aztec/entrypoints/default";
-import { type DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
+} from "@aztec-labs/stdlib/tx";
+import { getContractClassFromArtifact } from "@aztec-labs/stdlib/contract";
+import { BaseWallet, type SimulateViaEntrypointOptions } from "@aztec-labs/wallet-sdk/base-wallet";
+import { DefaultEntrypoint } from "@aztec-labs/entrypoints/default";
+import { type DefaultAccountEntrypointOptions } from "@aztec-labs/entrypoints/account";
 
 /**
  * Base class for native wallet implementations (external and internal).
@@ -79,7 +79,7 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     protected override log: Logger,
   ) {
     super(pxe, node);
-    this.decodingCache = new DecodingCache(pxe, db);
+    this.decodingCache = new DecodingCache(pxe, node, db);
     this.interactionManager = new InteractionManager(db);
     this.authorizationManager = new AuthorizationManager(
       appId,
@@ -247,7 +247,7 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
     opts: SimulateViaEntrypointOptions,
   ): Promise<TxSimulationResultWithAppOffset> {
     const { from, feeOptions, additionalScopes, skipTxValidation, skipFeeEnforcement, sendMessagesAs } = opts;
-    const scopes = this.scopesFrom(from, additionalScopes);
+    const scopes = this.scopesFrom(from, additionalScopes ?? [], sendMessagesAs);
     const senderForTags = this.senderForTagsFrom(from, sendMessagesAs);
 
     const feeExecutionPayload = await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
@@ -305,12 +305,14 @@ export abstract class DemoWallet extends BaseWallet implements EventTarget {
   }
 
   protected async getAddressBookInternal(): Promise<Aliased<AztecAddress>[]> {
-    const senders = await this.pxe.getSenders();
+    const senders = (await this.pxe.getTaggingSecretSources({ kind: "address-derived" })).map(
+      (source) => source.sender,
+    );
     const storedSenders = await this.db.listSenders();
 
     for (const storedSender of storedSenders) {
       if (senders.findIndex((sender) => sender.equals(storedSender.item)) === -1) {
-        await this.pxe.registerSender(storedSender.item);
+        await this.pxe.registerTaggingSecretSource({ kind: "address-derived", sender: storedSender.item });
       }
     }
 

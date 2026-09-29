@@ -1,11 +1,11 @@
-import type { TxSimulationResult } from "@aztec/stdlib/tx";
+import type { TxSimulationResult } from "@aztec-labs/stdlib/tx";
 import type { DecodingCache } from "./decoding-cache";
 import {
   CallAuthorizationFormatter,
   type ReadableCallAuthorization,
 } from "./call-authorization-formatter";
 import { TxCallStackDecoder, type DecodedExecutionTrace } from "./tx-callstack-decoder";
-import { collectOffchainEffects } from "@aztec/stdlib/tx";
+import { collectOffchainEffects } from "@aztec-labs/stdlib/tx";
 
 /**
  * High-level service for decoding transaction information.

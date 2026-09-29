@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import type { ContractFunctionPattern } from "@aztec/aztec.js/wallet";
+import type { ContractFunctionPattern } from "@aztec-labs/aztec.js/wallet";
 import type { TransactionCapability } from "./types";
 
 interface TransactionCapabilityDetailsProps {

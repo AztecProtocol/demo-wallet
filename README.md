@@ -26,7 +26,7 @@ node scripts/update.js --skip-install                               # skip yarn 
 node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```
 
-Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
+Updates `@aztec-labs/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
 
 ## Development Setup
 
@@ -35,6 +35,18 @@ Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `exte
 - Node.js v22
 - yarn
 - A running Aztec local node (or access to a remote node)
+
+### Network API keys
+
+Networks behind an API gateway (e.g. `testnet`, `https://testnet-v6.rpc2.aztec-labs.com`, Sepolia L1) need a key, sent as the `x-api-key` header on every node request. Each network's key is baked in at build time from `VITE_<ID>_API_KEY`, where `<ID>` is the network id from `shared/src/config/networks.ts` in upper snake case (`testnet` → `VITE_TESTNET_API_KEY`). Networks without a key are called unauthenticated.
+
+Locally, export it before starting/building, or put it in a gitignored `.env.local` next to the Vite config you're running (`app/` or `web/`):
+
+```bash
+echo 'VITE_TESTNET_API_KEY=<your key>' > app/.env.local
+```
+
+In CI, add a repo secret named `<ID>_API_KEY` (e.g. `TESTNET_API_KEY`). The web deploys and the Electron release build export every `*_API_KEY` secret as `VITE_*_API_KEY` before building (`.github/actions/export-network-api-keys`), so a new network only needs its secret, no workflow changes. The keys end up in the client bundles.
 
 ### Running in Development Mode
 
@@ -220,11 +232,11 @@ Replace:
 The system-wide native messaging dir is **browser-specific**. Install the manifest in the
 dir for the browser WXT actually launches:
 
-| Browser       | System-wide dir                              |
-| ------------- | -------------------------------------------- |
-| Google Chrome | `/etc/opt/chrome/native-messaging-hosts/`    |
-| Chromium      | `/etc/chromium/native-messaging-hosts/`      |
-| Brave         | `/etc/brave/native-messaging-hosts/`         |
+| Browser       | System-wide dir                           |
+| ------------- | ----------------------------------------- |
+| Google Chrome | `/etc/opt/chrome/native-messaging-hosts/` |
+| Chromium      | `/etc/chromium/native-messaging-hosts/`   |
+| Brave         | `/etc/brave/native-messaging-hosts/`      |
 
 > On Arch-based distros (e.g. CachyOS) the default browser is usually **Chromium**, which
 > uses `/etc/chromium/native-messaging-hosts/` — not Chrome's `/etc/opt/chrome/...`.

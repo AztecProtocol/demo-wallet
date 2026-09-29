@@ -38,6 +38,7 @@ jobs:
     with:
       release-mode: true
       retention-days: 30
+    secrets: inherit
 
   create-release:
     name: Create GitHub Release
@@ -85,6 +86,11 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
+
+      - name: Export network API keys
+        uses: ./.github/actions/export-network-api-keys
+        with:
+          secrets: ${{ toJSON(secrets) }}
 
       - name: Pull Vercel environment
         working-directory: ./web

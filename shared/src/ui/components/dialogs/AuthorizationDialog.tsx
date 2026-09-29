@@ -32,7 +32,7 @@ import { AuthorizeContractMetadataContent } from "../authorization/AuthorizeCont
 import { AuthorizeContractClassMetadataContent } from "../authorization/AuthorizeContractClassMetadataContent";
 import { AuthorizeCapabilitiesContent } from "../authorization/AuthorizeCapabilitiesContent";
 import { WalletContext } from "../../renderer";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
@@ -427,7 +427,7 @@ export function AuthorizationDialog({
                                 const account = isNoFrom
                                   ? undefined
                                   : accountList.find((a) =>
-                                      a.item.equals(AztecAddress.fromString(fromAddress)),
+                                      a.item.equals(AztecAddress.fromStringUnsafe(fromAddress)),
                                     );
                                 const internalAlias = isNoFrom
                                   ? "External entrypoint"

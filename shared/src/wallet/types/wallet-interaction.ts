@@ -1,7 +1,7 @@
-import type { FieldsOf } from "@aztec/foundation/types";
-import { optional } from "@aztec/foundation/schemas";
-import { serializeToBuffer, BufferReader } from "@aztec/foundation/serialize";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
+import type { FieldsOf } from "@aztec-labs/foundation/types";
+import { optional } from "@aztec-labs/foundation/schemas";
+import { serializeToBuffer, BufferReader } from "@aztec-labs/foundation/serialize";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
 
 import { z } from "zod";
 

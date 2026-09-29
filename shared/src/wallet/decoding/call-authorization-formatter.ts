@@ -1,8 +1,13 @@
-import { decodeFromAbi } from "@aztec/aztec.js/abi";
-import { CallAuthorizationRequest } from "@aztec/aztec.js/authorization";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { FunctionCall, getFunctionArtifact, type AbiDecoded } from "@aztec/stdlib/abi";
-import type { OffchainEffect } from "@aztec/stdlib/tx";
+import { decodeEachFromAbi } from "@aztec-labs/aztec.js/abi";
+import { CallAuthorizationRequest } from "@aztec-labs/aztec.js/authorization";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import {
+  FunctionCall,
+  getFunctionArtifact,
+  getFunctionReturnType,
+  type AbiDecoded,
+} from "@aztec-labs/stdlib/abi";
+import type { OffchainEffect } from "@aztec-labs/stdlib/tx";
 import type { DecodingCache } from "./decoding-cache";
 
 export interface ReadableCallAuthorization {
@@ -62,16 +67,15 @@ export class CallAuthorizationFormatter {
     let callAuthorizationRequest: CallAuthorizationRequest | undefined;
     try {
       callAuthorizationRequest = await CallAuthorizationRequest.fromFields(effect.data);
-      const instance = await this.cache.getContractInstance(effect.contractAddress);
-      const artifact = await this.cache.getContractArtifact(instance.currentContractClassId);
+      const artifact = await this.cache.getContractArtifactForAddress(effect.contractAddress);
       const functionAbi = await getFunctionArtifact(
         artifact,
         callAuthorizationRequest.functionSelector,
       );
-      const callData = decodeFromAbi(
+      const callData = decodeEachFromAbi(
         functionAbi.parameters.map((param) => param.type),
         callAuthorizationRequest.args,
-      ) as AbiDecoded[];
+      );
       const parameters = functionAbi.parameters.map((param, i) => ({
         name: param.name,
         value: callData[i],
@@ -89,7 +93,7 @@ export class CallAuthorizationFormatter {
           functionAbi.isStatic,
           false,
           callAuthorizationRequest.args,
-          functionAbi.returnTypes,
+          getFunctionReturnType(functionAbi),
         ),
       };
     } catch {
@@ -126,7 +130,7 @@ export class CallAuthorizationFormatter {
           const valueStr = param.value.toString();
           if (valueStr.startsWith("0x") && valueStr.length === 66) {
             try {
-              const addr = AztecAddress.fromString(valueStr);
+              const addr = AztecAddress.fromStringUnsafe(valueStr);
               const alias = await this.cache.getAddressAlias(addr);
               formattedValue = `${alias} (${formattedValue.slice(0, 10)}...${formattedValue.slice(-8)})`;
             } catch {

@@ -1,6 +1,6 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { type ContractMetadata, ContractInitializationStatus } from "@aztec/aztec.js/wallet";
+import type { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import { type ContractMetadata, ContractInitializationStatus } from "@aztec-labs/aztec.js/wallet";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";

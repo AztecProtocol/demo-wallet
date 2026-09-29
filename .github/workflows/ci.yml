@@ -49,6 +49,9 @@ jobs:
     with:
       release-mode: false
       retention-days: 7
+    # Network API keys (`*_API_KEY`) for the Electron dev build. Fork PRs get no secrets, so
+    # their builds come out keyless.
+    secrets: inherit
 
   # Sentinel job. `deploy-web.yml` on `pull_request_target` waits for this
   # single stable check name before deploying a preview — avoids coupling

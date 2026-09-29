@@ -129,7 +129,6 @@ jobs:
         run: yarn install --immutable
 
       - name: Export network API keys
-        if: ${{ inputs.release-mode }}
         uses: ./.github/actions/export-network-api-keys
         with:
           secrets: ${{ toJSON(secrets) }}

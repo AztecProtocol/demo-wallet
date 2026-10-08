@@ -1,12 +1,21 @@
 name: Deploy Web Wallet
 
+# Two Vercel projects, one per long-lived branch, so v5 (main) and v6 (next) run side by side:
+#   - `demo-wallet`      → production = main, previews = PRs against main (VERCEL_PROJECT_ID)
+#   - `demo-wallet-next` → production = next, previews = PRs against next (VERCEL_PROJECT_ID_NEXT)
+# The project follows the PR's base branch, or the pushed/dispatched branch otherwise.
+# pull_request_target and push both run the target branch's copy of this file, so next's copy
+# is the one that deploys next.
+
 on:
-  # Push to main → production deploy. The CI workflow runs independently
-  # on the same push; a failing CI there doesn't automatically abort the
-  # deploy here, so if strict gating is ever needed, switch to workflow_run.
+  # Push to main/next → production deploy on that branch's project. The CI
+  # workflow runs independently on the same push; a failing CI there doesn't
+  # automatically abort the deploy here, so if strict gating is ever needed,
+  # switch to workflow_run.
   push:
     branches:
       - main
+      - next
   # PRs → preview deploy, gated on CI success. pull_request_target runs
   # in base-repo context so it has access to secrets; the authorize +
   # wait-for-ci jobs below guard against running untrusted PR code.
@@ -22,7 +31,8 @@ on:
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  # base_ref is the PR base under pull_request_target; ref_name is the branch on push/dispatch.
+  VERCEL_PROJECT_ID: ${{ (github.base_ref || github.ref_name) == 'next' && secrets.VERCEL_PROJECT_ID_NEXT || secrets.VERCEL_PROJECT_ID }}
 
 permissions:
   contents: read

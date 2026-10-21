@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * Update demo-wallet to a given Aztec nightly version across the whole monorepo.
+ * Update demo-wallet to a given Aztec version (nightly or rc) across the whole monorepo.
  *
  * Scope:
  *   - every workspace package.json (app/, shared/, web/, extension/)
+ *     - @aztec-labs/* deps are set to VERSION
+ *     - @aztec-foundation/* deps are versioned independently (e.g. aztec-labs 6.0.0-rc.3
+ *       ships with aztec-foundation 6.0.0-rc.6), so they're set to whatever the
+ *       @aztec-labs packages at VERSION depend on
+ *   - yarn install in the root workspaces and in extension/ (a standalone yarn project)
  *   - rollup version for every non-local network in shared/src/config/networks.ts
- *     (any entry with chainId !== 31337 and a nodeUrl gets its version refreshed
- *     from the network's node_getNodeInfo)
+ *     (any entry with chainId !== 31337, a nodeUrl and a pinned version gets its version
+ *     refreshed from the network's node_getNodeInfo; `version: 0` means auto-detect and
+ *     is left alone)
  *
  * Usage:
  *   node scripts/update.js [--version VERSION] [--skip-install] [--skip-aztec-up]
@@ -93,9 +99,10 @@ function parseNetworks() {
     const body = match[1];
     const id = body.match(/id:\s*"([^"]+)"/)?.[1];
     const chainId = body.match(/chainId:\s*(\d+)/)?.[1];
+    const version = body.match(/version:\s*(\d+)/)?.[1];
     const nodeUrl = body.match(/nodeUrl:\s*"([^"]+)"/)?.[1];
     if (!id || !chainId) continue;
-    entries.push({ id, chainId: Number(chainId), nodeUrl });
+    entries.push({ id, chainId: Number(chainId), version: Number(version ?? 0), nodeUrl });
   }
   return entries;
 }
@@ -128,7 +135,64 @@ async function fetchRollupVersion(nodeUrl, apiKey) {
   return String(version);
 }
 
-function updatePackageJsonFiles(version) {
+const DEP_REGEX = /"(@aztec-(labs|foundation)\/[^"]+)": "v?\d[^"]*"/g;
+
+/**
+ * @aztec-foundation/* packages (bb.js, noir-*, ...) don't share the @aztec-labs version
+ * number, so read the pins off the @aztec-labs packages we depend on at `version`.
+ */
+function resolveFoundationVersions(version) {
+  log(COLORS.yellow, "Resolving @aztec-foundation/* versions from npm...");
+
+  const labsPackages = new Set();
+  const foundationPackages = new Set();
+  for (const path of findWorkspacePackageJsons()) {
+    for (const [, name, scope] of readFileSync(path, "utf-8").matchAll(DEP_REGEX)) {
+      (scope === "labs" ? labsPackages : foundationPackages).add(name);
+    }
+  }
+
+  const pins = new Map();
+  for (const name of labsPackages) {
+    let deps;
+    try {
+      deps = JSON.parse(
+        exec(`npm view ${name}@${version} dependencies --json`, { silent: true }) || "{}",
+      );
+    } catch {
+      throw new Error(`${name}@${version} is not published on npm`);
+    }
+    for (const [dep, depVersion] of Object.entries(deps)) {
+      if (!dep.startsWith("@aztec-foundation/")) continue;
+      const existing = pins.get(dep);
+      if (existing && existing !== depVersion) {
+        log(
+          COLORS.red,
+          `  Warning: ${dep} pinned to both ${existing} and ${depVersion}, using ${existing}`,
+        );
+        continue;
+      }
+      pins.set(dep, depVersion);
+    }
+  }
+
+  for (const name of foundationPackages) {
+    if (pins.has(name)) {
+      log(COLORS.green, `  ✓ ${name} → ${pins.get(name)}`);
+    } else {
+      log(
+        COLORS.red,
+        `  Warning: no @aztec-labs package depends on ${name}, falling back to ${version}`,
+      );
+      pins.set(name, version);
+    }
+  }
+  console.log();
+
+  return pins;
+}
+
+function updatePackageJsonFiles(version, foundationVersions) {
   log(COLORS.yellow, "[1/4] Updating workspace package.json files...");
 
   const packageJsons = findWorkspacePackageJsons();
@@ -137,8 +201,9 @@ function updatePackageJsonFiles(version) {
   for (const path of packageJsons) {
     const original = readFileSync(path, "utf-8");
     const updated = original.replace(
-      /"(@aztec-(?:labs|foundation)\/[^"]+)": "v?\d[^"]*"/g,
-      `"$1": "${version}"`,
+      DEP_REGEX,
+      (_, name, scope) =>
+        `"${name}": "${scope === "labs" ? version : foundationVersions.get(name)}"`,
     );
     if (updated !== original) {
       writeFileSync(path, updated, "utf-8");
@@ -153,6 +218,8 @@ function updatePackageJsonFiles(version) {
 function installDependencies() {
   log(COLORS.yellow, "[2/4] Running yarn install...");
   exec("yarn install");
+  // extension/ isn't one of the root workspaces, it has its own yarn.lock
+  exec("corepack yarn install", { cwd: resolve(ROOT, "extension") });
   log(COLORS.green, "✓ Dependencies installed\n");
 }
 
@@ -176,10 +243,17 @@ function setRollupVersionInFile(networkId, rollupVersion) {
 async function updateRollupVersions() {
   log(COLORS.yellow, "[3/4] Updating rollup versions for non-local networks...");
 
-  const networks = parseNetworks().filter((n) => n.chainId !== LOCAL_CHAIN_ID && n.nodeUrl);
+  const networks = parseNetworks().filter((n) => {
+    if (n.chainId === LOCAL_CHAIN_ID || !n.nodeUrl) return false;
+    if (n.version === 0) {
+      log(COLORS.green, `  - ${n.id}: version auto-detected at runtime, skipping`);
+      return false;
+    }
+    return true;
+  });
 
   if (networks.length === 0) {
-    log(COLORS.yellow, "  (no remote networks found — nothing to update)\n");
+    log(COLORS.yellow, "  (no remote networks with a pinned version — nothing to update)\n");
     return;
   }
 
@@ -240,7 +314,9 @@ function parseArgs() {
     } else if (a === "--help" || a === "-h") {
       console.log("Usage: node scripts/update.js [OPTIONS]");
       console.log("\nOptions:");
-      console.log("  --version VERSION    Nightly version (e.g., 6.0.0-nightly.20260829)");
+      console.log(
+        "  --version VERSION    Aztec version, nightly or rc (e.g., 6.0.0-nightly.20260829, 6.0.0-rc.3). Defaults to the latest nightly",
+      );
       console.log("  --skip-install       Skip running yarn install");
       console.log("  --skip-aztec-up      Skip Aztec CLI installation");
       console.log("  --help, -h           Show this help message");
@@ -252,7 +328,7 @@ function parseArgs() {
 }
 
 async function main() {
-  log(COLORS.green, "=== Demo Wallet Nightly Update Script ===\n");
+  log(COLORS.green, "=== Demo Wallet Aztec Update Script ===\n");
 
   let { version, skipInstall, skipAztecUp } = parseArgs();
 
@@ -263,7 +339,7 @@ async function main() {
     log(COLORS.green, `Updating to version: v${version}\n`);
   }
 
-  updatePackageJsonFiles(version);
+  updatePackageJsonFiles(version, resolveFoundationVersions(version));
 
   if (skipInstall) {
     log(COLORS.yellow, "[2/4] Skipping yarn install (--skip-install)\n");

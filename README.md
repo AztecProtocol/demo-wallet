@@ -17,16 +17,17 @@ The wallet uses **Native Messaging** for secure communication between the browse
 - **Native Host**: A small binary (`native-host`) that bridges extension ↔ Electron via stdio/socket
 - **Electron App**: Runs the wallet-worker process that handles account management and signing
 
-## Updating to Latest Nightly
+## Updating Aztec
 
 ```bash
-node scripts/update.js                                             # auto-detect latest
-node scripts/update.js --version 4.3.0-nightly.20260423            # specific version
+node scripts/update.js                                             # latest nightly
+node scripts/update.js --version 6.0.0-nightly.20261021            # specific nightly
+node scripts/update.js --version 6.0.0-rc.3                        # release candidate
 node scripts/update.js --skip-install                               # skip yarn install
 node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```
 
-Updates `@aztec-labs/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
+Updates `@aztec-labs/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`) to the given version. `@aztec-foundation/*` deps (`bb.js`, `noir-*`) are versioned independently (e.g. `@aztec-labs` `6.0.0-rc.3` ships with `@aztec-foundation` `6.0.0-rc.6`), so they're set to whatever the `@aztec-labs` packages at that version depend on. It then runs `yarn install` at the root and in `extension/` (a standalone yarn project), and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` that pins one, by calling `node_getNodeInfo` against its `nodeUrl` (with `VITE_<ID>_API_KEY` from the environment for gated networks). Networks with `version: 0` auto-detect it at runtime and are left alone.
 
 ## Development Setup
 

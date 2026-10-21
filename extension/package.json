@@ -15,7 +15,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@aztec-labs/wallet-sdk": "6.0.0-rc.1",
+    "@aztec-labs/wallet-sdk": "6.0.0-rc.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

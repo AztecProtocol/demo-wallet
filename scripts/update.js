@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Update demo-wallet to a given Aztec version (nightly or rc) across the whole monorepo.
+ * Update demo-wallet to a given Aztec version (nightly, rc or release) across the whole monorepo.
  *
  * Scope:
  *   - every workspace package.json (app/, shared/, web/, extension/)
@@ -69,11 +69,10 @@ function findWorkspacePackageJsons() {
 async function fetchLatestNightly() {
   log(COLORS.yellow, "Fetching latest nightly from npm...");
   try {
-    const output = exec("npm view @aztec-labs/aztec.js versions --json", { silent: true });
-    const versions = JSON.parse(output);
-    const nightlies = versions.filter((v) => v.match(/^6\.\d+\.\d+-nightly\.\d+$/));
-    const latest = nightlies[nightlies.length - 1];
-    if (!latest) throw new Error("No nightly versions found");
+    // Follow the `nightly` dist-tag rather than filtering versions, so a new major's nightlies
+    // are picked up without touching this script
+    const latest = exec("npm view @aztec-labs/aztec.js dist-tags.nightly", { silent: true }).trim();
+    if (!latest.match(/^\d+\.\d+\.\d+-nightly\.\d+$/)) throw new Error("No nightly versions found");
     return latest;
   } catch {
     log(COLORS.red, "Failed to fetch latest nightly version from npm");
@@ -315,7 +314,7 @@ function parseArgs() {
       console.log("Usage: node scripts/update.js [OPTIONS]");
       console.log("\nOptions:");
       console.log(
-        "  --version VERSION    Aztec version, nightly or rc (e.g., 6.0.0-nightly.20260829, 6.0.0-rc.3). Defaults to the latest nightly",
+        "  --version VERSION    Aztec version, nightly, rc or release (e.g., 6.1.0-nightly.20261025, 6.0.0). Defaults to the latest nightly",
       );
       console.log("  --skip-install       Skip running yarn install");
       console.log("  --skip-aztec-up      Skip Aztec CLI installation");

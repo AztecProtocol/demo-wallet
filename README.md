@@ -20,9 +20,9 @@ The wallet uses **Native Messaging** for secure communication between the browse
 ## Updating Aztec
 
 ```bash
-node scripts/update.js                                             # latest nightly
-node scripts/update.js --version 6.0.0-nightly.20261021            # specific nightly
-node scripts/update.js --version 6.0.0-rc.3                        # release candidate
+node scripts/update.js                                             # latest nightly (npm `nightly` tag)
+node scripts/update.js --version 6.1.0-nightly.20261025            # specific nightly
+node scripts/update.js --version 6.0.0                             # release or release candidate
 node scripts/update.js --skip-install                               # skip yarn install
 node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```

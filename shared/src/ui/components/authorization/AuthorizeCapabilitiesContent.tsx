@@ -13,9 +13,9 @@ import type {
   AuthorizationItem,
   RequestCapabilitiesParams,
 } from "../../../wallet/types/authorization";
-import type { Capability, ContractFunctionPattern } from "@aztec/aztec.js/wallet";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import type { Aliased } from "@aztec/aztec.js/wallet";
+import type { Capability, ContractFunctionPattern } from "@aztec-labs/aztec.js/wallet";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
 import { WalletContext } from "../../renderer";
 import type { InternalAccount } from "../../../wallet/core/internal-wallet";
 import {

@@ -1,6 +1,6 @@
-import { createLogger, type Logger } from "@aztec/aztec.js/log";
+import { createLogger, type Logger } from "@aztec-labs/aztec.js/log";
 import type { MessagePortMain } from "electron";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
 
 const logLevel = ["silent", "fatal", "error", "warn", "info", "verbose", "debug", "trace"] as const;
 type LogLevel = (typeof logLevel)[number];

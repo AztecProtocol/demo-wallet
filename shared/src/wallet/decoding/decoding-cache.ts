@@ -1,14 +1,14 @@
-import type { PXE } from "@aztec/pxe/client/lazy";
-import type { AztecNode } from "@aztec/aztec.js/node";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import type { Fr } from "@aztec/foundation/curves/bn254";
-import type { ContractArtifact } from "@aztec/stdlib/abi";
-import type { Aliased } from "@aztec/aztec.js/wallet";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
+import type { AztecNode } from "@aztec-labs/aztec.js/node";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import type { Fr } from "@aztec-labs/foundation/curves/bn254";
+import type { ContractArtifact } from "@aztec-labs/stdlib/abi";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
 import type { WalletDB } from "../database/wallet-db";
 import type {
   ContractInstancePreimage,
   ContractInstancePreimageWithAddress,
-} from "@aztec/stdlib/contract";
+} from "@aztec-labs/stdlib/contract";
 
 /**
  * Cache for contract metadata, artifacts, and address aliases to reduce expensive PXE queries.

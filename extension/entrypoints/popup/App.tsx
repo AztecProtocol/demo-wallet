@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { hashToEmoji } from "@aztec/wallet-sdk/crypto";
+import { hashToEmoji } from "@aztec-labs/wallet-sdk/crypto";
 import "./App.css";
 
 type Tab = "activity" | "settings";

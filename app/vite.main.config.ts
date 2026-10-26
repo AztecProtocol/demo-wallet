@@ -78,7 +78,7 @@ export default defineConfig({
       // Our pino logger gets confused by electron, and tries to use the
       // default nodejs transports in a web worker. This breaks everything since
       // this app runs with nodeIntegration: false,
-      // so for the time being I'm using the escape hatch of making @aztec/foundation pino
+      // so for the time being I'm using the escape hatch of making @aztec-labs/foundation pino
       // logger think we're in a jest test. Hehe.
       JEST_WORKER_ID: "1",
       LOG_LEVEL: "verbose",

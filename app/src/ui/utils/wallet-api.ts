@@ -1,9 +1,9 @@
-import { getSchemaReturnType, schemaHasMethod, type Fr } from "@aztec/foundation/schemas";
+import { getSchemaReturnType, schemaHasMethod, type Fr } from "@aztec-labs/foundation/schemas";
 import {
   type InternalWalletInterface,
   InternalWalletInterfaceSchema,
 } from "@demo-wallet/shared/core";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
 
 export class WalletApi {
   private constructor(chainId: Fr, version: Fr) {

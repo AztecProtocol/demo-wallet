@@ -6,18 +6,18 @@
  * IndexedDB store cause Map/storage desync) plus per-appId wallet pairs.
  *
  * Key differences from Electron wallet-worker.ts:
- * - Uses @aztec/pxe/client/lazy (WASM prover, lazy artifact loading)
- * - Uses @aztec/kv-store IndexedDB backend instead of LMDB
+ * - Uses @aztec-labs/pxe/client/lazy (WASM prover, lazy artifact loading)
+ * - Uses @aztec-labs/kv-store IndexedDB backend instead of LMDB
  * - Runs in the main browser thread (no worker thread / MessagePortMain)
  * - Logger uses createLogger directly (no proxy logger needed)
  */
 
-import { createAztecNodeClient, type AztecNode } from "@aztec/aztec.js/node";
-import { type ChainInfo } from "@aztec/aztec.js/account";
-import { Fr } from "@aztec/aztec.js/fields";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { createLogger } from "@aztec/aztec.js/log";
-import { type PromiseWithResolvers } from "@aztec/foundation/promise";
+import { type AztecNode } from "@aztec-labs/aztec.js/node";
+import { type ChainInfo } from "@aztec-labs/aztec.js/account";
+import { Fr } from "@aztec-labs/aztec.js/fields";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import { createLogger } from "@aztec-labs/aztec.js/log";
+import { type PromiseWithResolvers } from "@aztec-labs/foundation/promise";
 import {
   ExternalWallet,
   InternalWallet,
@@ -25,6 +25,7 @@ import {
   type AuthorizationRequest,
   type AuthorizationResponse,
   getNetworkByChainId,
+  createNodeClient,
 } from "@demo-wallet/shared/core";
 import {
   createPXE,
@@ -32,8 +33,8 @@ import {
   type PXE,
   type PXEConfig,
   type PXECreationOptions,
-} from "@aztec/pxe/client/lazy";
-import { AztecSQLiteOPFSStore } from "@aztec/kv-store/sqlite-opfs";
+} from "@aztec-labs/pxe/client/lazy";
+import { AztecSQLiteOPFSStore } from "@aztec-labs/kv-store/sqlite-opfs";
 import {
   writeAccountsCookie,
   readAccountsCookie,
@@ -114,7 +115,7 @@ export async function getOrCreateSession(
     );
   }
 
-  const node = createAztecNodeClient(network.nodeUrl!);
+  const node = createNodeClient(network);
 
   // Auto-detect version if 0
   if (chainInfo.version.equals(new Fr(0))) {

@@ -86,7 +86,7 @@ The wallet implements a **capability-based authorization model** where dApps req
 
 ### Capability Types
 
-Six capability types from `@aztec/aztec.js/wallet`:
+Six capability types from `@aztec-labs/aztec.js/wallet`:
 
 #### 1. Accounts Capability
 ```typescript
@@ -193,7 +193,7 @@ Authorization manager supports progressive wildcard matching:
 
 ### WalletDB (`wallet-db.ts`)
 
-Uses LMDB (via `@aztec/kv-store/lmdb-v2`) for persistent storage:
+Uses LMDB (via `@aztec-labs/kv-store/lmdb-v2`) for persistent storage:
 
 | Store | Purpose |
 |-------|---------|

@@ -8,7 +8,7 @@
 
 import { Box, Typography } from "@mui/material";
 import SecurityIcon from "@mui/icons-material/Security";
-import { hashToEmoji } from "@aztec/wallet-sdk/crypto";
+import { hashToEmoji } from "@aztec-labs/wallet-sdk/crypto";
 
 interface EmojiGridProps {
   emojis: string;

@@ -1,5 +1,5 @@
-import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
-import { schemaHasMethod } from "@aztec/foundation/schemas";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec-labs/foundation/promise";
+import { schemaHasMethod } from "@aztec-labs/foundation/schemas";
 import type { MessagePortMain } from "electron/main";
 import {
   type InternalWalletInterface,

@@ -1,8 +1,8 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import type { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
-import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
-import { decodeFromAbi } from "@aztec/stdlib/abi";
-import type { PXE } from "@aztec/pxe/client/lazy";
+import type { PrivateEvent, PrivateEventFilter } from "@aztec-labs/aztec.js/wallet";
+import type { EventMetadataDefinition } from "@aztec-labs/stdlib/abi";
+import { decodeFromAbi } from "@aztec-labs/stdlib/abi";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { InteractionManager } from "../managers/interaction-manager";
 import type { AuthorizationManager } from "../managers/authorization-manager";
@@ -98,7 +98,7 @@ export class GetPrivateEventsOperation<T = any> extends ExternalOperation<
     const packedEvents = await this.pxe.getPrivateEvents(eventMetadata.eventSelector, eventFilter);
     // Decode each packed event into the typed PrivateEvent<T> format
     const events: PrivateEvent<T>[] = packedEvents.map((packed: any) => ({
-      event: decodeFromAbi([eventMetadata.abiType], packed.packedEvent) as T,
+      event: decodeFromAbi(eventMetadata.abiType, packed.packedEvent) as T,
       metadata: {
         l2BlockNumber: packed.l2BlockNumber,
         l2BlockHash: packed.l2BlockHash,

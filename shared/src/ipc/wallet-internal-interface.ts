@@ -1,9 +1,9 @@
-import { Fr } from "@aztec/aztec.js/fields";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
-import { type Wallet, WalletSchema, type GrantedCapability } from "@aztec/aztec.js/wallet";
-import { optional, schemas } from "@aztec/stdlib/schemas";
+import { Fr } from "@aztec-labs/aztec.js/fields";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import { type Wallet, WalletSchema, type GrantedCapability } from "@aztec-labs/aztec.js/wallet";
+import { optional, schemas } from "@aztec-labs/stdlib/schemas";
 import { z } from "zod";
-import { type ApiSchemaFor } from "@aztec/stdlib/schemas";
+import { type ApiSchemaFor } from "@aztec-labs/stdlib/schemas";
 import { AccountTypes, type AccountType } from "../wallet/database/wallet-db";
 import type {
   ProofDebugExportRequest,

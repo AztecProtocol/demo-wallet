@@ -1,6 +1,6 @@
-import type { Capability } from "@aztec/aztec.js/wallet";
-import type { Aliased } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { Capability } from "@aztec-labs/aztec.js/wallet";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 
 // Extract specific capability types from the Capability union
 export type AccountsCapability = Extract<Capability, { type: "accounts" }>;

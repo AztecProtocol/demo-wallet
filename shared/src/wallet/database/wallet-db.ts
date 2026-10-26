@@ -1,6 +1,6 @@
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { Fr, Fq } from "@aztec/aztec.js/fields";
-import { type Aliased } from "@aztec/aztec.js/wallet";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import { Fr, Fq } from "@aztec-labs/aztec.js/fields";
+import { type Aliased } from "@aztec-labs/aztec.js/wallet";
 import {
   type GrantedCapability,
   type GrantedAccountsCapability,
@@ -8,12 +8,12 @@ import {
   type GrantedSimulationCapability,
   type GrantedTransactionCapability,
   type GrantedDataCapability,
-} from "@aztec/aztec.js/wallet";
-import { type Logger } from "@aztec/foundation/log";
-import { type AztecAsyncMap, type AztecAsyncKVStore } from "@aztec/kv-store";
+} from "@aztec-labs/aztec.js/wallet";
+import { type Logger } from "@aztec-labs/foundation/log";
+import { type AztecAsyncMap, type AztecAsyncKVStore } from "@aztec-labs/kv-store";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
-import { jsonStringify } from "@aztec/foundation/json-rpc";
-import { TxSimulationResult } from "@aztec/stdlib/tx";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
+import { TxSimulationResult } from "@aztec-labs/stdlib/tx";
 
 export const AccountTypes = [
   "schnorr",

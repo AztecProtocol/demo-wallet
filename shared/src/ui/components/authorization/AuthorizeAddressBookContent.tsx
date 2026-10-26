@@ -5,8 +5,8 @@ import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import { WalletContext } from "../../renderer";
-import type { Aliased } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { Aliased } from "@aztec-labs/aztec.js/wallet";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import type { AuthorizationItem } from "../../../wallet/types/authorization";
 
 type SelectedContact = {

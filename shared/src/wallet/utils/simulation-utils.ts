@@ -1,10 +1,10 @@
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { sha256 } from "@aztec/foundation/crypto/sha256";
-import { serializeToBuffer } from "@aztec/foundation/serialize";
-import { FunctionCall, FunctionType } from "@aztec/stdlib/abi";
-import { NO_FROM, type NoFrom } from "@aztec/aztec.js/account";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import { sha256 } from "@aztec-labs/foundation/crypto/sha256";
+import { serializeToBuffer } from "@aztec-labs/foundation/serialize";
+import { FunctionCall, FunctionType } from "@aztec-labs/stdlib/abi";
+import { NO_FROM, type NoFrom } from "@aztec-labs/aztec.js/account";
 import type { DecodingCache } from "../decoding/decoding-cache";
-import type { ExecutionPayload } from "@aztec/stdlib/tx";
+import type { ExecutionPayload } from "@aztec-labs/stdlib/tx";
 
 /**
  * Creates a deterministic hash of an execution payload for comparison.

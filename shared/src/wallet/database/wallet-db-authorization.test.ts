@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { openTmpStore } from "@aztec/kv-store/lmdb-v2";
-import { createLogger } from "@aztec/foundation/log";
-import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { Fr } from "@aztec/aztec.js/fields";
+import { openTmpStore } from "@aztec-labs/kv-store/lmdb-v2";
+import { createLogger } from "@aztec-labs/foundation/log";
+import { AztecAddress } from "@aztec-labs/aztec.js/addresses";
+import { Fr } from "@aztec-labs/aztec.js/fields";
 import { WalletDB } from "./wallet-db";
 
 const logger = createLogger("test:wallet-db");

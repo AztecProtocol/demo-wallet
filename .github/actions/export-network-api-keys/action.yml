@@ -1,0 +1,26 @@
+name: Export network API keys
+description: >
+  Exposes every `<ID>_API_KEY` repo secret to later steps as `VITE_<ID>_API_KEY`, the build-time
+  env var shared/src/config/networks.ts reads each network's node API key from (`<ID>` is the
+  network id in upper snake case, e.g. `TESTNET_API_KEY` for `testnet`). Adding a network behind an
+  API gateway only needs a secret with the matching name, no workflow changes. The keys end up in
+  the client bundles by design.
+
+inputs:
+  secrets:
+    description: The caller's secrets, as `toJSON(secrets)`.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SECRETS_JSON: ${{ inputs.secrets }}
+      run: |
+        echo "$SECRETS_JSON" | jq -r '
+          to_entries[]
+          | select(.key | test("^[A-Z0-9_]+_API_KEY$"))
+          | "VITE_\(.key)<<__API_KEY_EOF__\n\(.value)\n__API_KEY_EOF__"
+        ' >> "$GITHUB_ENV"
+        echo "$SECRETS_JSON" | jq -r 'keys[] | select(test("^[A-Z0-9_]+_API_KEY$")) | "Exported VITE_\(.)"'

@@ -1,4 +1,4 @@
-import { type Account, type ChainInfo } from "@aztec/aztec.js/account";
+import { type Account, type ChainInfo } from "@aztec-labs/aztec.js/account";
 import {
   type Aliased,
   type SimulateOptions,
@@ -8,36 +8,36 @@ import {
   type BatchResults,
   type PrivateEvent,
   type PrivateEventFilter,
-} from "@aztec/aztec.js/wallet";
-import { type IntentInnerHash, type CallIntent } from "@aztec/aztec.js/authorization";
-import type { EventMetadataDefinition } from "@aztec/stdlib/abi";
+} from "@aztec-labs/aztec.js/wallet";
+import { type IntentInnerHash, type CallIntent } from "@aztec-labs/aztec.js/authorization";
+import type { EventMetadataDefinition } from "@aztec-labs/stdlib/abi";
 
 import type {
   ContractClassMetadata,
   WalletCapabilities,
   AppCapabilities,
-} from "@aztec/aztec.js/wallet";
-import { type AztecNode } from "@aztec/aztec.js/node";
-import { type Logger } from "@aztec/aztec.js/log";
-import type { AuthWitness } from "@aztec/stdlib/auth-witness";
-import { FunctionCall, type ContractArtifact } from "@aztec/stdlib/abi";
+} from "@aztec-labs/aztec.js/wallet";
+import { type AztecNode } from "@aztec-labs/aztec.js/node";
+import { type Logger } from "@aztec-labs/aztec.js/log";
+import type { AuthWitness } from "@aztec-labs/stdlib/auth-witness";
+import { FunctionCall, type ContractArtifact } from "@aztec-labs/stdlib/abi";
 import type {
   ContractInstancePreimage,
   ContractInstancePreimageWithAddress,
-} from "@aztec/stdlib/contract";
-import { Fr } from "@aztec/foundation/curves/bn254";
-import { type MasterSecretKeys } from "@aztec/stdlib/keys";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+} from "@aztec-labs/stdlib/contract";
+import { Fr } from "@aztec-labs/foundation/curves/bn254";
+import { type MasterSecretKeys } from "@aztec-labs/stdlib/keys";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import {
   type UtilityExecutionResult,
   ExecutionPayload,
   TxHash,
   type TxReceipt,
-} from "@aztec/stdlib/tx";
-import { TxSimulationResultWithAppOffset } from "@aztec/aztec.js/wallet";
-import type { PXE } from "@aztec/pxe/client/lazy";
+} from "@aztec-labs/stdlib/tx";
+import { TxSimulationResultWithAppOffset } from "@aztec-labs/aztec.js/wallet";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
 import { WalletDB } from "../database/wallet-db";
-import { type PromiseWithResolvers } from "@aztec/foundation/promise";
+import { type PromiseWithResolvers } from "@aztec-labs/foundation/promise";
 import {
   type AuthorizationRequest,
   type AuthorizationResponse,
@@ -57,7 +57,7 @@ import { GetPrivateEventsOperation } from "../operations/get-private-events-oper
 import { GetContractMetadataOperation } from "../operations/get-contract-metadata-operation";
 import { GetContractClassMetadataOperation } from "../operations/get-contract-class-metadata-operation";
 import { RequestCapabilitiesOperation } from "../operations/request-capabilities-operation";
-import type { InteractionWaitOptions, SendReturn } from "@aztec/aztec.js/contracts";
+import type { InteractionWaitOptions, SendReturn } from "@aztec-labs/aztec.js/contracts";
 
 export class ExternalWallet extends DemoWallet {
   constructor(

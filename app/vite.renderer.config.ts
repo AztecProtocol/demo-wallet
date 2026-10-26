@@ -5,10 +5,10 @@ import react from "@vitejs/plugin-react-swc";
 import { PolyfillOptions, nodePolyfills } from "vite-plugin-node-polyfills";
 
 // The Aztec SDK version the wallet is built against, read from this workspace's pinned
-// @aztec/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
+// @aztec-labs/aztec.js dependency and exposed to the UI via the `__AZTEC_SDK_VERSION__` define.
 const aztecSdkVersion = (
   JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf-8")).dependencies?.[
-    "@aztec/aztec.js"
+    "@aztec-labs/aztec.js"
   ] ?? "unknown"
 ).replace(/^[\^~]/, "");
 

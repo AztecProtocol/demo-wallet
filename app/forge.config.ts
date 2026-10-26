@@ -21,7 +21,7 @@ type CustomWalker = CopyClass<Walker> & {
   walkDependenciesForModule: (moduleRoot: string, depType: DepType) => Promise<void>;
 };
 
-const externalDependencies = ["@aztec/kv-store", "@aztec/bb.js"];
+const externalDependencies = ["@aztec-labs/kv-store", "@aztec-foundation/bb.js"];
 
 // Map to swap dependency names: key = dependency name to copy, value = source package name
 const dependencyMap: Record<string, string> = {

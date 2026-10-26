@@ -1,4 +1,4 @@
-import type { AbiDecoded } from "@aztec/stdlib/abi";
+import type { AbiDecoded } from "@aztec-labs/stdlib/abi";
 
 export function formatAbiValue(value: AbiDecoded): string {
   if (value === null || value === undefined) {

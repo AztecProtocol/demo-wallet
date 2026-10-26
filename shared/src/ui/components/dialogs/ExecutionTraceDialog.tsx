@@ -8,7 +8,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import Alert from "@mui/material/Alert";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
 import { ExecutionTraceDisplay } from "../shared/ExecutionTraceDisplay";
 import type { DecodedExecutionTrace } from "../../../wallet/decoding/tx-callstack-decoder";
 import type { ExecutionStats } from "../shared/PhaseTimeline";

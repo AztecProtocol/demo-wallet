@@ -5,7 +5,7 @@ import type {
   AuthorizationItemResponse,
 } from "../types/authorization";
 import { AuthorizationRequestEvent } from "../types/authorization";
-import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec/foundation/promise";
+import { promiseWithResolvers, type PromiseWithResolvers } from "@aztec-labs/foundation/promise";
 import type { WalletDB } from "../database/wallet-db";
 
 /**

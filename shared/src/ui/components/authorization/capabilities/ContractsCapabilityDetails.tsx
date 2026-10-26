@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import type { ContractsCapability } from "./types";
 
 interface ContractsCapabilityDetailsProps {

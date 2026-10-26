@@ -1,6 +1,6 @@
-import { jsonStringify } from "@aztec/foundation/json-rpc";
-import { type Aliased, type AppCapabilities } from "@aztec/aztec.js/wallet";
-import { type AztecAddress } from "@aztec/aztec.js/addresses";
+import { jsonStringify } from "@aztec-labs/foundation/json-rpc";
+import { type Aliased, type AppCapabilities } from "@aztec-labs/aztec.js/wallet";
+import { type AztecAddress } from "@aztec-labs/aztec.js/addresses";
 
 // Base authorization item - represents a single authorization request
 export type AuthorizationItem<TParams = any> = {

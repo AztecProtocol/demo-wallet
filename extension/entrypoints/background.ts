@@ -1,5 +1,5 @@
-import { BackgroundConnectionHandler } from "@aztec/wallet-sdk/extension/handlers";
-import { WalletMessageType, type WalletResponse } from "@aztec/wallet-sdk/types";
+import { BackgroundConnectionHandler } from "@aztec-labs/wallet-sdk/extension/handlers";
+import { WalletMessageType, type WalletResponse } from "@aztec-labs/wallet-sdk/types";
 import { ChunkReassembler } from "../utils/chunk_reassembler";
 
 // Wallet configuration

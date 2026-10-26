@@ -17,16 +17,17 @@ The wallet uses **Native Messaging** for secure communication between the browse
 - **Native Host**: A small binary (`native-host`) that bridges extension ↔ Electron via stdio/socket
 - **Electron App**: Runs the wallet-worker process that handles account management and signing
 
-## Updating to Latest Nightly
+## Updating Aztec
 
 ```bash
-node scripts/update.js                                             # auto-detect latest
-node scripts/update.js --version 4.3.0-nightly.20260423            # specific version
+node scripts/update.js                                             # latest nightly
+node scripts/update.js --version 6.0.0-nightly.20261021            # specific nightly
+node scripts/update.js --version 6.0.0-rc.3                        # release candidate
 node scripts/update.js --skip-install                               # skip yarn install
 node scripts/update.js --skip-aztec-up                              # skip Aztec CLI install
 ```
 
-Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`), runs `yarn install`, and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` by calling `node_getNodeInfo` against each network's configured `nodeUrl`.
+Updates `@aztec-labs/*` deps across every workspace (`app/`, `shared/`, `web/`, `extension/`) to the given version. `@aztec-foundation/*` deps (`bb.js`, `noir-*`) are versioned independently (e.g. `@aztec-labs` `6.0.0-rc.3` ships with `@aztec-foundation` `6.0.0-rc.6`), so they're set to whatever the `@aztec-labs` packages at that version depend on. It then runs `yarn install` at the root and in `extension/` (a standalone yarn project), and refreshes the rollup version for every non-local network in `shared/src/config/networks.ts` that pins one, by calling `node_getNodeInfo` against its `nodeUrl` (with `VITE_<ID>_API_KEY` from the environment for gated networks). Networks with `version: 0` auto-detect it at runtime and are left alone.
 
 ## Development Setup
 
@@ -35,6 +36,18 @@ Updates `@aztec/*` deps across every workspace (`app/`, `shared/`, `web/`, `exte
 - Node.js v22
 - yarn
 - A running Aztec local node (or access to a remote node)
+
+### Network API keys
+
+Networks behind an API gateway (e.g. `testnet`, `https://testnet-v6.rpc2.aztec-labs.com`, Sepolia L1) need a key, sent as the `x-api-key` header on every node request. Each network's key is baked in at build time from `VITE_<ID>_API_KEY`, where `<ID>` is the network id from `shared/src/config/networks.ts` in upper snake case (`testnet` → `VITE_TESTNET_API_KEY`). Networks without a key are called unauthenticated.
+
+Locally, export it before starting/building, or put it in a gitignored `.env.local` next to the Vite config you're running (`app/` or `web/`):
+
+```bash
+echo 'VITE_TESTNET_API_KEY=<your key>' > app/.env.local
+```
+
+In CI, add a repo secret named `<ID>_API_KEY` (e.g. `TESTNET_API_KEY`). The web deploys and the Electron release build export every `*_API_KEY` secret as `VITE_*_API_KEY` before building (`.github/actions/export-network-api-keys`), so a new network only needs its secret, no workflow changes. The keys end up in the client bundles.
 
 ### Running in Development Mode
 
@@ -220,11 +233,11 @@ Replace:
 The system-wide native messaging dir is **browser-specific**. Install the manifest in the
 dir for the browser WXT actually launches:
 
-| Browser       | System-wide dir                              |
-| ------------- | -------------------------------------------- |
-| Google Chrome | `/etc/opt/chrome/native-messaging-hosts/`    |
-| Chromium      | `/etc/chromium/native-messaging-hosts/`      |
-| Brave         | `/etc/brave/native-messaging-hosts/`         |
+| Browser       | System-wide dir                           |
+| ------------- | ----------------------------------------- |
+| Google Chrome | `/etc/opt/chrome/native-messaging-hosts/` |
+| Chromium      | `/etc/chromium/native-messaging-hosts/`   |
+| Brave         | `/etc/brave/native-messaging-hosts/`      |
 
 > On Arch-based distros (e.g. CachyOS) the default browser is usually **Chromium**, which
 > uses `/etc/chromium/native-messaging-hosts/` — not Chrome's `/etc/opt/chrome/...`.

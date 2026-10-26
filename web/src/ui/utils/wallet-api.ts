@@ -6,7 +6,7 @@
  * since the wallet runs in the same browser context.
  */
 
-import { type Fr } from "@aztec/foundation/schemas";
+import { type Fr } from "@aztec-labs/foundation/schemas";
 import type { InternalWalletInterface, AuthorizationResponse } from "@demo-wallet/shared/core";
 import { getOrCreateSession } from "../../wallet/wallet-service.ts";
 

@@ -38,13 +38,13 @@ import {
   getNetworkByChainId,
   type AuthorizationRequest,
 } from "@demo-wallet/shared/core";
-import type { ChainInfo } from "@aztec/aztec.js/account";
-import type { Wallet } from "@aztec/aztec.js/wallet";
+import type { ChainInfo } from "@aztec-labs/aztec.js/account";
+import type { Wallet } from "@aztec-labs/aztec.js/wallet";
 import { WalletApi, emitWalletUpdate } from "./utils/wallet-api.ts";
 import {
   IframeConnectionHandler,
   type IframeConnectionConfig,
-} from "@aztec/wallet-sdk/iframe/handlers";
+} from "@aztec-labs/wallet-sdk/iframe/handlers";
 import {
   getOrCreateSession,
   setCookiePassphrase,
@@ -53,8 +53,8 @@ import {
 import { hasAccountsCookie, readAccountsCookie } from "../wallet/sync-cookies.ts";
 import { EmojiVerification } from "./components/EmojiVerification.tsx";
 import { PinDialog } from "./components/PinDialog.tsx";
-import { Fr } from "@aztec/aztec.js/fields";
-import { createLogger } from "@aztec/foundation/log";
+import { Fr } from "@aztec-labs/aztec.js/fields";
+import { createLogger } from "@aztec-labs/foundation/log";
 
 const themeOptions: ThemeOptions = {
   breakpoints: {

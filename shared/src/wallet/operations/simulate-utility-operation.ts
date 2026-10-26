@@ -1,7 +1,7 @@
 import { ExternalOperation, type PrepareResult, type PersistenceConfig } from "./base-operation";
-import type { UtilityExecutionResult, SimulationStats } from "@aztec/stdlib/tx";
-import type { PXE } from "@aztec/pxe/client/lazy";
-import type { ExecuteUtilityOptions } from "@aztec/aztec.js/wallet";
+import type { UtilityExecutionResult, SimulationStats } from "@aztec-labs/stdlib/tx";
+import type { PXE } from "@aztec-labs/pxe/client/lazy";
+import type { ExecuteUtilityOptions } from "@aztec-labs/aztec.js/wallet";
 import { WalletInteraction, type WalletInteractionType } from "../types/wallet-interaction";
 import type { WalletDB } from "../database/wallet-db";
 import type { InteractionManager } from "../managers/interaction-manager";
@@ -9,7 +9,7 @@ import type { AuthorizationManager } from "../managers/authorization-manager";
 import type { DecodingCache } from "../decoding/decoding-cache";
 import { TxCallStackDecoder } from "../decoding/tx-callstack-decoder";
 import { hashUtilityCall } from "../utils/simulation-utils";
-import type { FunctionCall } from "@aztec/aztec.js/abi";
+import type { FunctionCall } from "@aztec-labs/aztec.js/abi";
 
 // Utility execution trace with decoded arguments and formatted result
 interface UtilityExecutionTrace {

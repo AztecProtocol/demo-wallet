@@ -1,5 +1,5 @@
-import { Fq, Fr } from "@aztec/aztec.js/fields";
-import type { AztecAddress } from "@aztec/aztec.js/addresses";
+import { Fq, Fr } from "@aztec-labs/aztec.js/fields";
+import type { AztecAddress } from "@aztec-labs/aztec.js/addresses";
 import { useContext, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -12,7 +12,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
-import { randomBytes } from "@aztec/foundation/crypto/random";
+import { randomBytes } from "@aztec-labs/foundation/crypto/random";
 import Link from "@mui/material/Link";
 import { AccountBox } from "./components/AccountBox.tsx";
 import { DraggableFab } from "../../shared/DraggableFab.tsx";

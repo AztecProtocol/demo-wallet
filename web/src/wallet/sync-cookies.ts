@@ -33,7 +33,7 @@ import {
   decryptWithPassphrase,
   uint8ToBase64,
   base64ToUint8,
-} from "@aztec/wallet-sdk/crypto";
+} from "@aztec-labs/wallet-sdk/crypto";
 
 export interface PortableAccount {
   /** AztecAddress hex string */

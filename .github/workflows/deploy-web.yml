@@ -1,6 +1,7 @@
 name: Deploy Web Wallet
 
-# Two Vercel projects, one per long-lived branch, so v5 (main) and v6 (next) run side by side:
+# Two Vercel projects, one per long-lived branch, so the latest Aztec release (main) and the
+# Aztec nightlies (next) run side by side:
 #   - `demo-wallet`      → production = main, previews = PRs against main (VERCEL_PROJECT_ID)
 #   - `demo-wallet-next` → production = next, previews = PRs against next (VERCEL_PROJECT_ID_NEXT)
 # The project follows the PR's base branch, or the pushed/dispatched branch otherwise.
